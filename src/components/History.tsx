@@ -5,55 +5,49 @@ import {
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { getHistoryByDate, getWeeklyStats, HistorySession, DailySummary } from "../lib/db";
+import { getHistoryByDate, getWeeklyStats, DailySummary } from "../lib/db";
+import {
+  formatDuration,
+  formatTime,
+  formatDateLabel,
+  buildChartData,
+  buildAppSummary,
+  mergeSessionsForTimeline,
+  TimelineSession
+} from "../lib/services/history";
 import { ProcessMapper } from "../lib/ProcessMapper";
-
-const formatDuration = (ms: number) => {
-  const totalMinutes = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (totalMinutes > 0) return `${minutes}m`;
-  return `<1m`;
-};
-
-const formatTime = (ts: number) =>
-  new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-
-const formatDateLabel = (date: Date) => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (date.toDateString() === today.toDateString()) return "今天";
-  if (date.toDateString() === yesterday.toDateString()) return "昨天";
-  return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
-};
 
 interface Props {
   icons: Record<string, string>;
+  refreshKey?: number;
 }
 
-export default function History({ icons }: Props) {
+export default function History({ icons, refreshKey = 0 }: Props) {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [sessions, setSessions] = useState<HistorySession[]>([]);
+  
+  // States
+  const [timelineSessions, setTimelineSessions] = useState<TimelineSession[]>([]);
+  const [appSummary, setAppSummary] = useState<ReturnType<typeof buildAppSummary>>([]);
   const [weekly, setWeekly] = useState<DailySummary[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, w] = await Promise.all([
+      const [rawSessions, rawWeekly] = await Promise.all([
         getHistoryByDate(selectedDate),
         getWeeklyStats(),
       ]);
-      setSessions(s);
-      setWeekly(w);
+      
+      setTimelineSessions(mergeSessionsForTimeline(rawSessions || []));
+      setAppSummary(buildAppSummary(rawSessions || []));
+      setWeekly(rawWeekly || []);
     } finally {
       setLoading(false);
     }
   }, [selectedDate]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData, refreshKey]);
 
   const changeDate = (delta: number) => {
     const d = new Date(selectedDate);
@@ -62,36 +56,21 @@ export default function History({ icons }: Props) {
   };
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
-
-  // Group sessions by app for the summary bar
-  const appSummary = sessions.reduce<Record<string, number>>((acc, s) => {
-    acc[s.exe_name] = (acc[s.exe_name] ?? 0) + (s.duration ?? 0);
-    return acc;
-  }, {});
-  const sortedApps = Object.entries(appSummary).sort((a, b) => b[1] - a[1]);
-  const totalDay = sortedApps.reduce((acc, [, d]) => acc + d, 0);
-
-  // Chart data: map "YYYY-MM-DD" → ms, fill gaps with 0
-  const chartData = weekly.map((d) => ({
-    day: d.date.slice(5), // "MM-DD"
-    minutes: Math.round(d.total_duration / 60000),
-  }));
+  const chartData = buildChartData(weekly);
 
   return (
     <motion.div
-      key="history"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       className="flex flex-col gap-5 h-full overflow-hidden"
     >
-      {/* 顶部：日期导航 */}
       <header className="glass-card p-5 flex items-center justify-between bg-white/40">
         <div>
-          <h1 className="text-2xl font-bold gradient-text">History</h1>
+          <h1 className="text-2xl font-bold gradient-text">历史概览</h1>
           <p className="text-slate-500 text-sm flex items-center gap-1.5 mt-0.5">
             <Calendar size={13} />
-            {formatDateLabel(selectedDate)} · {sessions.length} sessions
+            {formatDateLabel(selectedDate)} · {timelineSessions.length} sessions
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -117,9 +96,8 @@ export default function History({ icons }: Props) {
       </header>
 
       <div className="flex gap-5 min-h-0 flex-1">
-        {/* 左侧：周趋势 + 日汇总 */}
+        {/* Left Column: Summary and Trends */}
         <div className="w-5/12 flex flex-col gap-5">
-          {/* 7日折线图 */}
           <div className="glass-card p-5 bg-white/30">
             <h3 className="font-bold text-slate-800 text-sm mb-4">近 7 天</h3>
             <ResponsiveContainer width="100%" height={120}>
@@ -142,29 +120,27 @@ export default function History({ icons }: Props) {
             </ResponsiveContainer>
           </div>
 
-          {/* 当日 App 占比 */}
           <div className="glass-card p-5 bg-white/30 flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="font-bold text-slate-800 text-sm mb-4">当日分布</h3>
-            {sortedApps.length === 0 ? (
+            <h3 className="font-bold text-slate-800 text-sm mb-4">详情追踪</h3>
+            {appSummary.length === 0 ? (
               <p className="text-slate-400 text-xs text-center mt-8">暂无数据</p>
             ) : (
               <div className="space-y-3">
-                {sortedApps.slice(0, 8).map(([exe, dur]) => {
-                  const mapped = ProcessMapper.map(exe);
-                  const pct = totalDay > 0 ? (dur / totalDay) * 100 : 0;
+                {appSummary.slice(0, 15).map((app) => {
+                  const mapped = ProcessMapper.map(app.exeName);
                   return (
-                    <div key={exe}>
+                    <div key={app.exeName}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                          {icons[exe] && <img src={icons[exe]} className="w-3.5 h-3.5 object-contain" alt="" />}
+                          {icons[app.exeName] && <img src={icons[app.exeName]} className="w-3.5 h-3.5 object-contain" alt="" />}
                           {mapped.name}
                         </span>
-                        <span className="text-slate-400">{formatDuration(dur)}</span>
+                        <span className="text-slate-400">{formatDuration(app.duration)}</span>
                       </div>
                       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
+                          animate={{ width: `${app.percentage}%` }}
                           transition={{ duration: 0.5, ease: "easeOut" }}
                           className="h-full rounded-full"
                           style={{ backgroundColor: mapped.color }}
@@ -178,17 +154,17 @@ export default function History({ icons }: Props) {
           </div>
         </div>
 
-        {/* 右侧：时间轴 */}
+        {/* Right Column: Timeline Stream */}
         <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden">
-          <h3 className="font-bold text-slate-800 text-sm mb-4">时间轴</h3>
+          <h3 className="font-bold text-slate-800 text-sm mb-4">智能时间流</h3>
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">加载中...</div>
-          ) : sessions.length === 0 ? (
+          ) : timelineSessions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">当天暂无记录</div>
           ) : (
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
-                {sessions.map((s, i) => {
+                {timelineSessions.map((s, i) => {
                   const mapped = ProcessMapper.map(s.exe_name);
                   return (
                     <motion.div
@@ -198,34 +174,37 @@ export default function History({ icons }: Props) {
                       transition={{ delay: i * 0.02 }}
                       className="flex items-center gap-3 p-3 bg-white/50 rounded-xl hover:bg-white/80 transition-all group"
                     >
-                      {/* 时间条 */}
                       <div
                         className="w-1 self-stretch rounded-full flex-shrink-0"
                         style={{ backgroundColor: mapped.color }}
                       />
-                      {/* icon */}
-                      <div
-                        className="w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden"
-                      >
+                      <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden p-1.5">
                         {icons[s.exe_name] ? (
-                          <img src={icons[s.exe_name]} className="w-5 h-5 object-contain" alt="" />
+                          <img src={icons[s.exe_name]} className="w-full h-full object-contain" alt="" />
                         ) : (
                           <div className="text-[10px] font-bold opacity-30">{mapped.category[0].toUpperCase()}</div>
                         )}
                       </div>
-                      {/* 内容 */}
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-800 text-xs truncate">{mapped.name}</div>
-                        {s.window_title && (
-                          <div className="text-[10px] text-slate-400 truncate">{s.window_title}</div>
+                        <div className="font-semibold text-slate-800 text-xs truncate flex items-center gap-2">
+                          {s.displayName}
+                          {s.mergedCount > 1 && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">
+                              {s.mergedCount} 次活动
+                            </span>
+                          )}
+                        </div>
+                        {s.displayTitle && (
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {s.displayTitle}
+                          </div>
                         )}
                       </div>
-                      {/* 时间 */}
                       <div className="text-right flex-shrink-0">
-                        <div className="text-xs font-bold text-indigo-600">{formatDuration(s.duration ?? 0)}</div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-xs font-bold text-indigo-600">{formatDuration(s.duration || 0)}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
                           {formatTime(s.start_time)}
-                          {s.end_time ? ` → ${formatTime(s.end_time)}` : " → now"}
+                          {s.end_time ? ` → ${formatTime(s.end_time)}` : " 至今"}
                         </div>
                       </div>
                     </motion.div>
