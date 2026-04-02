@@ -5,6 +5,10 @@ export interface AppInfo {
   color: string;
 }
 
+const NON_TRACKABLE_EXE_NAMES = new Set([
+  "time_tracker.exe",
+]);
+
 const MAPPINGS: Record<string, AppInfo> = {
   // Browsers
   "chrome.exe":           { name: "Google Chrome",    category: "work",          color: "#4285F4" },
@@ -17,6 +21,7 @@ const MAPPINGS: Record<string, AppInfo> = {
 
   // Code editors & IDEs
   "code.exe":             { name: "Codex",             category: "work",          color: "#007ACC" },
+  "codex.exe":            { name: "Codex",             category: "work",          color: "#007ACC" },
   "cursor.exe":           { name: "Cursor",            category: "work",          color: "#000000" },
   "antigravity.exe":      { name: "Antigravity",       category: "work",          color: "#6366F1" },
   "idea64.exe":           { name: "IntelliJ IDEA",     category: "work",          color: "#FE315D" },
@@ -117,6 +122,15 @@ export class ProcessMapper {
       category: "other",
       color: "#9E9E9E",
     };
+  }
+
+  static shouldTrack(exeName: string): boolean {
+    const lowerName = exeName.toLowerCase();
+    if (NON_TRACKABLE_EXE_NAMES.has(lowerName)) {
+      return false;
+    }
+
+    return this.map(lowerName).category !== "system";
   }
 
   static getCategoryColor(category: AppInfo["category"]): string {

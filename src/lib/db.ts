@@ -1,5 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
+import { ProcessMapper } from './ProcessMapper';
 
 let dbInstance: Database | null = null;
 
@@ -39,21 +40,22 @@ export const startSession = async (info: { app_name: string; exe_name: string; w
     'INSERT INTO sessions (app_name, exe_name, window_title, start_time) VALUES (?, ?, ?, ?)',
     [info.app_name, info.exe_name, info.window_title, start_time]
   );
-  // ensure icon is extracted and cached
-  loadIconCache(info.exe_name, info.process_path); // kick off async
+  loadIconCache(info.exe_name, info.process_path);
 };
 
-export const endActiveSession = async (minSessionSecs: number = 0) => {
+export const endActiveSession = async (minSessionSecs: number = 0, endTimeOverride?: number) => {
   const db = await getDB();
-  const end_time = Date.now();
-  
-  // Update the open session
+  const activeSession = await loadActiveSession();
+  if (!activeSession) return;
+
+  const rawEndTime = endTimeOverride ?? Date.now();
+  const end_time = Math.max(activeSession.start_time, rawEndTime);
+
   await db.execute(
-    'UPDATE sessions SET end_time = ?, duration = ? - start_time WHERE end_time IS NULL',
-    [end_time, end_time]
+    'UPDATE sessions SET end_time = ?, duration = ? - start_time WHERE id = ?',
+    [end_time, end_time, activeSession.id]
   );
 
-  // Delete sessions that ended up being too short
   if (minSessionSecs > 0) {
     await db.execute(
       'DELETE FROM sessions WHERE duration < ? AND duration IS NOT NULL',
@@ -62,10 +64,9 @@ export const endActiveSession = async (minSessionSecs: number = 0) => {
   }
 };
 
-// Caches the icon into the database
 export const loadIconCache = async (exeName: string, processPath: string) => {
   const db = await getDB();
-  const results = await db.select<{exe_name: string}[]>('SELECT exe_name FROM icon_cache WHERE exe_name = $1', [exeName]);
+  const results = await db.select<{ exe_name: string }[]>('SELECT exe_name FROM icon_cache WHERE exe_name = $1', [exeName]);
   if (results.length === 0) {
     const base64Icon = await invoke<string | null>('get_icon', { exePath: processPath });
     if (base64Icon) {
@@ -78,7 +79,7 @@ export const loadIconCache = async (exeName: string, processPath: string) => {
 
 export const getIconMap = async (): Promise<Record<string, string>> => {
   const db = await getDB();
-  const results = await db.select<{exe_name: string, icon_base64: string}[]>('SELECT exe_name, icon_base64 FROM icon_cache');
+  const results = await db.select<{ exe_name: string; icon_base64: string }[]>('SELECT exe_name, icon_base64 FROM icon_cache');
   const map: Record<string, string> = {};
   for (const r of results) {
     map[r.exe_name] = r.icon_base64;
@@ -87,22 +88,23 @@ export const getIconMap = async (): Promise<Record<string, string>> => {
 };
 
 export const getDailyStats = async () => {
-    try {
-        const db = await getDB();
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        const ts = startOfToday.getTime();
+  try {
+    const db = await getDB();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const ts = startOfToday.getTime();
 
-        // 使用 unixepoch 替代外部传入现在时间，避免数据抖动
-        return await db.select<any[]>(
-            "SELECT app_name, exe_name, SUM(COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time)) as total_duration FROM sessions WHERE start_time >= ? GROUP BY exe_name ORDER BY total_duration DESC",
-            [ts]
-        );
-    } catch (e) {
-        console.error("Query stats failed:", e);
-        throw e;
-    }
-}
+    const rows = await db.select<any[]>(
+      "SELECT app_name, exe_name, SUM(COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time)) as total_duration FROM sessions WHERE start_time >= ? GROUP BY exe_name ORDER BY total_duration DESC",
+      [ts]
+    );
+
+    return rows.filter((row) => ProcessMapper.shouldTrack(row.exe_name));
+  } catch (e) {
+    console.error("Query stats failed:", e);
+    throw e;
+  }
+};
 
 export interface HistorySession {
   id: number;
@@ -114,31 +116,43 @@ export interface HistorySession {
   duration: number | null;
 }
 
-/** 获取指定日期的所有 session 列表（降序） */
 export const getHistoryByDate = async (date: Date): Promise<HistorySession[]> => {
   const db = await getDB();
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
   const end = new Date(date);
   end.setHours(23, 59, 59, 999);
-  return await db.select<HistorySession[]>(
+  const rows = await db.select<HistorySession[]>(
     "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time) as duration FROM sessions WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC",
     [start.getTime(), end.getTime()]
   );
+
+  return rows.filter((row) => ProcessMapper.shouldTrack(row.exe_name));
 };
 
 export interface DailySummary {
-  date: string;       // "YYYY-MM-DD"
+  date: string;
   total_duration: number;
 }
 
-/** 最近 7 天的每日时长汇总（用于折线图） */
 export const getWeeklyStats = async (): Promise<DailySummary[]> => {
   const db = await getDB();
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  return await db.select<DailySummary[]>(
-    "SELECT strftime('%Y-%m-%d', datetime(start_time / 1000, 'unixepoch', 'localtime')) as date, SUM(COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time)) as total_duration FROM sessions WHERE start_time >= ? AND lower(exe_name) != 'time_tracker.exe' GROUP BY date ORDER BY date ASC",
+  const rows = await db.select<Array<{ exe_name: string; start_time: number; duration: number }>>(
+    "SELECT exe_name, start_time, COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time) as duration FROM sessions WHERE start_time >= ? ORDER BY start_time ASC",
     [sevenDaysAgo]
   );
-};
 
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    if (!ProcessMapper.shouldTrack(row.exe_name)) continue;
+
+    const date = new Date(row.start_time);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    totals.set(key, (totals.get(key) ?? 0) + row.duration);
+  }
+
+  return Array.from(totals.entries())
+    .map(([date, total_duration]) => ({ date, total_duration }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+};

@@ -1,9 +1,9 @@
 import { getDB } from './db';
 
 export interface AppSettings {
-  afk_timeout_secs: number;      // default 300
-  refresh_interval_secs: number; // default 10
-  min_session_secs: number;      // default 5 — shorter sessions are discarded
+  afk_timeout_secs: number;
+  refresh_interval_secs: number;
+  min_session_secs: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -41,9 +41,7 @@ export const saveSetting = async (key: keyof AppSettings, value: number): Promis
   );
 };
 
-export const clearTodayData = async (): Promise<void> => {
+export const clearSessionsBefore = async (cutoffTime: number): Promise<void> => {
   const db = await getDB();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  await db.execute('DELETE FROM sessions WHERE start_time >= ?', [startOfToday.getTime()]);
+  await db.execute('DELETE FROM sessions WHERE start_time < ?', [cutoffTime]);
 };

@@ -20,9 +20,10 @@ import { ProcessMapper } from "../lib/ProcessMapper";
 interface Props {
   icons: Record<string, string>;
   refreshKey?: number;
+  mergeThresholdSecs: number;
 }
 
-export default function History({ icons, refreshKey = 0 }: Props) {
+export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: Props) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   
   // States
@@ -39,13 +40,13 @@ export default function History({ icons, refreshKey = 0 }: Props) {
         getWeeklyStats(),
       ]);
       
-      setTimelineSessions(mergeSessionsForTimeline(rawSessions || []));
+      setTimelineSessions(mergeSessionsForTimeline(rawSessions || [], mergeThresholdSecs));
       setAppSummary(buildAppSummary(rawSessions || []));
       setWeekly(rawWeekly || []);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, mergeThresholdSecs]);
 
   useEffect(() => { loadData(); }, [loadData, refreshKey]);
 

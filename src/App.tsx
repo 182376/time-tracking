@@ -15,7 +15,7 @@ export default function App() {
   const { activeWindow, appSettings, setAppSettings, syncTick } = useWindowTracking();
   const { stats, icons, todaySessions } = useStats(appSettings.refresh_interval_secs, syncTick);
 
-  const activeApp = activeWindow?.exe_name
+  const activeApp = activeWindow?.exe_name && !activeWindow.is_afk && ProcessMapper.shouldTrack(activeWindow.exe_name)
     ? ProcessMapper.map(activeWindow.exe_name)
     : null;
 
@@ -40,6 +40,7 @@ export default function App() {
               key="history"
               icons={icons}
               refreshKey={syncTick}
+              mergeThresholdSecs={appSettings.afk_timeout_secs}
             />
           )}
           {currentView === "settings" && (
