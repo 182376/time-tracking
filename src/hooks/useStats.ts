@@ -6,21 +6,24 @@ import { buildNormalizedAppStats } from "../lib/services/history";
 export interface UseStatsResult {
   stats: AppStat[];
   icons: Record<string, string>;
+  todaySessions: any[];
   refreshNow: () => Promise<void>;
 }
 
 export function useStats(refreshIntervalSecs: number, refreshKey: number): UseStatsResult {
   const [stats, setStats] = useState<AppStat[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
+  const [todaySessions, setTodaySessions] = useState<any[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [todaySessions, iconsData] = await Promise.all([
+      const [sessions, iconsData] = await Promise.all([
         getHistoryByDate(new Date()),
         getIconMap(),
       ]);
-      setStats(buildNormalizedAppStats(todaySessions || []));
+      setStats(buildNormalizedAppStats(sessions || []));
       setIcons(iconsData || {});
+      setTodaySessions(sessions || []);
     } catch (err) {
       console.error("Failed to load stats:", err);
     }
@@ -46,6 +49,7 @@ export function useStats(refreshIntervalSecs: number, refreshKey: number): UseSt
   return {
     stats,
     icons,
+    todaySessions,
     refreshNow: fetchData,
   };
 }

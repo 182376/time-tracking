@@ -13,7 +13,7 @@ import "./App.css";
 export default function App() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const { activeWindow, appSettings, setAppSettings, syncTick } = useWindowTracking();
-  const { stats, icons } = useStats(appSettings.refresh_interval_secs, syncTick);
+  const { stats, icons, todaySessions } = useStats(appSettings.refresh_interval_secs, syncTick);
 
   const activeApp = activeWindow?.exe_name
     ? ProcessMapper.map(activeWindow.exe_name)
@@ -29,6 +29,7 @@ export default function App() {
             <Dashboard
               key="dashboard"
               stats={stats}
+              todaySessions={todaySessions}
               icons={icons}
               isAfk={activeWindow?.is_afk ?? false}
               activeAppName={activeApp?.name ?? null}

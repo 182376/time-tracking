@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Trash2, Clock, RotateCcw, ShieldAlert, Save } from "lucide-react";
+import { Trash2, Clock, RotateCcw, ShieldAlert, Save, RefreshCw, Smartphone, Zap } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { AppSettings, loadSettings, saveSetting, clearTodayData } from "../lib/settings";
 
@@ -30,7 +30,7 @@ export default function Settings({ onSettingsChanged }: Props) {
     
     // sync to backend for AFK timeout
     if (key === "afk_timeout_secs") {
-      await invoke("cmd_set_afk_timeout", { timeoutSecs: value });
+      await invoke("cmd_set_afk_timeout", { timeoutSecs: value }).catch(console.warn);
     }
     
     onSettingsChanged(newSettings);
@@ -39,15 +39,19 @@ export default function Settings({ onSettingsChanged }: Props) {
   };
 
   const handleClearData = async () => {
-    if (confirm("Are you sure you want to completely erase all data collected today? This cannot be undone.")) {
+    if (window.confirm("确定要永久清空今日的所有记录吗？此操作无法撤销。")) {
       await clearTodayData();
-      alert("Today's data has been cleared.");
       window.location.reload();
     }
   };
 
   if (loading || !settings) {
-    return <div className="p-6 text-slate-400">Loading settings...</div>;
+    return (
+      <div className="flex-1 flex items-center justify-center text-slate-400 gap-3 animate-pulse">
+        <RefreshCw className="animate-spin" size={20} />
+        <span className="text-sm font-medium">正在获取配置...</span>
+      </div>
+    );
   }
 
   return (
@@ -56,121 +60,137 @@ export default function Settings({ onSettingsChanged }: Props) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="flex flex-col gap-6 h-full max-w-4xl"
+      className="flex flex-col gap-6 h-full max-w-5xl"
     >
       <header className="glass-card p-6 flex justify-between items-center bg-white/40">
-        <div>
-          <h1 className="text-2xl font-bold gradient-text">Settings</h1>
-          <p className="text-slate-500 text-sm mt-1">Configure tracking behavior and app preferences</p>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 shadow-inner">
+            <Zap size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">系统设置</h1>
+            <p className="text-slate-500 text-xs mt-0.5">定制您的追踪偏好与数据行为</p>
+          </div>
         </div>
-        <div className="flex bg-white/60 px-4 py-2 rounded-2xl items-center text-sm font-semibold">
-          {saveStatus === "saving" && <span className="text-indigo-500 animate-pulse">Saving...</span>}
-          {saveStatus === "saved" && <span className="text-emerald-500 flex items-center gap-1.5"><Save size={14}/> Saved</span>}
-          {saveStatus === "idle" && <span className="text-slate-400">Auto-saved</span>}
+        <div className="flex bg-white/60 px-4 py-2 rounded-2xl items-center text-xs font-bold shadow-sm border border-white/40">
+          {saveStatus === "saving" && <span className="text-indigo-500 animate-pulse flex items-center gap-2"><RefreshCw size={12} className="animate-spin"/> 正在保存...</span>}
+          {saveStatus === "saved" && <span className="text-emerald-500 flex items-center gap-1.5"><Save size={14}/> 配置已更新</span>}
+          {saveStatus === "idle" && <span className="text-slate-400">所有更改将自动同步</span>}
         </div>
       </header>
 
-      <div className="glass-card p-8 bg-white/30 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-8">
-        
-        {/* Tracking Settings */}
-        <section>
-          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <Clock size={18} className="text-indigo-500" />
-            Tracking Rules
-          </h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-white/50 rounded-2xl border border-white/60">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+        <div className="grid grid-cols-2 gap-6">
+          
+          {/* Tracking Settings */}
+          <section className="glass-card p-6 bg-white/30 flex flex-col gap-5">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+              <Clock size={16} className="text-indigo-500" />
+              <h2 className="text-sm font-bold text-slate-800">追踪策略</h2>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">自动挂机判定 (AFK)</label>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 leading-relaxed max-w-[180px]">
+                  当键盘或鼠标无操作超过此时间，系统将自动暂停计时。
+                </p>
+                <select 
+                  value={settings.afk_timeout_secs}
+                  onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
+                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                >
+                  <option value={60}>1 分钟</option>
+                  <option value={180}>3 分钟</option>
+                  <option value={300}>5 分钟</option>
+                  <option value={600}>10 分钟</option>
+                  <option value={1800}>30 分钟</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">最少记录时长</label>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 leading-relaxed max-w-[180px]">
+                  忽略所有时长低于此值的零碎会话，保持数据整洁。
+                </p>
+                <select 
+                  value={settings.min_session_secs}
+                  onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
+                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                >
+                  <option value={0}>记录全部</option>
+                  <option value={5}>5 秒</option>
+                  <option value={15}>15 秒</option>
+                  <option value={30}>30 秒</option>
+                  <option value={60}>1 分钟</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Performance Settings */}
+          <section className="glass-card p-6 bg-white/30 flex flex-col gap-5">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+              <Smartphone size={16} className="text-emerald-500" />
+              <h2 className="text-sm font-bold text-slate-800">性能与同步</h2>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">UI 刷新频率</label>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 leading-relaxed max-w-[180px]">
+                  前端界面从后台拉取最新数据的间隔时间。
+                </p>
+                <select 
+                  value={settings.refresh_interval_secs}
+                  onChange={(e) => handleChange("refresh_interval_secs", Number(e.target.value))}
+                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                >
+                  <option value={1}>实时 (1s)</option>
+                  <option value={3}>平衡 (3s)</option>
+                  <option value={5}>省电 (5s)</option>
+                  <option value={10}>低频 (10s)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 mt-2">
+              <div className="flex gap-2.5 items-start">
+                <ShieldAlert size={14} className="text-amber-600 mt-0.5" />
+                <p className="text-[10px] leading-relaxed text-amber-800/70 font-medium">
+                  较短的刷新频率会增加一定的 CPU 开销。如果您发现界面有些许掉帧，建议设置为 5s 以上。
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Data Management */}
+          <section className="col-span-2 glass-card p-6 bg-white/30">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 mb-5">
+              <Trash2 size={16} className="text-rose-500" />
+              <h2 className="text-sm font-bold text-slate-800">数据管理</h2>
+            </div>
+            
+            <div className="flex items-center justify-between">
               <div>
-                <div className="font-semibold text-slate-700">AFK Timeout (Idle Detection)</div>
-                <div className="text-xs text-slate-500 mt-1 max-w-sm">
-                  Stop tracking active session if mouse/keyboard has been idle for this long.
-                </div>
+                <p className="text-sm font-bold text-slate-700">重置今日数据</p>
+                <p className="text-[11px] text-slate-500 mt-1">此操作将清空当前设备上今天产生的所有计时记录。</p>
               </div>
-              <select 
-                value={settings.afk_timeout_secs}
-                onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
-                className="bg-white px-4 py-2 rounded-xl text-sm font-semibold border-none shadow-sm focus:ring-2 focus:ring-indigo-100 outline-none cursor-pointer"
+              <motion.button
+                whileHover={{ scale: 1.02, backgroundColor: "rgba(244, 63, 94, 0.1)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleClearData}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-100 text-rose-600 font-bold text-xs transition-colors"
               >
-                <option value={60}>1 Minute</option>
-                <option value={180}>3 Minutes</option>
-                <option value={300}>5 Minutes</option>
-                <option value={600}>10 Minutes</option>
-                <option value={1800}>30 Minutes</option>
-              </select>
+                <RotateCcw size={14} />
+                立即清空记录
+              </motion.button>
             </div>
+          </section>
 
-            <div className="flex items-center justify-between p-4 bg-white/50 rounded-2xl border border-white/60">
-              <div>
-                <div className="font-semibold text-slate-700">Minimum Session Length</div>
-                <div className="text-xs text-slate-500 mt-1 max-w-sm">
-                  Discard sessions shorter than this to prevent UI noise when Alt+Tabbing.
-                </div>
-              </div>
-              <select 
-                value={settings.min_session_secs}
-                onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
-                className="bg-white px-4 py-2 rounded-xl text-sm font-semibold border-none shadow-sm focus:ring-2 focus:ring-indigo-100 outline-none cursor-pointer"
-              >
-                <option value={0}>0 Seconds (Log everything)</option>
-                <option value={3}>3 Seconds</option>
-                <option value={5}>5 Seconds</option>
-                <option value={10}>10 Seconds</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* UI Settings */}
-        <section>
-          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <RotateCcw size={18} className="text-indigo-500" />
-            Interface Settings
-          </h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-white/50 rounded-2xl border border-white/60">
-              <div>
-                <div className="font-semibold text-slate-700">Dashboard Refresh Rate</div>
-                <div className="text-xs text-slate-500 mt-1 max-w-sm">
-                  How often the UI polls the database for stats updates. Lower is smoother but uses more CPU.
-                </div>
-              </div>
-              <select 
-                value={settings.refresh_interval_secs}
-                onChange={(e) => handleChange("refresh_interval_secs", Number(e.target.value))}
-                className="bg-white px-4 py-2 rounded-xl text-sm font-semibold border-none shadow-sm focus:ring-2 focus:ring-indigo-100 outline-none cursor-pointer"
-              >
-                <option value={2}>2 Seconds</option>
-                <option value={5}>5 Seconds</option>
-                <option value={10}>10 Seconds</option>
-                <option value={30}>30 Seconds</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* Danger Zone */}
-        <section className="mt-4">
-          <h2 className="text-lg font-bold text-rose-500 mb-4 flex items-center gap-2">
-            <ShieldAlert size={18} />
-            Danger Zone
-          </h2>
-          <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100 flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-rose-900">Clear Today's Data</div>
-              <div className="text-xs text-rose-700/70 mt-1">
-                Wipe all sessions recorded since midnight today.
-              </div>
-            </div>
-            <button 
-              onClick={handleClearData}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-lg shadow-rose-200 transition-colors"
-            >
-              <Trash2 size={16} />
-              Clear Data
-            </button>
-          </div>
-        </section>
-
+        </div>
       </div>
     </motion.div>
   );

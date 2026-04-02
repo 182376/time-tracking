@@ -1,7 +1,19 @@
 import { AppStat } from "../../types/app";
+import { HistorySession } from "../db";
 import { ProcessMapper } from "../ProcessMapper";
 
 export interface FocusShareItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface HourlyActivityPoint {
+  hour: string;
+  minutes: number;
+}
+
+export interface CategoryDistItem {
   name: string;
   value: number;
   color: string;
@@ -56,4 +68,58 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
       categoryInitial: mapped.category[0].toUpperCase(),
     };
   });
+}
+
+/** 24-hour activity distribution */
+export function buildHourlyActivity(sessions: HistorySession[]): HourlyActivityPoint[] {
+  const hoursCount = new Array(24).fill(0);
+  
+  for (const session of sessions) {
+    const start = new Date(session.start_time);
+    const end = session.end_time ? new Date(session.end_time) : new Date();
+    
+    let hourPtr = start.getHours();
+    let currentPtr = start.getTime();
+    
+    while (currentPtr < end.getTime()) {
+      const nextHour = new Date(currentPtr);
+      nextHour.setHours(hourPtr + 1, 0, 0, 0);
+      
+      const segmentEnd = Math.min(end.getTime(), nextHour.getTime());
+      const durationMs = segmentEnd - currentPtr;
+      
+      hoursCount[hourPtr] += durationMs / 60000;
+      
+      currentPtr = segmentEnd;
+      hourPtr = (hourPtr + 1) % 24;
+    }
+  }
+  
+  return hoursCount.map((minutes, h) => ({
+    hour: `${h.toString().padStart(2, "0")}:00`,
+    minutes: Math.round(minutes),
+  }));
+}
+
+export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] {
+  const categories = new Map<string, number>();
+  
+  for (const stat of stats) {
+    const mapped = ProcessMapper.map(stat.exe_name);
+    categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + stat.total_duration);
+  }
+  
+  const labels: Record<string, { label: string; color: string }> = {
+    work:          { label: "工作学习", color: "#6366F1" },
+    social:        { label: "社交沟通", color: "#10B981" },
+    entertainment: { label: "娱乐放松", color: "#EC4899" },
+    system:        { label: "系统工具", color: "#F59E0B" },
+    other:         { label: "其他应用", color: "#94A3B8" },
+  };
+  
+  return Array.from(categories.entries()).map(([cat, val]) => ({
+    name: labels[cat]?.label ?? cat,
+    value: val,
+    color: labels[cat]?.color ?? "#CCC",
+  })).sort((a,b) => b.value - a.value);
 }
