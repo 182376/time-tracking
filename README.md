@@ -1,10 +1,10 @@
-# Time Tracker (v1.0) ⚡
+# Time Tracker (Alpha) ⚡
 
 A high-performance, native desktop time tracking application built with **Rust**, **Tauri v2**, **React**, and **TypeScript**. 
 
 It automatically detects your active windows, tracks the time spent on each application, and visualizes your daily productivity through a stunning, glassmorphism-inspired UI.
 
-## ✨ Features (v1.0)
+## ✨ Features (MVP Stage)
 
 - **Native App Tracking**: Uses Rust and Windows API for seamless, lightweight background tracking of active windows.
 - **Fast Icon Extraction**: Native GDI-based executable icon extraction, instantly cached and displayed in a beautifully rendered dashboard.
