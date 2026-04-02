@@ -16,9 +16,9 @@ const MAPPINGS: Record<string, AppInfo> = {
   "arc.exe":              { name: "Arc",               category: "work",          color: "#5B5EA6" },
 
   // Code editors & IDEs
-  "code.exe":             { name: "VS Code",           category: "work",          color: "#007ACC" },
+  "code.exe":             { name: "Codex",             category: "work",          color: "#007ACC" },
   "cursor.exe":           { name: "Cursor",            category: "work",          color: "#000000" },
-  "antigravity.exe":      { name: "Antigravity IDE",   category: "work",          color: "#6366F1" },
+  "antigravity.exe":      { name: "Antigravity",       category: "work",          color: "#6366F1" },
   "idea64.exe":           { name: "IntelliJ IDEA",     category: "work",          color: "#FE315D" },
   "pycharm64.exe":        { name: "PyCharm",           category: "work",          color: "#21D789" },
   "webstorm64.exe":       { name: "WebStorm",          category: "work",          color: "#07C3F2" },

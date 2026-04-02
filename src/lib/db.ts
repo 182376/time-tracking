@@ -137,7 +137,7 @@ export const getWeeklyStats = async (): Promise<DailySummary[]> => {
   const db = await getDB();
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   return await db.select<DailySummary[]>(
-    "SELECT strftime('%Y-%m-%d', datetime(start_time / 1000, 'unixepoch', 'localtime')) as date, SUM(COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time)) as total_duration FROM sessions WHERE start_time >= ? GROUP BY date ORDER BY date ASC",
+    "SELECT strftime('%Y-%m-%d', datetime(start_time / 1000, 'unixepoch', 'localtime')) as date, SUM(COALESCE(duration, CAST(unixepoch('now') * 1000 AS INTEGER) - start_time)) as total_duration FROM sessions WHERE start_time >= ? AND lower(exe_name) != 'time_tracker.exe' GROUP BY date ORDER BY date ASC",
     [sevenDaysAgo]
   );
 };

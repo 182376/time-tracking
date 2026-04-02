@@ -62,14 +62,16 @@ export function buildChartData(weekly: DailySummary[]): HistoryChartPoint[] {
  * if they are identical adjacent sessions within 5s gap.
  */
 export function normalizeVisibleSessions(sessions: HistorySession[]): TimelineSession[] {
-  const normalized = sessions.map((session) => ({
+  const normalized = sessions
+    .filter(s => s.exe_name.toLowerCase() !== "time_tracker.exe")
+    .map((session) => ({
     ...session,
     duration: session.duration ?? 0,
     end_time: session.end_time ?? session.start_time + (session.duration ?? 0),
     window_title: cleanWindowTitle(session.window_title, session.exe_name),
     mergedCount: 1,
-    displayName: "",
-    displayTitle: ""
+    displayName: ProcessMapper.map(session.exe_name).name,
+    displayTitle: "",
   })).sort((a, b) => a.start_time - b.start_time);
 
   return normalized.reduce<TimelineSession[]>((acc, session) => {
@@ -80,7 +82,8 @@ export function normalizeVisibleSessions(sessions: HistorySession[]): TimelineSe
     }
 
     const previousEnd = previous.end_time || previous.start_time;
-    const sameApp = previous.exe_name === session.exe_name;
+    // Check if they map to the exact same App Name (even if exe is distinct, e.g. code.exe vs Code.exe)
+    const sameApp = previous.displayName === session.displayName;
     const gap = session.start_time - previousEnd;
 
     // Direct merge if same app and less than 5 second gap (flickers)
@@ -104,20 +107,30 @@ export function normalizeVisibleSessions(sessions: HistorySession[]): TimelineSe
 
 export function buildNormalizedAppStats(sessions: HistorySession[]): AppStat[] {
   const normalized = normalizeVisibleSessions(sessions);
-  const totals = new Map<string, number>();
+  const totals = new Map<string, { exe_name: string; total_duration: number }>();
 
   for (const s of normalized) {
     const dur = s.duration || 0;
-    totals.set(s.exe_name, (totals.get(s.exe_name) ?? 0) + dur);
+    const appName = s.displayName;
+
+    const existing = totals.get(appName);
+    if (existing) {
+      existing.total_duration += dur;
+    } else {
+      totals.set(appName, {
+        exe_name: s.exe_name, // fallback for fetching icon
+        total_duration: dur
+      });
+    }
   }
 
   return Array.from(totals.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([exe_name, total_duration]) => ({
-      app_name: ProcessMapper.map(exe_name).name,
-      exe_name,
-      total_duration,
-    }));
+    .map(([app_name, info]) => ({
+      app_name,
+      exe_name: info.exe_name,
+      total_duration: info.total_duration,
+    }))
+    .sort((a, b) => b.total_duration - a.total_duration);
 }
 
 export function buildAppSummary(sessions: HistorySession[]): HistoryAppSummaryItem[] {
@@ -131,18 +144,65 @@ export function buildAppSummary(sessions: HistorySession[]): HistoryAppSummaryIt
   }));
 }
 
+const MACRO_INTERRUPTION_MS = 60_000; // 60 seconds of max interruption
+const AFK_GAP_MS = 5 * 60 * 1000; // 5 minutes of physical AFK gap truncates macro merges
+
 export function mergeSessionsForTimeline(sessions: HistorySession[]): TimelineSession[] {
   const normalized = normalizeVisibleSessions(sessions);
+  if (normalized.length === 0) return [];
+  
+  const result: TimelineSession[] = [];
+  let i = 0;
+  
+  while (i < normalized.length) {
+    const current = { ...normalized[i] };
+    let j = i + 1;
+    
+    // Look ahead to find the next occurrence of `current`
+    while (j < normalized.length) {
+      const nextCandidate = normalized[j];
+      const prevSession = normalized[j - 1];
+      
+      // If there's a physical gap indicative of AFK (> 5 mins), break macro logic
+      const gapToNext = nextCandidate.start_time - prevSession.end_time!;
+      if (gapToNext > AFK_GAP_MS) {
+        break; 
+      }
+      
+      if (nextCandidate.displayName === current.displayName) {
+        const interruptionDuration = nextCandidate.start_time - current.end_time!;
+        
+        if (interruptionDuration <= MACRO_INTERRUPTION_MS) {
+          // Absorb!
+          current.end_time = Math.max(current.end_time!, nextCandidate.end_time!);
+          current.duration = current.end_time - current.start_time;
+          current.mergedCount += nextCandidate.mergedCount;
+          
+          i = j;
+          j++;
+          continue;
+        } else {
+          break; // The disruption is too long to bridge
+        }
+      } else {
+        const interruptionSoFar = nextCandidate.end_time! - current.end_time!;
+        if (interruptionSoFar > MACRO_INTERRUPTION_MS) {
+          break; // The sequence of unlike apps has lasted too long, bridging is impossible
+        }
+      }
+      j++;
+    }
+    
+    result.push(current);
+    i++;
+  }
 
-  // Filter out tiny artifacts unless they are part of a larger context, 
-  // currently we'll enforce 30 seconds minimum for timeline view stability
-  return normalized
+  // Final cleanup: Remove untidy < 30s artifacts that weren't absorbed into a macro session
+  return result
     .filter(s => (s.duration || 0) >= 30_000)
     .map(s => {
-      const mapped = ProcessMapper.map(s.exe_name);
       return {
         ...s,
-        displayName: mapped.name,
         displayTitle: s.window_title,
       };
     });

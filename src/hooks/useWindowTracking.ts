@@ -26,7 +26,7 @@ export function useWindowTracking() {
       if (last && !last.is_afk) {
         await endActiveSession(appSettings.min_session_secs);
       }
-      if (!win.is_afk) {
+      if (!win.is_afk && win.exe_name.toLowerCase() !== "time_tracker.exe") {
         const mappedApp = ProcessMapper.map(win.exe_name);
         await startSession({
           app_name: mappedApp.name,

@@ -63,7 +63,7 @@ export default function History({ icons, refreshKey = 0 }: Props) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="flex flex-col gap-5 h-full overflow-hidden"
+      className="flex-1 min-h-0 flex flex-col gap-5 h-full overflow-hidden"
     >
       <header className="glass-card p-5 flex items-center justify-between bg-white/40">
         <div>
@@ -97,7 +97,7 @@ export default function History({ icons, refreshKey = 0 }: Props) {
 
       <div className="flex gap-5 min-h-0 flex-1">
         {/* Left Column: Summary and Trends */}
-        <div className="w-5/12 flex flex-col gap-5">
+        <div className="w-5/12 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-5 bg-white/30">
             <h3 className="font-bold text-slate-800 text-sm mb-4">近 7 天</h3>
             <ResponsiveContainer width="100%" height={120}>
@@ -155,7 +155,7 @@ export default function History({ icons, refreshKey = 0 }: Props) {
         </div>
 
         {/* Right Column: Timeline Stream */}
-        <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden">
+        <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden min-h-0">
           <h3 className="font-bold text-slate-800 text-sm mb-4">智能时间流</h3>
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">加载中...</div>
