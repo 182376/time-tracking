@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Agent and System Files
+.agents/
+skills-lock.json
+src-tauri/err.txt
+.vscode/
