@@ -1,39 +1,72 @@
 @import "tailwindcss";
 
 @theme {
-  --color-glass-bg: rgba(255, 255, 255, 0.4);
-  --color-glass-border: rgba(255, 255, 255, 0.5);
-  --color-glass-shadow: rgba(0, 0, 0, 0.05);
+  --font-sans: "Inter", "Geist", system-ui, -apple-system, sans-serif;
+  --color-brand-primary: #6366f1;
+  --color-brand-secondary: #06b6d4;
 }
 
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  color: #111827;
-  /* 柔和的亮色明亮渐变背景 */
-  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-  min-height: 100vh;
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
+  /* 动态流态背景：优雅的浅蓝色到浅紫色渐变 */
+  background: radial-gradient(at 0% 0%, hsla(210, 100%, 98%, 1) 0, transparent 50%),
+              radial-gradient(at 50% 0%, hsla(225, 100%, 96%, 1) 0, transparent 50%),
+              radial-gradient(at 100% 0%, hsla(240, 100%, 98%, 1) 0, transparent 50%);
+  background-attachment: fixed;
+  overflow: hidden;
 }
 
-#root {
-  width: 100%;
-  height: 100vh;
-  margin: 0 auto;
+/* 高级毛玻璃效果工具类 */
+.glass-effect {
+  @apply backdrop-blur-xl bg-white/70 border border-white/40 shadow-xl shadow-slate-200/50;
+  border-radius: 2rem;
 }
 
-/* 毛玻璃通用类 */
-.glass-panel {
-  background: var(--color-glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-glass-border);
-  box-shadow: 0 4px 30px var(--color-glass-shadow);
-  border-radius: 1rem;
+.glass-card {
+  @apply backdrop-blur-lg bg-white/50 border border-white/20 shadow-sm transition-all duration-300;
+  border-radius: 1.5rem;
+}
+
+.glass-card:hover {
+  @apply bg-white/80 shadow-md translate-y-[-2px] border-white/60;
+}
+
+/* 隐藏滚动条但保留功能 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* 导航按钮活动状态 */
+.nav-active {
+  @apply bg-white shadow-md text-indigo-600 scale-105;
+}
+
+/* 渐变标题 */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-br from-slate-900 to-slate-500;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.025em;
 }

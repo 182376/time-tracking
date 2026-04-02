@@ -8,6 +8,27 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "sql:default"
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:window:default",
+    "core:app:default",
+    {
+      "identifier": "sql:allow-load",
+      "args": {
+        "db": "sqlite:timetracker.db"
+      }
+    },
+    {
+      "identifier": "sql:allow-select",
+      "args": {
+        "db": "sqlite:timetracker.db"
+      }
+    },
+    {
+      "identifier": "sql:allow-execute",
+      "args": {
+        "db": "sqlite:timetracker.db"
+      }
+    }
   ]
 }

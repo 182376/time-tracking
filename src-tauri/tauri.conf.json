@@ -5,16 +5,21 @@
   "identifier": "com.timetracker.app",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "temp_tauri",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Time Tracker",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
       }
     ],
     "security": {
