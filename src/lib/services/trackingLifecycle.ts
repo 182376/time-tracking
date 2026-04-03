@@ -27,6 +27,12 @@ export interface SessionFinalizationPlan {
   idsToDelete: number[];
 }
 
+export interface PowerTransitionDecision {
+  shouldEndActiveSession: boolean;
+  endTimeOverride?: number;
+  shouldResetWindowState: boolean;
+}
+
 export function isTrackableWindow(
   win: TrackedWindow | null,
   shouldTrack: (exeName: string) => boolean,
@@ -62,6 +68,21 @@ export function planWindowTransition(args: {
       shouldEndPrevious && !nextTrackable && nextWindow.is_afk
         ? nowMs - nextWindow.idle_time_ms
         : undefined,
+  };
+}
+
+export function planPowerTransition(args: {
+  state: "startup" | "shutdown" | "lock" | "unlock" | "suspend" | "resume";
+  timestampMs: number;
+}): PowerTransitionDecision {
+  const { state, timestampMs } = args;
+  const isHardBoundary =
+    state === "lock" || state === "suspend" || state === "shutdown";
+
+  return {
+    shouldEndActiveSession: isHardBoundary,
+    endTimeOverride: isHardBoundary ? timestampMs : undefined,
+    shouldResetWindowState: isHardBoundary,
   };
 }
 
