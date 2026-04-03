@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/trackingLifecycle.test.ts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

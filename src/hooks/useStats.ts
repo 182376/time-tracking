@@ -1,19 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
 import { AppStat } from "../types/app";
-import { getHistoryByDate, getIconMap } from "../lib/db";
+import { getHistoryByDate, getIconMap, type HistorySession } from "../lib/db";
 import { buildNormalizedAppStats } from "../lib/services/history";
 
 export interface UseStatsResult {
   stats: AppStat[];
   icons: Record<string, string>;
-  todaySessions: any[];
+  todaySessions: HistorySession[];
   refreshNow: () => Promise<void>;
 }
 
 export function useStats(refreshIntervalSecs: number, refreshKey: number): UseStatsResult {
   const [stats, setStats] = useState<AppStat[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
-  const [todaySessions, setTodaySessions] = useState<any[]>([]);
+  const [todaySessions, setTodaySessions] = useState<HistorySession[]>([]);
 
   const fetchData = useCallback(async () => {
     try {

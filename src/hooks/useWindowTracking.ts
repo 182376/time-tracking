@@ -4,43 +4,40 @@ import { listen } from "@tauri-apps/api/event";
 import { ProcessMapper } from "../lib/ProcessMapper";
 import { AppSettings, DEFAULT_SETTINGS, loadSettings } from "../lib/settings";
 import { endActiveSession, loadActiveSession, startSession } from "../lib/db";
+import { planWindowTransition, TrackedWindow } from "../lib/services/trackingLifecycle";
 
-export interface WindowInfo {
-  title: string;
-  exe_name: string;
-  process_path: string;
-  is_afk: boolean;
-}
+export interface WindowInfo extends TrackedWindow {}
 
 export function useWindowTracking() {
   const [activeWindow, setActiveWindow] = useState<WindowInfo | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
   const lastWindowRef = useRef<WindowInfo | null>(null);
+  const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
+  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const isTrackableWindow = (win: WindowInfo | null) => {
-    if (!win?.exe_name || !win.process_path) return false;
-    if (win.is_afk) return false;
-    return ProcessMapper.shouldTrack(win.exe_name);
-  };
+  useEffect(() => {
+    settingsRef.current = appSettings;
+  }, [appSettings]);
 
-  const syncCurrentWindow = async (win: WindowInfo) => {
-    const last = lastWindowRef.current;
-    const lastTrackable = isTrackableWindow(last);
-    const nextTrackable = isTrackableWindow(win);
-    const identityChanged = last?.exe_name !== win.exe_name || last?.title !== win.title;
-    const trackingStateChanged = lastTrackable !== nextTrackable;
-    const afkCutoffTime = Date.now() - appSettings.afk_timeout_secs * 1000;
+  const applyWindowSync = async (win: WindowInfo) => {
+    const settings = settingsRef.current;
+    const decision = planWindowTransition({
+      previousWindow: lastWindowRef.current,
+      nextWindow: win,
+      settings,
+      nowMs: Date.now(),
+      shouldTrack: (exeName) => ProcessMapper.shouldTrack(exeName),
+    });
 
-    if (lastTrackable && (identityChanged || trackingStateChanged)) {
-      const shouldBackdateForAfk = !nextTrackable && win.is_afk;
+    if (decision.shouldEndPrevious) {
       await endActiveSession(
-        appSettings.min_session_secs,
-        shouldBackdateForAfk ? afkCutoffTime : undefined
+        settings.min_session_secs,
+        decision.endTimeOverride
       );
     }
 
-    if (nextTrackable && (identityChanged || trackingStateChanged)) {
+    if (decision.shouldStartNext) {
       const mappedApp = ProcessMapper.map(win.exe_name);
       await startSession({
         app_name: mappedApp.name,
@@ -50,7 +47,7 @@ export function useWindowTracking() {
       });
     }
 
-    if (identityChanged || trackingStateChanged) {
+    if (decision.didChange) {
       setSyncTick((t) => t + 1);
     }
 
@@ -58,46 +55,72 @@ export function useWindowTracking() {
     setActiveWindow(win);
   };
 
+  const syncCurrentWindow = (win: WindowInfo) => {
+    syncQueueRef.current = syncQueueRef.current
+      .catch(() => undefined)
+      .then(() => applyWindowSync(win))
+      .catch((error) => {
+        console.error("Window sync error", error);
+      });
+
+    return syncQueueRef.current;
+  };
+
   useEffect(() => {
-    let unlistener: () => void;
+    let cancelled = false;
+    let unlistener: (() => void) | null = null;
 
     const init = async () => {
       try {
         const _settings = await loadSettings();
+        if (cancelled) return;
         setAppSettings(_settings);
+        settingsRef.current = _settings;
         await invoke("cmd_set_afk_timeout", { timeoutSecs: _settings.afk_timeout_secs }).catch(console.warn);
+        if (cancelled) return;
 
         const existingSession = await loadActiveSession().catch(() => null);
+        if (cancelled) return;
         if (existingSession) {
           await endActiveSession(_settings.min_session_secs);
+          if (cancelled) return;
         }
 
         const currentWin = await invoke<WindowInfo>("get_current_active_window").catch(() => null);
-        if (currentWin) {
+        if (!cancelled && currentWin) {
           await syncCurrentWindow(currentWin);
         }
       } catch (err) {
+        if (cancelled) return;
         console.error("Tracking init error", err);
       }
 
-      const unlistenPromise = listen<WindowInfo>("active-window-changed", async (event) => {
+      if (cancelled) return;
+
+      unlistener = await listen<WindowInfo>("active-window-changed", async (event) => {
+        if (cancelled) return;
         await syncCurrentWindow(event.payload);
       });
-      unlistener = () => { unlistenPromise.then((u) => u()); };
+
+      if (cancelled && unlistener) {
+        unlistener();
+        unlistener = null;
+      }
     };
 
     void init();
 
     const handleBeforeUnload = () => {
-      endActiveSession(appSettings.min_session_secs);
+      endActiveSession(settingsRef.current.min_session_secs);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("beforeunload", handleBeforeUnload);
       if (unlistener) unlistener();
     };
-  }, [appSettings.min_session_secs]);
+  }, []);
 
   return {
     activeWindow,

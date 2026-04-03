@@ -1,7 +1,7 @@
-import { AppStat } from "../../types/app";
-import { DailySummary, HistorySession } from "../db";
-import { ProcessMapper } from "../ProcessMapper";
-import { cleanWindowTitle } from "./TitleCleaner";
+import type { AppStat } from "../../types/app";
+import type { DailySummary, HistorySession } from "../db";
+import { ProcessMapper } from "../ProcessMapper.ts";
+import { cleanWindowTitle } from "./TitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;
 const MIN_VISIBLE_DURATION_MS = 30_000;
@@ -18,6 +18,7 @@ export interface HistoryAppSummaryItem {
 }
 
 export interface TimelineSession extends HistorySession {
+  appKey: string;
   mergedCount: number;
   displayName: string;
   displayTitle: string;
@@ -28,8 +29,9 @@ interface PreparedTimelineSession extends TimelineSession {
 }
 
 export function formatDuration(ms: number) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const totalMinutes = Math.floor(ms / 60000);
+  const safeMs = Math.max(0, ms);
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const totalMinutes = Math.floor(safeMs / 60000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -57,7 +59,7 @@ export function formatDateLabel(date: Date) {
 export function buildChartData(weekly: DailySummary[]): HistoryChartPoint[] {
   return weekly.map((item) => ({
     day: item.date.slice(5),
-    minutes: Math.round(item.total_duration / 60000),
+    minutes: Math.round(Math.max(0, item.total_duration) / 60000),
   }));
 }
 
@@ -93,11 +95,13 @@ function prepareVisibleSessions(sessions: HistorySession[]): PreparedTimelineSes
       const displayName = ProcessMapper.map(session.exe_name).name;
       const cleanedTitle = cleanWindowTitle(session.window_title, session.exe_name);
       const normalizedTitle = normalizeTitle(cleanedTitle, displayName);
-      const duration = session.duration ?? 0;
+      const duration = Math.max(0, session.duration ?? 0);
       const end_time = session.end_time ?? session.start_time + duration;
+      const appKey = session.exe_name.toLowerCase();
 
       return {
         ...session,
+        appKey,
         duration,
         end_time,
         window_title: normalizedTitle,
@@ -117,7 +121,7 @@ function prepareVisibleSessions(sessions: HistorySession[]): PreparedTimelineSes
     }
 
     const previousEnd = previous.end_time || previous.start_time;
-    const sameApp = previous.displayName === session.displayName;
+    const sameApp = previous.appKey === session.appKey;
     const gap = session.start_time - previousEnd;
 
     if (sameApp && gap >= 0 && gap <= DIRECT_MERGE_GAP_MS) {
@@ -139,25 +143,26 @@ export function normalizeVisibleSessions(sessions: HistorySession[]): TimelineSe
 
 export function buildNormalizedAppStats(sessions: HistorySession[]): AppStat[] {
   const normalized = normalizeVisibleSessions(sessions);
-  const totals = new Map<string, { exe_name: string; total_duration: number }>();
+  const totals = new Map<string, { app_name: string; exe_name: string; total_duration: number }>();
 
   for (const session of normalized) {
-    const duration = session.duration || 0;
-    const existing = totals.get(session.displayName);
+    const duration = Math.max(0, session.duration || 0);
+    const existing = totals.get(session.appKey);
 
     if (existing) {
       existing.total_duration += duration;
     } else {
-      totals.set(session.displayName, {
+      totals.set(session.appKey, {
+        app_name: session.displayName,
         exe_name: session.exe_name,
         total_duration: duration,
       });
     }
   }
 
-  return Array.from(totals.entries())
-    .map(([app_name, info]) => ({
-      app_name,
+  return Array.from(totals.values())
+    .map((info) => ({
+      app_name: info.app_name,
       exe_name: info.exe_name,
       total_duration: info.total_duration,
     }))
@@ -177,7 +182,7 @@ export function buildAppSummary(sessions: HistorySession[]): HistoryAppSummaryIt
 
 export function mergeSessionsForTimeline(
   sessions: HistorySession[],
-  mergeThresholdSecs: number = 180
+  mergeThresholdSecs: number = 180,
 ): TimelineSession[] {
   const normalized = prepareVisibleSessions(sessions);
   if (normalized.length === 0) return [];
@@ -202,7 +207,7 @@ export function mergeSessionsForTimeline(
         break;
       }
 
-      if (nextCandidate.displayName === current.displayName) {
+      if (nextCandidate.appKey === current.appKey) {
         const interruptionDuration = nextCandidate.start_time - current.end_time!;
 
         if (interruptionDuration <= mergeThresholdMs) {

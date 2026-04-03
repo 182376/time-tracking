@@ -2,8 +2,8 @@ mod icon_extractor;
 mod tracker;
 
 
-use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
+use tauri::Emitter;
+use tauri_plugin_sql::{Migration, MigrationKind};
 use std::time::Duration;
 
 #[tauri::command]
@@ -47,6 +47,28 @@ pub fn run() {
                 );
             ",
             kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "dedupe_active_sessions_and_enforce_single_active",
+            sql: "
+                UPDATE sessions
+                SET end_time = start_time,
+                    duration = 0
+                WHERE end_time IS NULL
+                  AND id NOT IN (
+                    SELECT id
+                    FROM sessions
+                    WHERE end_time IS NULL
+                    ORDER BY start_time DESC, id DESC
+                    LIMIT 1
+                  );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_single_active
+                ON sessions((1))
+                WHERE end_time IS NULL;
+            ",
+            kind: MigrationKind::Up,
         }
     ];
 
@@ -62,12 +84,9 @@ pub fn run() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    if let Some(mut window_info) = tracker::get_active_window() {
-                        println!("Emitting: {:?}", window_info);
-                        let _ = app_handle.emit("active-window-changed", window_info);
-                    } else {
-                        println!("No active window or failed to get it");
-                    }
+                    let window_info = tracker::get_active_window();
+                    println!("Emitting: {:?}", window_info);
+                    let _ = app_handle.emit("active-window-changed", window_info);
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             });

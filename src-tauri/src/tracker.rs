@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::os::windows::prelude::OsStringExt;
-use std::time::Duration;
-use tokio::time::sleep;
 use std::sync::atomic::{AtomicU64, Ordering};
-use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
+use windows::Win32::Foundation::{CloseHandle, HWND};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+    TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     PROCESS_NAME_WIN32
@@ -21,6 +23,7 @@ pub struct WindowInfo {
     pub exe_name: String,
     pub process_path: String,
     pub is_afk: bool,
+    pub idle_time_ms: u32,
 }
 
 static AFK_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(300);
@@ -30,35 +33,44 @@ pub fn cmd_set_afk_timeout(timeout_secs: u64) {
     AFK_TIMEOUT_SECS.store(timeout_secs, Ordering::Relaxed);
 }
 
-pub fn get_active_window() -> Option<WindowInfo> {
+pub fn get_active_window() -> WindowInfo {
     unsafe {
-        let hwnd = GetForegroundWindow();
-        if hwnd.0.is_null() {
-            return None;
-        }
-
-        let title = get_window_title(hwnd);
-        let (exe_name, process_path) = get_process_info(hwnd);
-
         // AFK Detection (5 minutes = 300,000 ms)
         let mut last_input = LASTINPUTINFO {
             cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
             dwTime: 0,
         };
-        if GetLastInputInfo(&mut last_input).ok().is_err() {
-            return None;
-        }
-        let current_tick = GetTickCount();
-        let idle_time = current_tick - last_input.dwTime;
+        
+        let idle_time = if GetLastInputInfo(&mut last_input).ok().is_ok() {
+            GetTickCount().wrapping_sub(last_input.dwTime)
+        } else {
+            0
+        };
+
         let afk_threshold_ms = (AFK_TIMEOUT_SECS.load(Ordering::Relaxed) as u32) * 1000;
         let is_afk = idle_time > afk_threshold_ms;
 
-        Some(WindowInfo {
+        let hwnd = GetForegroundWindow();
+        if hwnd.0.is_null() {
+            return WindowInfo {
+                title: String::new(),
+                exe_name: String::new(),
+                process_path: String::new(),
+                is_afk: true, // Treat no window as AFK/Inactive
+                idle_time_ms: idle_time,
+            };
+        }
+
+        let title = get_window_title(hwnd);
+        let (exe_name, process_path) = get_process_info(hwnd);
+
+        WindowInfo {
             title,
             exe_name,
             process_path,
             is_afk,
-        })
+            idle_time_ms: idle_time,
+        }
     }
 }
 
@@ -77,14 +89,19 @@ unsafe fn get_window_title(hwnd: HWND) -> String {
 unsafe fn get_process_info(hwnd: HWND) -> (String, String) {
     let mut process_id = 0;
     GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+    if process_id == 0 {
+        return (String::new(), String::new());
+    }
+
+    let fallback_exe_name = get_process_name_from_snapshot(process_id).unwrap_or_default();
 
     let handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) {
         Ok(h) => h,
-        Err(_) => return (String::new(), String::new()),
+        Err(_) => return (fallback_exe_name, String::new()),
     };
 
-    let mut buffer = [0u16; MAX_PATH as usize];
-    let mut size = MAX_PATH as u32;
+    let mut buffer = [0u16; 1024];
+    let mut size = buffer.len() as u32;
     let success = QueryFullProcessImageNameW(
         handle,
         PROCESS_NAME_WIN32,
@@ -102,15 +119,53 @@ unsafe fn get_process_info(hwnd: HWND) -> (String, String) {
         let exe_name = std::path::Path::new(&path)
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .filter(|n| !n.is_empty())
+            .unwrap_or(fallback_exe_name);
             
         (exe_name, path)
     } else {
-        (String::new(), String::new())
+        (fallback_exe_name, String::new())
     }
 }
 
+unsafe fn get_process_name_from_snapshot(process_id: u32) -> Option<String> {
+    let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
+
+    let mut entry = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+
+    let mut exe_name = None;
+
+    if Process32FirstW(snapshot, &mut entry).is_ok() {
+        loop {
+            if entry.th32ProcessID == process_id {
+                let len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&ch| ch == 0)
+                    .unwrap_or(entry.szExeFile.len());
+
+                exe_name = Some(
+                    OsString::from_wide(&entry.szExeFile[..len])
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+                break;
+            }
+
+            if Process32NextW(snapshot, &mut entry).is_err() {
+                break;
+            }
+        }
+    }
+
+    let _ = CloseHandle(snapshot);
+    exe_name
+}
+
 #[tauri::command]
-pub fn get_current_active_window() -> Option<WindowInfo> {
+pub fn get_current_active_window() -> WindowInfo {
     get_active_window()
 }

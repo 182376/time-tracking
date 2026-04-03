@@ -29,7 +29,8 @@ export interface TopApplicationItem {
 }
 
 export function formatDashboardDuration(ms: number) {
-  const totalMinutes = Math.floor(ms / 60000);
+  const safeMs = Math.max(0, ms);
+  const totalMinutes = Math.floor(safeMs / 60000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -38,7 +39,7 @@ export function formatDashboardDuration(ms: number) {
 }
 
 export function getTotalTrackedTime(stats: AppStat[]) {
-  return stats.reduce((total, item) => total + item.total_duration, 0);
+  return stats.reduce((total, item) => total + Math.max(0, item.total_duration), 0);
 }
 
 export function buildFocusShare(stats: AppStat[]): FocusShareItem[] {
@@ -46,7 +47,7 @@ export function buildFocusShare(stats: AppStat[]): FocusShareItem[] {
     const mapped = ProcessMapper.map(item.exe_name);
     return {
       name: mapped.name,
-      value: item.total_duration,
+      value: Math.max(0, item.total_duration),
       color: mapped.color,
     };
   });
@@ -61,40 +62,39 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
       exeName: item.exe_name,
       name: mapped.name,
       color: mapped.color,
-      duration: item.total_duration,
+      duration: Math.max(0, item.total_duration),
       percentage: totalTrackedTime > 0
-        ? Math.round((item.total_duration / totalTrackedTime) * 100)
+        ? Math.round((Math.max(0, item.total_duration) / totalTrackedTime) * 100)
         : 0,
       categoryInitial: mapped.category[0].toUpperCase(),
     };
   });
 }
 
-/** 24-hour activity distribution */
 export function buildHourlyActivity(sessions: HistorySession[]): HourlyActivityPoint[] {
   const hoursCount = new Array(24).fill(0);
-  
+
   for (const session of sessions) {
     const start = new Date(session.start_time);
     const end = session.end_time ? new Date(session.end_time) : new Date();
-    
+
     let hourPtr = start.getHours();
     let currentPtr = start.getTime();
-    
+
     while (currentPtr < end.getTime()) {
       const nextHour = new Date(currentPtr);
       nextHour.setHours(hourPtr + 1, 0, 0, 0);
-      
+
       const segmentEnd = Math.min(end.getTime(), nextHour.getTime());
       const durationMs = segmentEnd - currentPtr;
-      
+
       hoursCount[hourPtr] += durationMs / 60000;
-      
+
       currentPtr = segmentEnd;
       hourPtr = (hourPtr + 1) % 24;
     }
   }
-  
+
   return hoursCount.map((minutes, h) => ({
     hour: `${h.toString().padStart(2, "0")}:00`,
     minutes: Math.round(minutes),
@@ -103,23 +103,25 @@ export function buildHourlyActivity(sessions: HistorySession[]): HourlyActivityP
 
 export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] {
   const categories = new Map<string, number>();
-  
+
   for (const stat of stats) {
     const mapped = ProcessMapper.map(stat.exe_name);
-    categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + stat.total_duration);
+    categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.total_duration));
   }
-  
+
   const labels: Record<string, { label: string; color: string }> = {
-    work:          { label: "工作学习", color: "#6366F1" },
-    social:        { label: "社交沟通", color: "#10B981" },
+    work: { label: "工作学习", color: "#6366F1" },
+    social: { label: "社交通讯", color: "#10B981" },
     entertainment: { label: "娱乐放松", color: "#EC4899" },
-    system:        { label: "系统工具", color: "#F59E0B" },
-    other:         { label: "其他应用", color: "#94A3B8" },
+    system: { label: "系统工具", color: "#F59E0B" },
+    other: { label: "其他应用", color: "#94A3B8" },
   };
-  
-  return Array.from(categories.entries()).map(([cat, val]) => ({
-    name: labels[cat]?.label ?? cat,
-    value: val,
-    color: labels[cat]?.color ?? "#CCC",
-  })).sort((a,b) => b.value - a.value);
+
+  return Array.from(categories.entries())
+    .map(([cat, val]) => ({
+      name: labels[cat]?.label ?? cat,
+      value: val,
+      color: labels[cat]?.color ?? "#CCC",
+    }))
+    .sort((a, b) => b.value - a.value);
 }

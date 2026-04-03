@@ -13,7 +13,7 @@ import {
   buildChartData,
   buildAppSummary,
   mergeSessionsForTimeline,
-  TimelineSession
+  TimelineSession,
 } from "../lib/services/history";
 import { ProcessMapper } from "../lib/ProcessMapper";
 
@@ -25,8 +25,6 @@ interface Props {
 
 export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: Props) {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  
-  // States
   const [timelineSessions, setTimelineSessions] = useState<TimelineSession[]>([]);
   const [appSummary, setAppSummary] = useState<ReturnType<typeof buildAppSummary>>([]);
   const [weekly, setWeekly] = useState<DailySummary[]>([]);
@@ -39,7 +37,7 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
         getHistoryByDate(selectedDate),
         getWeeklyStats(),
       ]);
-      
+
       setTimelineSessions(mergeSessionsForTimeline(rawSessions || [], mergeThresholdSecs));
       setAppSummary(buildAppSummary(rawSessions || []));
       setWeekly(rawWeekly || []);
@@ -48,7 +46,9 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
     }
   }, [selectedDate, mergeThresholdSecs]);
 
-  useEffect(() => { loadData(); }, [loadData, refreshKey]);
+  useEffect(() => {
+    void loadData();
+  }, [loadData, refreshKey]);
 
   const changeDate = (delta: number) => {
     const d = new Date(selectedDate);
@@ -71,12 +71,13 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
           <h1 className="text-2xl font-bold gradient-text">历史概览</h1>
           <p className="text-slate-500 text-sm flex items-center gap-1.5 mt-0.5">
             <Calendar size={13} />
-            {formatDateLabel(selectedDate)} · {timelineSessions.length} sessions
+            {formatDateLabel(selectedDate)} · {timelineSessions.length} 段会话
           </p>
         </div>
         <div className="flex items-center gap-2">
           <motion.button
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => changeDate(-1)}
             className="p-2.5 rounded-xl glass-card hover:bg-white/70 text-slate-500"
           >
@@ -86,7 +87,8 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
             {formatDateLabel(selectedDate)}
           </span>
           <motion.button
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => changeDate(1)}
             disabled={isToday}
             className="p-2.5 rounded-xl glass-card hover:bg-white/70 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -97,7 +99,6 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
       </header>
 
       <div className="flex gap-5 min-h-0 flex-1">
-        {/* Left Column: Summary and Trends */}
         <div className="w-5/12 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-5 bg-white/30">
             <h3 className="font-bold text-slate-800 text-sm mb-4">近 7 天</h3>
@@ -122,7 +123,7 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
           </div>
 
           <div className="glass-card p-5 bg-white/30 flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="font-bold text-slate-800 text-sm mb-4">详情追踪</h3>
+            <h3 className="font-bold text-slate-800 text-sm mb-4">应用分布</h3>
             {appSummary.length === 0 ? (
               <p className="text-slate-400 text-xs text-center mt-8">暂无数据</p>
             ) : (
@@ -155,7 +156,6 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
           </div>
         </div>
 
-        {/* Right Column: Timeline Stream */}
         <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden min-h-0">
           <h3 className="font-bold text-slate-800 text-sm mb-4">智能时间流</h3>
           {loading ? (

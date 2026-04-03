@@ -126,7 +126,7 @@ export default function Settings({ onSettingsChanged }: Props) {
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">自动挂机判定 (AFK)</label>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  超过这个时间未操作时，会把记录截断到阈值前；同一应用在这个时间内切回，也会合并成一条连续时间流。
+                  超过这个时间未操作时，会把记录截断到阈值前；同一应用在这段时间内切回，也会合并成一条连续时间流。
                 </p>
                 <select
                   value={settings.afk_timeout_secs}
@@ -144,7 +144,7 @@ export default function Settings({ onSettingsChanged }: Props) {
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">最少记录时长</label>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  忽略所有时长低于此值的零碎会话，保持数据整洁。
+                  忽略所有时长低于此阈值的零碎会话，保持数据整洁。
                 </p>
                 <select
                   value={settings.min_session_secs}
@@ -171,7 +171,7 @@ export default function Settings({ onSettingsChanged }: Props) {
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">UI 刷新频率</label>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  前端界面从后台拉取最新数据的间隔时间。
+                  前端界面从后端拉取最新数据的时间间隔。
                 </p>
                 <select
                   value={settings.refresh_interval_secs}
