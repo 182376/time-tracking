@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Monitor, BarChart3, PieChart as PieIcon, Activity } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../lib/copy";
+import { useIconThemeColors } from "../hooks/useIconThemeColors";
 import { formatDashboardDuration } from "../lib/services/dashboard";
 import type { DashboardReadModel } from "../lib/services/HistoryService";
 
@@ -18,6 +19,7 @@ export default function Dashboard({
   isAfk,
   activeAppName,
 }: Props) {
+  const iconThemeColors = useIconThemeColors(icons);
   const {
     totalTrackedTime,
     topApplications,
@@ -173,7 +175,7 @@ export default function Dashboard({
                       animate={{ width: `${app.percentage}%` }}
                       transition={{ duration: 0.35, ease: "easeOut" }}
                       className="h-full rounded-full"
-                      style={{ backgroundColor: app.color }}
+                      style={{ backgroundColor: iconThemeColors[app.exeName] ?? app.color }}
                     />
                   </div>
                 </div>

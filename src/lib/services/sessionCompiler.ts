@@ -87,7 +87,7 @@ function resolveCompiledDisplayName(
   session: DiagnosableHistorySession,
   appKey: string,
 ) {
-  const mapped = ProcessMapper.map(appKey);
+  const mapped = ProcessMapper.map(appKey, { appName: session.app_name });
   const canonicalName = resolveCanonicalDisplayName(appKey);
   if (canonicalName) {
     return canonicalName;

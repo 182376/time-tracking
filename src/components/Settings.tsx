@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap } from "lucide-react";
+import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap, ChevronDown, Sparkles } from "lucide-react";
 import { UI_TEXT } from "../lib/copy";
-import type { AppSettings } from "../lib/settings";
+import type { AppSettings, OtherCategoryCandidate } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
+import { ProcessMapper } from "../lib/ProcessMapper";
+import { USER_ASSIGNABLE_CATEGORIES, type UserAssignableAppCategory } from "../lib/config/categoryTokens";
 
 interface Props {
   onSettingsChanged: (settings: AppSettings) => void;
@@ -26,18 +28,50 @@ function getCutoffTime(range: CleanupRange) {
   return date.getTime();
 }
 
+function formatCandidateDuration(durationMs: number) {
+  const minutes = Math.floor(Math.max(0, durationMs) / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${restMinutes}m`;
+  }
+  return `${restMinutes}m`;
+}
+
+const OTHER_ASSIGN_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES.filter(
+  (category) => category !== "other",
+);
+
 export default function Settings({ onSettingsChanged }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [cleanupRange, setCleanupRange] = useState<CleanupRange>(30);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [otherPanelOpen, setOtherPanelOpen] = useState(false);
+  const [otherCandidates, setOtherCandidates] = useState<OtherCategoryCandidate[]>([]);
+  const [isApplyingOther, setIsApplyingOther] = useState<string | null>(null);
 
   useEffect(() => {
-    SettingsService.load().then((s) => {
-      setSettings(s);
+    let cancelled = false;
+    const load = async () => {
+      const [loadedSettings, overrides] = await Promise.all([
+        SettingsService.load(),
+        SettingsService.loadAppOverrides(),
+      ]);
+      ProcessMapper.setUserOverrides(overrides);
+      const candidates = await SettingsService.loadOtherCategoryCandidates();
+
+      if (cancelled) return;
+      setSettings(loadedSettings);
+      setOtherCandidates(candidates.filter((candidate) => ProcessMapper.map(candidate.exeName).category === "other"));
       setLoading(false);
-    });
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleChange = async (key: keyof AppSettings, value: number) => {
@@ -65,6 +99,42 @@ export default function Settings({ onSettingsChanged }: Props) {
       window.location.reload();
     } finally {
       setIsCleaning(false);
+    }
+  };
+
+  const refreshOtherCandidates = async () => {
+    const candidates = await SettingsService.loadOtherCategoryCandidates();
+    setOtherCandidates(candidates);
+  };
+
+  const handleOtherAssign = async (exeName: string, categoryValue: string) => {
+    const category = categoryValue as UserAssignableAppCategory;
+    const override = categoryValue === "other"
+      ? null
+      : {
+        category,
+        enabled: true,
+        updatedAt: Date.now(),
+      };
+
+    setIsApplyingOther(exeName);
+    try {
+      await SettingsService.saveAppOverride(exeName, override);
+      ProcessMapper.setUserOverride(exeName, override);
+      await refreshOtherCandidates();
+    } finally {
+      setIsApplyingOther(null);
+    }
+  };
+
+  const handleClearAllOverrides = async () => {
+    setIsApplyingOther("__all__");
+    try {
+      await SettingsService.clearAllAppOverrides();
+      ProcessMapper.clearUserOverrides();
+      await refreshOtherCandidates();
+    } finally {
+      setIsApplyingOther(null);
     }
   };
 
@@ -235,6 +305,72 @@ export default function Settings({ onSettingsChanged }: Props) {
                 </motion.button>
               </div>
             </div>
+          </section>
+
+          <section className="col-span-2 glass-card p-4 bg-white/20">
+            <button
+              onClick={() => setOtherPanelOpen((open) => !open)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-2 text-slate-500">
+                <Sparkles size={14} className="text-slate-400" />
+                <span className="text-xs font-semibold">{UI_TEXT.settings.otherReviewTitle}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400">{UI_TEXT.settings.otherReviewToggle}</span>
+                <ChevronDown
+                  size={14}
+                  className={`text-slate-400 transition-transform ${otherPanelOpen ? "rotate-180" : ""}`}
+                />
+              </div>
+            </button>
+
+            {otherPanelOpen && (
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-[11px] text-slate-400">{UI_TEXT.settings.otherReviewHint}</p>
+                  <button
+                    onClick={handleClearAllOverrides}
+                    disabled={isApplyingOther === "__all__"}
+                    className="text-[10px] text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {UI_TEXT.settings.otherReviewClearAll}
+                  </button>
+                </div>
+                {otherCandidates.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">{UI_TEXT.settings.otherReviewEmpty}</p>
+                ) : (
+                  <div className="space-y-2 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                    {otherCandidates.map((candidate) => (
+                      <div
+                        key={candidate.exeName}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-700 truncate">{candidate.appName}</div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {candidate.exeName} · {formatCandidateDuration(candidate.totalDuration)}
+                          </div>
+                        </div>
+                        <select
+                          value="other"
+                          disabled={isApplyingOther === candidate.exeName}
+                          onChange={(event) => handleOtherAssign(candidate.exeName, event.target.value)}
+                          className="bg-white/80 px-2 py-1.5 rounded-lg text-[10px] font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                        >
+                          <option value="other">{UI_TEXT.settings.otherReviewReset}</option>
+                          {OTHER_ASSIGN_OPTIONS.map((category) => (
+                            <option key={category} value={category}>
+                              {ProcessMapper.getCategoryLabel(category)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </div>
       </div>

@@ -1,135 +1,227 @@
+import {
+  getCategoryToken,
+  USER_ASSIGNABLE_CATEGORIES,
+  type AppCategory,
+  type UserAssignableAppCategory,
+} from "./config/categoryTokens.ts";
+import { DEFAULT_APP_MAPPINGS } from "./config/defaultMappings.ts";
 import { resolveCanonicalExecutable, shouldTrackProcess } from "./processNormalization.ts";
+
+export type MappingConfidence = "high" | "medium" | "low";
+
+export interface MappingHints {
+  appName?: string;
+  processPath?: string;
+}
+
+export interface AppOverride {
+  category?: UserAssignableAppCategory;
+  displayName?: string;
+  enabled?: boolean;
+  updatedAt?: number;
+}
 
 export interface AppInfo {
   name: string;
-  category: "work" | "entertainment" | "social" | "system" | "other";
+  category: AppCategory;
   color: string;
+  confidence: MappingConfidence;
+  source: "default" | "override" | "heuristic" | "fallback";
 }
 
-const MAPPINGS: Record<string, AppInfo> = {
-  "chrome.exe": { name: "Google Chrome", category: "work", color: "#4285F4" },
-  "msedge.exe": { name: "Microsoft Edge", category: "work", color: "#0078D4" },
-  "firefox.exe": { name: "Firefox", category: "work", color: "#FF7139" },
-  "opera.exe": { name: "Opera", category: "work", color: "#FF1B2D" },
-  "brave.exe": { name: "Brave", category: "work", color: "#FB542B" },
-  "vivaldi.exe": { name: "Vivaldi", category: "work", color: "#EF3939" },
-  "arc.exe": { name: "Arc", category: "work", color: "#5B5EA6" },
+const CATEGORY_BY_KEYWORD: Array<{
+  category: AppCategory;
+  keywords: string[];
+}> = [
+  {
+    category: "development",
+    keywords: ["vscode", "vscodium", "cursor", "idea", "goland", "pycharm", "webstorm", "clion", "rider", "dev", "code"],
+  },
+  {
+    category: "office",
+    keywords: ["office", "word", "excel", "powerpoint", "wps", "onenote", "calendar", "outlook"],
+  },
+  {
+    category: "browser",
+    keywords: ["chrome", "edge", "firefox", "browser", "safari", "vivaldi", "opera", "brave", "arc"],
+  },
+  {
+    category: "communication",
+    keywords: ["wechat", "weixin", "qq", "telegram", "discord", "slack", "lark", "dingtalk"],
+  },
+  {
+    category: "meeting",
+    keywords: ["zoom", "teams", "meeting", "voov", "tencent meeting"],
+  },
+  {
+    category: "video",
+    keywords: ["douyin", "bilibili", "youtube", "netflix", "player", "video"],
+  },
+  {
+    category: "music",
+    keywords: ["spotify", "music", "netease", "qqmusic"],
+  },
+  {
+    category: "game",
+    keywords: ["steam", "epic", "hoyoplay", "mihoyo", "genshin", "star rail", "valorant", "league", "game"],
+  },
+  {
+    category: "design",
+    keywords: ["figma", "sketch", "photoshop", "illustrator", "after effects", "adobe xd", "canva"],
+  },
+  {
+    category: "reading",
+    keywords: ["obsidian", "zotero", "typora", "reader", "pdf", "kindle", "book"],
+  },
+  {
+    category: "finance",
+    keywords: ["trader", "bank", "finance", "stock", "binance", "okx", "huobi"],
+  },
+  {
+    category: "utility",
+    keywords: ["todesk", "teamviewer", "anydesk", "terminal", "flash", "snip", "screenshot", "tool", "utility"],
+  },
+];
 
-  "code.exe": { name: "Codex", category: "work", color: "#007ACC" },
-  "codex.exe": { name: "Codex", category: "work", color: "#007ACC" },
-  "cursor.exe": { name: "Cursor", category: "work", color: "#000000" },
-  "antigravity.exe": { name: "Antigravity", category: "work", color: "#6366F1" },
-  "idea64.exe": { name: "IntelliJ IDEA", category: "work", color: "#FE315D" },
-  "pycharm64.exe": { name: "PyCharm", category: "work", color: "#21D789" },
-  "webstorm64.exe": { name: "WebStorm", category: "work", color: "#07C3F2" },
-  "clion64.exe": { name: "CLion", category: "work", color: "#23D18B" },
-  "goland64.exe": { name: "GoLand", category: "work", color: "#82AAFF" },
-  "rider64.exe": { name: "Rider", category: "work", color: "#C90F5E" },
-  "devenv.exe": { name: "Visual Studio", category: "work", color: "#68217A" },
-  "sublime_text.exe": { name: "Sublime Text", category: "work", color: "#FF9800" },
-  "notepad++.exe": { name: "Notepad++", category: "work", color: "#80BD01" },
-  "vim.exe": { name: "Vim", category: "work", color: "#019733" },
-  "nvim.exe": { name: "Neovim", category: "work", color: "#57A143" },
-
-  "powershell.exe": { name: "PowerShell", category: "system", color: "#012456" },
-  "pwsh.exe": { name: "PowerShell 7", category: "system", color: "#012456" },
-  "cmd.exe": { name: "命令提示符", category: "system", color: "#4D4D4D" },
-  "windowsterminal.exe": { name: "Windows Terminal", category: "system", color: "#0C0C0C" },
-  "wt.exe": { name: "Windows Terminal", category: "system", color: "#0C0C0C" },
-
-  "wechat.exe": { name: "微信", category: "social", color: "#07C160" },
-  "weixin.exe": { name: "微信", category: "social", color: "#07C160" },
-  "qq.exe": { name: "QQ", category: "social", color: "#12B7F5" },
-  "qqnt.exe": { name: "QQ", category: "social", color: "#12B7F5" },
-  "discord.exe": { name: "Discord", category: "social", color: "#5865F2" },
-  "slack.exe": { name: "Slack", category: "social", color: "#4A154B" },
-  "telegram.exe": { name: "Telegram", category: "social", color: "#2CA5E0" },
-  "lark.exe": { name: "飞书", category: "social", color: "#2B5EF5" },
-  "dingtalk.exe": { name: "钉钉", category: "social", color: "#1677FF" },
-  "teams.exe": { name: "Microsoft Teams", category: "social", color: "#6264A7" },
-  "zoom.exe": { name: "Zoom", category: "social", color: "#2D8CFF" },
-
-  "wps.exe": { name: "WPS Office", category: "work", color: "#D93025" },
-  "wpsoffice.exe": { name: "WPS Office", category: "work", color: "#D93025" },
-  "et.exe": { name: "WPS 表格", category: "work", color: "#1BA784" },
-  "wpp.exe": { name: "WPS 演示", category: "work", color: "#F96400" },
-  "winword.exe": { name: "Word", category: "work", color: "#2B579A" },
-  "excel.exe": { name: "Excel", category: "work", color: "#217346" },
-  "powerpnt.exe": { name: "PowerPoint", category: "work", color: "#B7472A" },
-  "onenote.exe": { name: "OneNote", category: "work", color: "#80397B" },
-  "obsidian.exe": { name: "Obsidian", category: "work", color: "#7C3AED" },
-  "notion.exe": { name: "Notion", category: "work", color: "#000000" },
-  "typora.exe": { name: "Typora", category: "work", color: "#404040" },
-
-  "spotify.exe": { name: "Spotify", category: "entertainment", color: "#1DB954" },
-  "vlc.exe": { name: "VLC Player", category: "entertainment", color: "#FF8800" },
-  "steam.exe": { name: "Steam", category: "entertainment", color: "#1B2838" },
-  "epicgameslauncher.exe": { name: "Epic Games", category: "entertainment", color: "#313131" },
-  "leagueclient.exe": { name: "League of Legends", category: "entertainment", color: "#C69B3A" },
-  "valorant.exe": { name: "Valorant", category: "entertainment", color: "#FF4655" },
-  "csgo.exe": { name: "CS:GO", category: "entertainment", color: "#F5A623" },
-  "cs2.exe": { name: "CS2", category: "entertainment", color: "#F5A623" },
-  "bilibili.exe": { name: "哔哩哔哩", category: "entertainment", color: "#00AEEC" },
-  "douyin.exe": { name: "抖音", category: "entertainment", color: "#111111" },
-  "qqmusic.exe": { name: "QQ音乐", category: "entertainment", color: "#FFBE00" },
-  "neteasemusic.exe": { name: "网易云音乐", category: "entertainment", color: "#CC0000" },
-
-  "explorer.exe": { name: "文件资源管理器", category: "system", color: "#FBC02D" },
-  "taskmgr.exe": { name: "任务管理器", category: "system", color: "#0078D4" },
-  "regedit.exe": { name: "注册表编辑器", category: "system", color: "#4D4D4D" },
-  "mmc.exe": { name: "管理控制台", category: "system", color: "#4D4D4D" },
-  "control.exe": { name: "控制面板", category: "system", color: "#0078D4" },
-  "searchhost.exe": { name: "Windows 搜索", category: "system", color: "#4D4D4D" },
-  "shellexperiencehost.exe": { name: "Windows Shell", category: "system", color: "#4D4D4D" },
-  "consent.exe": { name: "UAC 权限确认", category: "system", color: "#4D4D4D" },
-  "startmenuexperiencehost.exe": { name: "开始菜单", category: "system", color: "#4D4D4D" },
-  "applicationframehost.exe": { name: "应用框架宿主", category: "system", color: "#4D4D4D" },
-  "textinputhost.exe": { name: "文本输入宿主", category: "system", color: "#4D4D4D" },
-  "runtimebroker.exe": { name: "运行时代理", category: "system", color: "#4D4D4D" },
-  "taskhostw.exe": { name: "任务宿主", category: "system", color: "#4D4D4D" },
-  "lockapp.exe": { name: "锁屏界面", category: "system", color: "#4D4D4D" },
-  "logonui.exe": { name: "登录界面", category: "system", color: "#4D4D4D" },
-  "dwm.exe": { name: "桌面窗口管理器", category: "system", color: "#4D4D4D" },
-
-  "time_tracker.exe": { name: "Time Tracker", category: "work", color: "#6366F1" },
-};
+const USER_ASSIGNABLE_CATEGORY_SET = new Set<UserAssignableAppCategory>(USER_ASSIGNABLE_CATEGORIES);
 
 function formatFallbackName(exeName: string) {
   return exeName
     .replace(/\.exe$/i, "")
-    .split(/[_\-\s]+/)
+    .split(/[_\-\s.]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
+function normalizeDisplayName(name: string | undefined) {
+  return (name ?? "").trim().replace(/\.exe$/i, "");
+}
+
+function buildSearchText(canonicalExe: string, hints: MappingHints) {
+  return [
+    canonicalExe,
+    normalizeDisplayName(hints.appName),
+    normalizeDisplayName(hints.processPath),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function classifyByKeywords(canonicalExe: string, hints: MappingHints): AppCategory | null {
+  const searchText = buildSearchText(canonicalExe, hints);
+
+  for (const rule of CATEGORY_BY_KEYWORD) {
+    if (rule.keywords.some((keyword) => searchText.includes(keyword))) {
+      return rule.category;
+    }
+  }
+
+  return null;
+}
+
+function normalizeOverride(override: AppOverride | null | undefined): AppOverride | null {
+  if (!override) return null;
+  if (override.enabled === false) return null;
+
+  const normalized: AppOverride = {};
+
+  if (override.category && USER_ASSIGNABLE_CATEGORY_SET.has(override.category)) {
+    normalized.category = override.category;
+  }
+  if (override.displayName?.trim()) {
+    normalized.displayName = override.displayName.trim();
+  }
+  if (typeof override.updatedAt === "number" && Number.isFinite(override.updatedAt)) {
+    normalized.updatedAt = override.updatedAt;
+  }
+  normalized.enabled = true;
+
+  return Object.keys(normalized).length > 1 ? normalized : null;
+}
+
+function resolveCategoryColor(category: AppCategory) {
+  return getCategoryToken(category).color;
+}
+
 export class ProcessMapper {
-  static map(exeName: string): AppInfo {
+  private static userOverrides: Record<string, AppOverride> = {};
+
+  static getUserAssignableCategories() {
+    return [...USER_ASSIGNABLE_CATEGORIES];
+  }
+
+  static getCategoryLabel(category: AppCategory) {
+    return getCategoryToken(category).label;
+  }
+
+  static getCategoryColor(category: AppCategory) {
+    return resolveCategoryColor(category);
+  }
+
+  static setUserOverrides(overrides: Record<string, AppOverride>) {
+    const normalized: Record<string, AppOverride> = {};
+    for (const [exeName, override] of Object.entries(overrides)) {
+      const canonicalExe = resolveCanonicalExecutable(exeName);
+      if (!canonicalExe) continue;
+
+      const safeOverride = normalizeOverride(override);
+      if (!safeOverride) continue;
+      normalized[canonicalExe] = safeOverride;
+    }
+    this.userOverrides = normalized;
+  }
+
+  static setUserOverride(exeName: string, override: AppOverride | null) {
     const canonicalExe = resolveCanonicalExecutable(exeName);
-    const lowerName = canonicalExe.toLowerCase();
+    if (!canonicalExe) return;
 
-    if (MAPPINGS[lowerName]) {
-      return MAPPINGS[lowerName];
-    }
-
-    if (lowerName.includes("browser") || lowerName.includes("chrome") || lowerName.includes("safari")) {
-      return { name: "Web Browser", category: "work", color: "#757575" };
-    }
-    if (lowerName.startsWith("wps")) {
-      return { name: "WPS Office", category: "work", color: "#D93025" };
-    }
-    if (lowerName.includes("game") || lowerName.includes("play") || lowerName.includes("unity") || lowerName.includes("unreal")) {
-      return { name: "Game / Engine", category: "entertainment", color: "#E91E63" };
-    }
-    if (lowerName.includes("code") || lowerName.includes("studio") || lowerName.includes("idea")) {
-      return { name: "IDE / Editor", category: "work", color: "#607D8B" };
+    const safeOverride = normalizeOverride(override);
+    if (!safeOverride) {
+      delete this.userOverrides[canonicalExe];
+      return;
     }
 
-    const cleanName = formatFallbackName(canonicalExe);
+    this.userOverrides[canonicalExe] = safeOverride;
+  }
+
+  static clearUserOverrides() {
+    this.userOverrides = {};
+  }
+
+  static getUserOverride(exeName: string): AppOverride | null {
+    const canonicalExe = resolveCanonicalExecutable(exeName);
+    return this.userOverrides[canonicalExe] ?? null;
+  }
+
+  static map(exeName: string, hints: MappingHints = {}): AppInfo {
+    const canonicalExe = resolveCanonicalExecutable(exeName);
+    const defaultMapping = DEFAULT_APP_MAPPINGS[canonicalExe];
+    const override = this.userOverrides[canonicalExe];
+
+    if (defaultMapping) {
+      const category = override?.category ?? defaultMapping.category;
+      const name = override?.displayName || normalizeDisplayName(hints.appName) || defaultMapping.name;
+      return {
+        name,
+        category,
+        color: resolveCategoryColor(category),
+        confidence: override?.category || override?.displayName ? "high" : "high",
+        source: override?.category || override?.displayName ? "override" : "default",
+      };
+    }
+
+    const categoryByRule = classifyByKeywords(canonicalExe, hints);
+    const fallbackName = formatFallbackName(canonicalExe) || canonicalExe;
+    const resolvedName = override?.displayName || normalizeDisplayName(hints.appName) || fallbackName;
+    const resolvedCategory = override?.category ?? categoryByRule ?? "other";
+
     return {
-      name: cleanName || canonicalExe,
-      category: "other",
-      color: "#9E9E9E",
+      name: resolvedName,
+      category: resolvedCategory,
+      color: resolveCategoryColor(resolvedCategory),
+      confidence: override?.category ? "high" : categoryByRule ? "medium" : "low",
+      source: override?.category || override?.displayName ? "override" : categoryByRule ? "heuristic" : "fallback",
     };
   }
 
@@ -140,5 +232,32 @@ export class ProcessMapper {
     }
 
     return this.map(canonicalExe).category !== "system";
+  }
+
+  static toOverrideStorageValue(override: AppOverride) {
+    return JSON.stringify({
+      category: override.category ?? null,
+      displayName: override.displayName ?? null,
+      enabled: override.enabled !== false,
+      updatedAt: override.updatedAt ?? Date.now(),
+    });
+  }
+
+  static fromOverrideStorageValue(rawValue: string): AppOverride | null {
+    if (!rawValue.trim()) return null;
+    try {
+      const parsed = JSON.parse(rawValue) as AppOverride;
+      return normalizeOverride(parsed);
+    } catch {
+      const legacyCategory = rawValue.trim() as UserAssignableAppCategory;
+      if (USER_ASSIGNABLE_CATEGORY_SET.has(legacyCategory)) {
+        return normalizeOverride({
+          category: legacyCategory,
+          enabled: true,
+          updatedAt: Date.now(),
+        });
+      }
+      return null;
+    }
   }
 }

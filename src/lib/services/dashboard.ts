@@ -1,6 +1,6 @@
 import type { AppStat } from "../../types/app";
 import type { HistorySession } from "../db.ts";
-import { UI_TEXT } from "../copy.ts";
+import { getCategoryToken, type AppCategory } from "../config/categoryTokens.ts";
 import { ProcessMapper } from "../ProcessMapper.ts";
 
 export interface HourlyActivityPoint {
@@ -9,6 +9,7 @@ export interface HourlyActivityPoint {
 }
 
 export interface CategoryDistItem {
+  category: AppCategory;
   name: string;
   value: number;
   color: string;
@@ -42,7 +43,7 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
   const totalTrackedTime = getTotalTrackedTime(stats);
 
   return stats.map((item) => {
-    const mapped = ProcessMapper.map(item.exe_name);
+    const mapped = ProcessMapper.map(item.exe_name, { appName: item.app_name });
     const name = item.app_name.trim() || mapped.name;
     return {
       exeName: item.exe_name,
@@ -89,26 +90,19 @@ export function buildHourlyActivity(sessions: HistorySession[]): HourlyActivityP
 }
 
 export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] {
-  const categories = new Map<string, number>();
+  const categories = new Map<AppCategory, number>();
 
   for (const stat of stats) {
-    const mapped = ProcessMapper.map(stat.exe_name);
+    const mapped = ProcessMapper.map(stat.exe_name, { appName: stat.app_name });
     categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.total_duration));
   }
 
-  const labels: Record<string, { label: string; color: string }> = {
-    work: { label: UI_TEXT.categories.work, color: "#6366F1" },
-    social: { label: UI_TEXT.categories.social, color: "#10B981" },
-    entertainment: { label: UI_TEXT.categories.entertainment, color: "#EC4899" },
-    system: { label: UI_TEXT.categories.system, color: "#F59E0B" },
-    other: { label: UI_TEXT.categories.other, color: "#94A3B8" },
-  };
-
   return Array.from(categories.entries())
     .map(([cat, val]) => ({
-      name: labels[cat]?.label ?? cat,
+      category: cat,
+      name: getCategoryToken(cat).label,
       value: val,
-      color: labels[cat]?.color ?? "#CCC",
+      color: getCategoryToken(cat).color,
     }))
     .sort((a, b) => b.value - a.value);
 }

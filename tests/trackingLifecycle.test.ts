@@ -485,7 +485,48 @@ runTest("process mapper resolves known alias executables to canonical app identi
   const mapped = ProcessMapper.map("DouYin_Tray.exe");
 
   assert.equal(mapped.name, "抖音");
-  assert.equal(mapped.category, "entertainment");
+  assert.equal(mapped.category, "video");
+});
+
+runTest("process mapper user override can reclassify an unknown app", () => {
+  ProcessMapper.clearUserOverrides();
+  const before = ProcessMapper.map("atlas.exe");
+  assert.equal(before.category, "other");
+
+  ProcessMapper.setUserOverride("atlas.exe", {
+    category: "utility",
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const after = ProcessMapper.map("atlas.exe");
+  assert.equal(after.category, "utility");
+  assert.equal(after.source, "override");
+
+  ProcessMapper.clearUserOverrides();
+});
+
+runTest("process mapper category snapshot remains stable for key desktop apps", () => {
+  ProcessMapper.clearUserOverrides();
+  const cases: Array<{ exeName: string; appName: string; expectedCategory: string }> = [
+    { exeName: "vscodium.exe", appName: "VSCodium", expectedCategory: "development" },
+    { exeName: "zotero.exe", appName: "Zotero", expectedCategory: "reading" },
+    { exeName: "ToDesk.exe", appName: "ToDesk", expectedCategory: "utility" },
+    { exeName: "HoYoPlay.exe", appName: "HoYoPlay", expectedCategory: "game" },
+    { exeName: "atlas.exe", appName: "Atlas", expectedCategory: "other" },
+  ];
+
+  for (const item of cases) {
+    const mapped = ProcessMapper.map(item.exeName, { appName: item.appName });
+    assert.equal(mapped.category, item.expectedCategory);
+  }
+});
+
+runTest("process mapper color output stays stable for same app key", () => {
+  ProcessMapper.clearUserOverrides();
+  const first = ProcessMapper.map("vscodium.exe", { appName: "VSCodium" });
+  const second = ProcessMapper.map("vscodium.exe", { appName: "VSCodium" });
+  assert.equal(first.color, second.color);
 });
 
 runTest("canonical normalization resolves aliases and filters PickerHost", () => {

@@ -1,4 +1,6 @@
 import { getDB } from './db';
+import { ProcessMapper, type AppOverride } from './ProcessMapper.ts';
+import { resolveCanonicalExecutable, shouldTrackProcess } from './processNormalization.ts';
 
 export interface AppSettings {
   afk_timeout_secs: number;
@@ -14,9 +16,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
+const APP_OVERRIDE_KEY_PREFIX = "__app_override::";
 const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
 const REFRESH_INTERVAL_OPTIONS = [1, 3, 5, 10];
 const MIN_SESSION_OPTIONS = [30, 60, 180, 300, 600];
+
+export interface OtherCategoryCandidate {
+  exeName: string;
+  appName: string;
+  totalDuration: number;
+  lastSeenMs: number;
+}
 
 function parseNumberSetting(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -86,4 +96,109 @@ export const loadTrackerHealthTimestamp = async (): Promise<number | null> => {
 
 export const saveTrackerHeartbeat = async (timestampMs: number): Promise<void> => {
   await upsertSettingValue(TRACKER_LAST_HEARTBEAT_KEY, String(timestampMs));
+};
+
+export const loadAppOverrides = async (): Promise<Record<string, AppOverride>> => {
+  const db = await getDB();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    'SELECT key, value FROM settings WHERE key LIKE ?',
+    [`${APP_OVERRIDE_KEY_PREFIX}%`],
+  );
+
+  const overrides: Record<string, AppOverride> = {};
+  for (const row of rows) {
+    const canonicalExe = resolveCanonicalExecutable(row.key.slice(APP_OVERRIDE_KEY_PREFIX.length));
+    if (!canonicalExe) continue;
+
+    const parsed = ProcessMapper.fromOverrideStorageValue(row.value);
+    if (!parsed) continue;
+    overrides[canonicalExe] = parsed;
+  }
+
+  return overrides;
+};
+
+export const saveAppOverride = async (exeName: string, override: AppOverride | null): Promise<void> => {
+  const canonicalExe = resolveCanonicalExecutable(exeName);
+  if (!canonicalExe) {
+    return;
+  }
+
+  const key = `${APP_OVERRIDE_KEY_PREFIX}${canonicalExe}`;
+  const db = await getDB();
+
+  if (!override || override.enabled === false) {
+    await db.execute('DELETE FROM settings WHERE key = ?', [key]);
+    return;
+  }
+
+  await upsertSettingValue(key, ProcessMapper.toOverrideStorageValue(override));
+};
+
+export const clearAllAppOverrides = async (): Promise<void> => {
+  const db = await getDB();
+  await db.execute('DELETE FROM settings WHERE key LIKE ?', [`${APP_OVERRIDE_KEY_PREFIX}%`]);
+};
+
+export const loadOtherCategoryCandidates = async (
+  days: number = 30,
+  limit: number = 30,
+): Promise<OtherCategoryCandidate[]> => {
+  const db = await getDB();
+  const sinceMs = Date.now() - (Math.max(1, days) * 24 * 60 * 60 * 1000);
+  const nowMs = Date.now();
+  const rows = await db.select<Array<{
+    exe_name: string;
+    app_name: string;
+    total_duration: number;
+    last_seen_ms: number;
+  }>>(
+    `SELECT exe_name,
+            MAX(COALESCE(app_name, '')) AS app_name,
+            SUM(COALESCE(duration, MAX(0, ? - start_time))) AS total_duration,
+            MAX(start_time) AS last_seen_ms
+     FROM sessions
+     WHERE start_time >= ?
+     GROUP BY exe_name`,
+    [nowMs, sinceMs],
+  );
+
+  const merged = new Map<string, OtherCategoryCandidate>();
+
+  for (const row of rows) {
+    const canonicalExe = resolveCanonicalExecutable(row.exe_name);
+    if (!canonicalExe || !shouldTrackProcess(canonicalExe)) {
+      continue;
+    }
+
+    const mapped = ProcessMapper.map(canonicalExe, { appName: row.app_name });
+    if (mapped.category !== "other") {
+      continue;
+    }
+
+    const previous = merged.get(canonicalExe);
+    const duration = Math.max(0, Number(row.total_duration ?? 0));
+    const lastSeenMs = Math.max(0, Number(row.last_seen_ms ?? 0));
+    const appName = row.app_name?.trim() || mapped.name;
+
+    if (!previous) {
+      merged.set(canonicalExe, {
+        exeName: canonicalExe,
+        appName,
+        totalDuration: duration,
+        lastSeenMs,
+      });
+      continue;
+    }
+
+    previous.totalDuration += duration;
+    previous.lastSeenMs = Math.max(previous.lastSeenMs, lastSeenMs);
+    if (!previous.appName && appName) {
+      previous.appName = appName;
+    }
+  }
+
+  return Array.from(merged.values())
+    .sort((a, b) => b.lastSeenMs - a.lastSeenMs || b.totalDuration - a.totalDuration)
+    .slice(0, Math.max(1, limit));
 };

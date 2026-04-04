@@ -1,10 +1,16 @@
 import {
+  clearAllAppOverrides,
   clearSessionsBefore,
+  loadAppOverrides,
+  loadOtherCategoryCandidates,
   loadTrackerHealthTimestamp,
   loadSettings,
+  saveAppOverride,
   saveSetting,
   type AppSettings,
+  type OtherCategoryCandidate,
 } from "../settings";
+import type { AppOverride } from "../ProcessMapper.ts";
 import { TrackingService } from "./TrackingService";
 
 export class SettingsService {
@@ -26,5 +32,21 @@ export class SettingsService {
 
   static async loadTrackerHealthTimestamp() {
     return loadTrackerHealthTimestamp();
+  }
+
+  static async loadAppOverrides() {
+    return loadAppOverrides();
+  }
+
+  static async saveAppOverride(exeName: string, override: AppOverride | null) {
+    await saveAppOverride(exeName, override);
+  }
+
+  static async clearAllAppOverrides() {
+    await clearAllAppOverrides();
+  }
+
+  static async loadOtherCategoryCandidates(days: number = 30, limit: number = 30): Promise<OtherCategoryCandidate[]> {
+    return loadOtherCategoryCandidates(days, limit);
   }
 }

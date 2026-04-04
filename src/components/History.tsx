@@ -18,6 +18,7 @@ import {
   formatDateLabel,
   formatChartHours,
 } from "../lib/services/history";
+import { useIconThemeColors } from "../hooks/useIconThemeColors";
 import { HistoryService } from "../lib/services/HistoryService";
 import { ProcessMapper } from "../lib/ProcessMapper";
 import type { TrackerHealthSnapshot } from "../types/tracking";
@@ -39,6 +40,7 @@ export default function History({
   minSessionSecs,
   trackerHealth,
 }: Props) {
+  const iconThemeColors = useIconThemeColors(icons);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>([]);
   const [rawWeeklySessions, setRawWeeklySessions] = useState<HistorySession[]>([]);
@@ -196,7 +198,7 @@ export default function History({
             ) : (
               <div className="space-y-3">
                 {appSummary.slice(0, 15).map((app) => {
-                  const mapped = ProcessMapper.map(app.exeName);
+                  const mapped = ProcessMapper.map(app.exeName, { appName: app.appName });
                   const appName = app.appName.trim() || mapped.name;
                   return (
                     <div key={app.exeName}>
@@ -213,7 +215,7 @@ export default function History({
                           animate={{ width: `${app.percentage}%` }}
                           transition={{ duration: 0.3, ease: "easeOut" }}
                           className="h-full rounded-full"
-                          style={{ backgroundColor: mapped.color }}
+                          style={{ backgroundColor: iconThemeColors[app.exeName] ?? mapped.color }}
                         />
                       </div>
                     </div>
@@ -234,7 +236,7 @@ export default function History({
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
                 {timelineSessions.map((session) => {
-                  const mapped = ProcessMapper.map(session.exe_name);
+                  const mapped = ProcessMapper.map(session.exe_name, { appName: session.displayName });
 
                   return (
                     <div
@@ -243,7 +245,7 @@ export default function History({
                     >
                       <div
                         className="w-1 self-stretch rounded-full flex-shrink-0"
-                        style={{ backgroundColor: mapped.color }}
+                        style={{ backgroundColor: iconThemeColors[session.exe_name] ?? mapped.color }}
                       />
                       <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden p-1.5">
                         {icons[session.exe_name] ? (

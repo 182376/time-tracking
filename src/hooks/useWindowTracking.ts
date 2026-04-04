@@ -4,6 +4,7 @@ import {
 } from "../lib/settings";
 import type { AppSettings } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
+import { ProcessMapper } from "../lib/ProcessMapper";
 import {
   TrackingService,
 } from "../lib/services/TrackingService";
@@ -58,6 +59,11 @@ export function useWindowTracking() {
         setAppSettings(settings);
         await TrackingService.setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
         if (cancelled) return;
+
+        const overrides = await SettingsService.loadAppOverrides();
+        if (!cancelled) {
+          ProcessMapper.setUserOverrides(overrides);
+        }
 
         const currentWin = await TrackingService.getCurrentWindow();
         if (!cancelled && currentWin) {

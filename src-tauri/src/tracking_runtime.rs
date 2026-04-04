@@ -23,7 +23,7 @@ const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 const TRACKER_WATCHDOG_POLL_MS: u64 = 1_000;
 const TRACKER_STALL_SEAL_AFTER_MS: i64 = 8_000;
-const VERSION_INFO_NAME_KEYS: [&str; 2] = ["FileDescription", "ProductName"];
+const VERSION_INFO_NAME_KEYS: [&str; 3] = ["FileDescription", "ProductName", "CompanyName"];
 
 #[repr(C)]
 #[derive(Clone, Copy)]
