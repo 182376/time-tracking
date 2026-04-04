@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { Monitor, BarChart3, PieChart as PieIcon, Activity } from "lucide-react";
+import { Monitor, BarChart3, Activity } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../lib/copy";
 import { useIconThemeColors } from "../hooks/useIconThemeColors";
+import { ProcessMapper } from "../lib/ProcessMapper";
 import { formatDashboardDuration } from "../lib/services/dashboard";
 import type { DashboardReadModel } from "../lib/services/HistoryService";
 
@@ -66,12 +67,11 @@ export default function Dashboard({
         </div>
       </header>
 
-      <div className="grid grid-cols-12 gap-5 flex-1 min-h-0">
-        <div className="col-span-4 flex flex-col gap-5 min-h-0">
-          <div className="glass-card p-6 bg-white/20 flex flex-col items-center relative overflow-hidden">
-            <div className="absolute top-4 left-4 text-slate-400 opacity-20"><PieIcon size={40} /></div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pr-1 lg:pr-0">
+        <div className="lg:col-span-4 flex flex-col gap-5 min-h-0 dashboard-left-column">
+          <div className="glass-card p-6 bg-white/20 flex flex-col items-center relative overflow-hidden shrink-0 min-h-[320px] dashboard-focus-card">
             <h3 className="w-full text-slate-800 font-bold text-sm mb-4">{UI_TEXT.dashboard.focusShare}</h3>
-            <div className="relative w-full aspect-square max-h-[180px]">
+            <div className="relative w-full h-[180px] dashboard-focus-chart">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={categoryDist} innerRadius="70%" outerRadius="100%" paddingAngle={6} dataKey="value" stroke="none">
@@ -92,7 +92,7 @@ export default function Dashboard({
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{UI_TEXT.dashboard.total}</span>
               </div>
             </div>
-            <div className="mt-6 w-full space-y-2">
+            <div className="mt-6 w-full space-y-2 dashboard-focus-legend">
               {categoryDist.map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between text-[10px]">
                   <div className="flex items-center gap-1.5 font-bold text-slate-600">
@@ -105,12 +105,12 @@ export default function Dashboard({
             </div>
           </div>
 
-          <div className="glass-card p-5 bg-white/20 flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="glass-card p-5 bg-white/20 flex-1 min-h-0 flex flex-col overflow-hidden dashboard-pulse-card">
             <h3 className="text-slate-800 font-bold text-sm mb-4 flex items-center gap-2">
               <BarChart3 size={14} className="text-indigo-500 flex-shrink-0" />
               {UI_TEXT.dashboard.hourlyActivity}
             </h3>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-[170px] dashboard-pulse-chart">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={hourlyActivity} margin={{ top: 6, right: 12, left: 10, bottom: 4 }}>
                   <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickMargin={8} interval={5} padding={{ left: 12, right: 12 }} />
@@ -127,7 +127,7 @@ export default function Dashboard({
           </div>
         </div>
 
-        <div className="col-span-8 glass-card p-6 flex flex-col bg-white/30 overflow-hidden min-h-0">
+        <div className="lg:col-span-8 glass-card p-6 flex flex-col bg-white/30 overflow-hidden min-h-[420px] lg:min-h-0">
           <header className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-slate-800 text-base">{UI_TEXT.dashboard.topApps}</h3>
             <div className="bg-indigo-50 px-3 py-1 rounded-full text-[10px] font-bold text-indigo-600">
@@ -143,43 +143,55 @@ export default function Dashboard({
               </div>
             )}
             {topApplications.map((app) => (
-              <div
-                key={app.exeName}
-                className="flex items-center justify-between p-4 bg-white/40 rounded-2xl border border-transparent hover:border-indigo-100 hover:bg-white/80 transition-all cursor-default group shadow-sm"
-              >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden p-2">
-                    {icons[app.exeName] ? (
-                      <img src={icons[app.exeName]} className="w-full h-full object-contain" alt="" />
-                    ) : (
-                      <div className="text-xs font-black opacity-20 text-indigo-900">{app.categoryInitial}</div>
-                    )}
-                  </div>
-                  <div className="truncate">
-                    <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-2">
-                      <span className="truncate">{app.name}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                      {UI_TEXT.dashboard.sharePrefix} {app.percentage}%
-                    </div>
-                  </div>
-                </div>
+              (() => {
+                const overrideColor = ProcessMapper.getUserOverride(app.exeName)?.color;
+                const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? app.color;
 
-                <div className="text-right ml-4 flex-shrink-0">
-                  <div className="font-black text-indigo-600 text-sm tabular-nums">
-                    {formatDashboardDuration(app.duration)}
+                return (
+                  <div
+                    key={app.exeName}
+                    className="flex items-center justify-between p-4 bg-white/40 rounded-2xl border border-transparent hover:border-indigo-100 hover:bg-white/80 transition-all cursor-default group shadow-sm"
+                  >
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div
+                        className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden p-2"
+                        style={{
+                          boxShadow: `0 0 0 2px ${accentColor}22`,
+                        }}
+                      >
+                        {icons[app.exeName] ? (
+                          <img src={icons[app.exeName]} className="w-full h-full object-contain" alt="" />
+                        ) : (
+                          <div className="text-xs font-black opacity-20 text-indigo-900">{app.categoryInitial}</div>
+                        )}
+                      </div>
+                      <div className="truncate">
+                        <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-2">
+                          <span className="truncate">{app.name}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                          {UI_TEXT.dashboard.sharePrefix} {app.percentage}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right ml-4 flex-shrink-0">
+                      <div className="font-black text-indigo-600 text-sm tabular-nums">
+                        {formatDashboardDuration(app.duration)}
+                      </div>
+                      <div className="w-20 h-1.5 bg-slate-100 rounded-full mt-2.5 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${app.percentage}%` }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: accentColor }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="w-20 h-1.5 bg-slate-100 rounded-full mt-2.5 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${app.percentage}%` }}
-                      transition={{ duration: 0.35, ease: "easeOut" }}
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: iconThemeColors[app.exeName] ?? app.color }}
-                    />
-                  </div>
-                </div>
-              </div>
+                );
+              })()
             ))}
           </div>
         </div>

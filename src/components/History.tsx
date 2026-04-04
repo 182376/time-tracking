@@ -30,6 +30,21 @@ interface Props {
   mergeThresholdSecs: number;
   minSessionSecs: number;
   trackerHealth: TrackerHealthSnapshot;
+  mappingVersion?: number;
+}
+
+interface HistorySnapshotCacheItem {
+  daySessions: HistorySession[];
+  weeklySessions: HistorySession[];
+  fetchedAtMs: number;
+}
+
+const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshotCacheItem>();
+
+function formatHistoryCacheKey(date: Date) {
+  const localDate = new Date(date);
+  localDate.setHours(0, 0, 0, 0);
+  return `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
 }
 
 export default function History({
@@ -39,26 +54,52 @@ export default function History({
   mergeThresholdSecs,
   minSessionSecs,
   trackerHealth,
+  mappingVersion = 0,
 }: Props) {
+  const initialDate = new Date();
+  const initialCacheKey = formatHistoryCacheKey(initialDate);
+  const initialCachedSnapshot = HISTORY_SNAPSHOT_CACHE.get(initialCacheKey);
   const iconThemeColors = useIconThemeColors(icons);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>([]);
-  const [rawWeeklySessions, setRawWeeklySessions] = useState<HistorySession[]>([]);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>(
+    () => initialCachedSnapshot?.daySessions ?? [],
+  );
+  const [rawWeeklySessions, setRawWeeklySessions] = useState<HistorySession[]>(
+    () => initialCachedSnapshot?.weeklySessions ?? [],
+  );
+  const [nowMs, setNowMs] = useState(() => initialCachedSnapshot?.fetchedAtMs ?? Date.now());
+  const [loading, setLoading] = useState(!initialCachedSnapshot);
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(Boolean(initialCachedSnapshot));
   const hasLoadedRef = useRef(false);
 
   const loadData = useCallback(async (showLoading: boolean = false) => {
+    const cacheKey = formatHistoryCacheKey(selectedDate);
+    const cachedSnapshot = HISTORY_SNAPSHOT_CACHE.get(cacheKey);
+
+    if (cachedSnapshot) {
+      setRawDaySessions(cachedSnapshot.daySessions);
+      setRawWeeklySessions(cachedSnapshot.weeklySessions);
+      setNowMs(cachedSnapshot.fetchedAtMs);
+      setHasFetchedOnce(true);
+      setLoading(false);
+    }
+
     if (showLoading) {
-      setLoading(true);
+      setLoading(!cachedSnapshot);
     }
 
     try {
       const snapshot = await HistoryService.loadHistorySnapshot(selectedDate);
+      HISTORY_SNAPSHOT_CACHE.set(cacheKey, {
+        daySessions: snapshot.daySessions,
+        weeklySessions: snapshot.weeklySessions,
+        fetchedAtMs: snapshot.fetchedAtMs,
+      });
 
       setRawDaySessions(snapshot.daySessions);
       setRawWeeklySessions(snapshot.weeklySessions);
       setNowMs(snapshot.fetchedAtMs);
+      setHasFetchedOnce(true);
       hasLoadedRef.current = true;
     } finally {
       if (showLoading) {
@@ -99,6 +140,7 @@ export default function History({
   };
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
+  const showInitialLoading = loading && !hasFetchedOnce;
   const historyView = useMemo(
     () => HistoryService.buildHistoryReadModel({
       daySessions: rawDaySessions,
@@ -109,7 +151,7 @@ export default function History({
       minSessionSecs,
       mergeThresholdSecs,
     }),
-    [mergeThresholdSecs, minSessionSecs, nowMs, rawDaySessions, rawWeeklySessions, selectedDate, trackerHealth],
+    [mappingVersion, mergeThresholdSecs, minSessionSecs, nowMs, rawDaySessions, rawWeeklySessions, selectedDate, trackerHealth],
   );
   const {
     timelineSessions,
@@ -164,41 +206,59 @@ export default function History({
         <div className="w-5/12 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-5 bg-white/30">
             <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.pastSevenDays}</h3>
-            <ResponsiveContainer width="100%" height={120}>
-              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f020" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "#94a3b8" }}
-                  axisLine={false}
-                  tickLine={false}
-                  ticks={chartAxis.ticks}
-                  domain={[0, chartAxis.domainMax]}
-                  tickFormatter={(value) => formatChartHours(Number(value))}
-                />
-                <Tooltip
-                  formatter={(value) => `${formatChartHours(Number(value))}h`}
-                  contentStyle={{ borderRadius: "1rem", border: "none", fontSize: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}
-                />
-                <Area type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} fill="url(#areaGrad)" dot={{ fill: "#6366f1", r: 3 }} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {showInitialLoading ? (
+              <div className="h-[120px] flex items-center justify-center text-slate-400 text-xs">
+                {UI_TEXT.history.loading}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={120}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f020" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    ticks={chartAxis.ticks}
+                    domain={[0, chartAxis.domainMax]}
+                    tickFormatter={(value) => formatChartHours(Number(value))}
+                  />
+                  <Tooltip
+                    formatter={(value) => `${formatChartHours(Number(value))}h`}
+                    contentStyle={{ borderRadius: "1rem", border: "none", fontSize: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="hours"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    fill="url(#areaGrad)"
+                    dot={{ fill: "#6366f1", r: 3 }}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="glass-card p-5 bg-white/30 flex-1 overflow-y-auto custom-scrollbar">
             <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.appDistribution}</h3>
-            {appSummary.length === 0 ? (
+            {showInitialLoading ? (
+              <p className="text-slate-400 text-xs text-center mt-8">{UI_TEXT.history.loading}</p>
+            ) : appSummary.length === 0 ? (
               <p className="text-slate-400 text-xs text-center mt-8">{UI_TEXT.history.noData}</p>
             ) : (
               <div className="space-y-3">
                 {appSummary.slice(0, 15).map((app) => {
                   const mapped = ProcessMapper.map(app.exeName, { appName: app.appName });
+                  const overrideColor = ProcessMapper.getUserOverride(app.exeName)?.color;
+                  const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? mapped.color;
                   const appName = app.appName.trim() || mapped.name;
                   return (
                     <div key={app.exeName}>
@@ -215,7 +275,7 @@ export default function History({
                           animate={{ width: `${app.percentage}%` }}
                           transition={{ duration: 0.3, ease: "easeOut" }}
                           className="h-full rounded-full"
-                          style={{ backgroundColor: iconThemeColors[app.exeName] ?? mapped.color }}
+                          style={{ backgroundColor: accentColor }}
                         />
                       </div>
                     </div>
@@ -237,6 +297,8 @@ export default function History({
               <AnimatePresence initial={false}>
                 {timelineSessions.map((session) => {
                   const mapped = ProcessMapper.map(session.exe_name, { appName: session.displayName });
+                  const overrideColor = ProcessMapper.getUserOverride(session.exe_name)?.color;
+                  const accentColor = overrideColor ?? iconThemeColors[session.exe_name] ?? mapped.color;
 
                   return (
                     <div
@@ -245,7 +307,7 @@ export default function History({
                     >
                       <div
                         className="w-1 self-stretch rounded-full flex-shrink-0"
-                        style={{ backgroundColor: iconThemeColors[session.exe_name] ?? mapped.color }}
+                        style={{ backgroundColor: accentColor }}
                       />
                       <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden p-1.5">
                         {icons[session.exe_name] ? (

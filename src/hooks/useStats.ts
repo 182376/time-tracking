@@ -15,6 +15,7 @@ export function useStats(
   refreshIntervalSecs: number,
   refreshKey: number,
   trackerHealth: TrackerHealthSnapshot,
+  mappingVersion: number = 0,
 ): UseStatsResult {
   const [rawSessions, setRawSessions] = useState<HistorySession[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
@@ -75,7 +76,7 @@ export function useStats(
 
   const dashboard = useMemo(
     () => HistoryService.buildDashboardReadModel(rawSessions, trackerHealth, nowMs),
-    [nowMs, rawSessions, trackerHealth],
+    [mappingVersion, nowMs, rawSessions, trackerHealth],
   );
 
   return {

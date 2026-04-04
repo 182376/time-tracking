@@ -12,9 +12,12 @@ import "./App.css";
 
 const History = lazy(() => import("./components/History"));
 const Settings = lazy(() => import("./components/Settings"));
+const AppMapping = lazy(() => import("./components/AppMapping"));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [mappingVersion, setMappingVersion] = useState(0);
+  const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const {
     activeWindow,
     appSettings,
@@ -22,10 +25,12 @@ export default function App() {
     syncTick,
     trackerHealth,
   } = useWindowTracking();
+  const refreshSignal = syncTick + dataRefreshTick;
   const { dashboard, icons } = useStats(
     appSettings.refresh_interval_secs,
-    syncTick,
+    refreshSignal,
     trackerHealth,
+    mappingVersion,
   );
 
   const activeCanonicalExe = activeWindow?.exe_name
@@ -65,17 +70,31 @@ export default function App() {
               <History
                 key="history"
                 icons={icons}
-                refreshKey={syncTick}
+                refreshKey={refreshSignal}
                 refreshIntervalSecs={appSettings.refresh_interval_secs}
                 mergeThresholdSecs={appSettings.afk_timeout_secs}
                 minSessionSecs={appSettings.min_session_secs}
                 trackerHealth={trackerHealth}
+                mappingVersion={mappingVersion}
               />
             )}
             {currentView === "settings" && (
               <Settings
                 key="settings"
                 onSettingsChanged={setAppSettings}
+              />
+            )}
+            {currentView === "mapping" && (
+              <AppMapping
+                key="mapping"
+                icons={icons}
+                refreshKey={refreshSignal}
+                onOverridesChanged={() => {
+                  setMappingVersion((version) => version + 1);
+                }}
+                onSessionsDeleted={() => {
+                  setDataRefreshTick((tick) => tick + 1);
+                }}
               />
             )}
           </AnimatePresence>

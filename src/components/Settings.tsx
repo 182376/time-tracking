@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap, ChevronDown, Sparkles } from "lucide-react";
+import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap } from "lucide-react";
 import { UI_TEXT } from "../lib/copy";
-import type { AppSettings, OtherCategoryCandidate } from "../lib/settings";
+import type { AppSettings } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
-import { ProcessMapper } from "../lib/ProcessMapper";
-import { USER_ASSIGNABLE_CATEGORIES, type UserAssignableAppCategory } from "../lib/config/categoryTokens";
 
 interface Props {
   onSettingsChanged: (settings: AppSettings) => void;
@@ -28,46 +26,21 @@ function getCutoffTime(range: CleanupRange) {
   return date.getTime();
 }
 
-function formatCandidateDuration(durationMs: number) {
-  const minutes = Math.floor(Math.max(0, durationMs) / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const restMinutes = minutes % 60;
-  if (hours > 0) {
-    return `${hours}h ${restMinutes}m`;
-  }
-  return `${restMinutes}m`;
-}
-
-const OTHER_ASSIGN_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES.filter(
-  (category) => category !== "other",
-);
-
 export default function Settings({ onSettingsChanged }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [cleanupRange, setCleanupRange] = useState<CleanupRange>(30);
   const [isCleaning, setIsCleaning] = useState(false);
-  const [otherPanelOpen, setOtherPanelOpen] = useState(false);
-  const [otherCandidates, setOtherCandidates] = useState<OtherCategoryCandidate[]>([]);
-  const [isApplyingOther, setIsApplyingOther] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const [loadedSettings, overrides] = await Promise.all([
-        SettingsService.load(),
-        SettingsService.loadAppOverrides(),
-      ]);
-      ProcessMapper.setUserOverrides(overrides);
-      const candidates = await SettingsService.loadOtherCategoryCandidates();
-
+      const loadedSettings = await SettingsService.load();
       if (cancelled) return;
       setSettings(loadedSettings);
-      setOtherCandidates(candidates.filter((candidate) => ProcessMapper.map(candidate.exeName).category === "other"));
       setLoading(false);
     };
-
     void load();
     return () => {
       cancelled = true;
@@ -102,42 +75,6 @@ export default function Settings({ onSettingsChanged }: Props) {
     }
   };
 
-  const refreshOtherCandidates = async () => {
-    const candidates = await SettingsService.loadOtherCategoryCandidates();
-    setOtherCandidates(candidates);
-  };
-
-  const handleOtherAssign = async (exeName: string, categoryValue: string) => {
-    const category = categoryValue as UserAssignableAppCategory;
-    const override = categoryValue === "other"
-      ? null
-      : {
-        category,
-        enabled: true,
-        updatedAt: Date.now(),
-      };
-
-    setIsApplyingOther(exeName);
-    try {
-      await SettingsService.saveAppOverride(exeName, override);
-      ProcessMapper.setUserOverride(exeName, override);
-      await refreshOtherCandidates();
-    } finally {
-      setIsApplyingOther(null);
-    }
-  };
-
-  const handleClearAllOverrides = async () => {
-    setIsApplyingOther("__all__");
-    try {
-      await SettingsService.clearAllAppOverrides();
-      ProcessMapper.clearUserOverrides();
-      await refreshOtherCandidates();
-    } finally {
-      setIsApplyingOther(null);
-    }
-  };
-
   if (loading || !settings) {
     return (
       <div className="flex-1 flex items-center justify-center text-slate-400 gap-3 animate-pulse">
@@ -154,7 +91,7 @@ export default function Settings({ onSettingsChanged }: Props) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex flex-col gap-6 h-full max-w-5xl"
+      className="flex h-full w-full min-w-0 flex-col gap-6"
     >
       <header className="glass-card p-6 flex justify-between items-center bg-white/40">
         <div className="flex items-center gap-4">
@@ -183,69 +120,65 @@ export default function Settings({ onSettingsChanged }: Props) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-        <div className="grid grid-cols-2 gap-6">
-          <section className="glass-card p-6 bg-white/30 flex flex-col gap-5">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <section className="glass-card min-h-[240px] bg-white/30 p-6">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
               <Clock size={16} className="text-indigo-500" />
               <h2 className="text-sm font-bold text-slate-800">{UI_TEXT.settings.tracking}</h2>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.afkLabel}</label>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  {UI_TEXT.settings.afkHint}
-                </p>
-                <select
-                  value={settings.afk_timeout_secs}
-                  onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
-                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
-                >
-                  <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
-                  <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
-                  <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
-                </select>
+            <div className="mt-5 space-y-5">
+              <div>
+                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.afkLabel}</label>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                  <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.afkHint}</p>
+                  <select
+                    value={settings.afk_timeout_secs}
+                    onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
+                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                  >
+                    <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
+                    <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
+                    <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
+                  </select>
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-2 mt-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.minSessionLabel}</label>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  {UI_TEXT.settings.minSessionHint}
-                </p>
-                <select
-                  value={settings.min_session_secs}
-                  onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
-                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
-                >
-                  <option value={30}>30 s</option>
-                  <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
-                  <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
-                  <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
-                  <option value={600}>{UI_TEXT.settings.minutePresets[600]}</option>
-                </select>
+              <div>
+                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.minSessionLabel}</label>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                  <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
+                  <select
+                    value={settings.min_session_secs}
+                    onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
+                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                  >
+                    <option value={30}>30 s</option>
+                    <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
+                    <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
+                    <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
+                    <option value={600}>{UI_TEXT.settings.minutePresets[600]}</option>
+                  </select>
+                </div>
               </div>
             </div>
           </section>
 
-          <section className="glass-card p-6 bg-white/30 flex flex-col gap-5">
+          <section className="glass-card min-h-[240px] bg-white/30 p-6">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
               <Smartphone size={16} className="text-emerald-500" />
               <h2 className="text-sm font-bold text-slate-800">{UI_TEXT.settings.performance}</h2>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.refreshLabel}</label>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                  {UI_TEXT.settings.refreshHint}
-                </p>
+            <div className="mt-5">
+              <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.refreshLabel}</label>
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.refreshHint}</p>
                 <select
                   value={settings.refresh_interval_secs}
                   onChange={(e) => handleChange("refresh_interval_secs", Number(e.target.value))}
-                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                  className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
                 >
                   <option value={1}>{UI_TEXT.settings.refreshPresets[1]}</option>
                   <option value={3}>{UI_TEXT.settings.refreshPresets[3]}</option>
@@ -255,35 +188,31 @@ export default function Settings({ onSettingsChanged }: Props) {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 mt-2">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 mt-5">
               <div className="flex gap-2.5 items-start">
                 <ShieldAlert size={14} className="text-amber-600 mt-0.5" />
-                <p className="text-[10px] leading-relaxed text-amber-800/70 font-medium">
-                  {UI_TEXT.settings.refreshWarning}
-                </p>
+                <p className="text-xs leading-relaxed text-amber-800/80 font-medium">{UI_TEXT.settings.refreshWarning}</p>
               </div>
             </div>
           </section>
 
-          <section className="col-span-2 glass-card p-6 bg-white/30">
+          <section className="xl:col-span-2 glass-card p-6 bg-white/30">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 mb-5">
               <Trash2 size={16} className="text-rose-500" />
               <h2 className="text-sm font-bold text-slate-800">{UI_TEXT.settings.cleanup}</h2>
             </div>
 
-            <div className="flex items-center justify-between gap-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-bold text-slate-700">{UI_TEXT.settings.cleanupTitle}</p>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {UI_TEXT.settings.cleanupHint}
-                </p>
+                <p className="text-sm text-slate-500 mt-1">{UI_TEXT.settings.cleanupHint}</p>
               </div>
 
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-3 flex-shrink-0 self-end lg:self-auto">
                 <select
                   value={cleanupRange}
                   onChange={(e) => setCleanupRange(Number(e.target.value) as CleanupRange)}
-                  className="bg-white/80 px-3 py-2 rounded-xl text-xs font-bold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-rose-200 outline-none cursor-pointer"
+                  className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-rose-200 outline-none cursor-pointer"
                 >
                   {CLEANUP_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -298,79 +227,13 @@ export default function Settings({ onSettingsChanged }: Props) {
                   transition={{ duration: 0.14, ease: "easeOut" }}
                   onClick={handleCleanup}
                   disabled={isCleaning}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-100 text-rose-600 font-bold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-100 text-rose-600 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   {isCleaning ? UI_TEXT.settings.cleanupRunning : UI_TEXT.settings.cleanupNow}
                 </motion.button>
               </div>
             </div>
-          </section>
-
-          <section className="col-span-2 glass-card p-4 bg-white/20">
-            <button
-              onClick={() => setOtherPanelOpen((open) => !open)}
-              className="w-full flex items-center justify-between text-left"
-            >
-              <div className="flex items-center gap-2 text-slate-500">
-                <Sparkles size={14} className="text-slate-400" />
-                <span className="text-xs font-semibold">{UI_TEXT.settings.otherReviewTitle}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400">{UI_TEXT.settings.otherReviewToggle}</span>
-                <ChevronDown
-                  size={14}
-                  className={`text-slate-400 transition-transform ${otherPanelOpen ? "rotate-180" : ""}`}
-                />
-              </div>
-            </button>
-
-            {otherPanelOpen && (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-slate-400">{UI_TEXT.settings.otherReviewHint}</p>
-                  <button
-                    onClick={handleClearAllOverrides}
-                    disabled={isApplyingOther === "__all__"}
-                    className="text-[10px] text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {UI_TEXT.settings.otherReviewClearAll}
-                  </button>
-                </div>
-                {otherCandidates.length === 0 ? (
-                  <p className="text-[11px] text-slate-400">{UI_TEXT.settings.otherReviewEmpty}</p>
-                ) : (
-                  <div className="space-y-2 max-h-44 overflow-y-auto custom-scrollbar pr-1">
-                    {otherCandidates.map((candidate) => (
-                      <div
-                        key={candidate.exeName}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-white/50 px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-700 truncate">{candidate.appName}</div>
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {candidate.exeName} · {formatCandidateDuration(candidate.totalDuration)}
-                          </div>
-                        </div>
-                        <select
-                          value="other"
-                          disabled={isApplyingOther === candidate.exeName}
-                          onChange={(event) => handleOtherAssign(candidate.exeName, event.target.value)}
-                          className="bg-white/80 px-2 py-1.5 rounded-lg text-[10px] font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
-                        >
-                          <option value="other">{UI_TEXT.settings.otherReviewReset}</option>
-                          {OTHER_ASSIGN_OPTIONS.map((category) => (
-                            <option key={category} value={category}>
-                              {ProcessMapper.getCategoryLabel(category)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </section>
         </div>
       </div>

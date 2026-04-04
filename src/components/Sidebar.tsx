@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
-import { Zap, Monitor, Clock, Settings2 } from "lucide-react";
+import { Zap, Monitor, Clock, Settings2, Sparkles } from "lucide-react";
 import type { View } from "../types/app";
 
 interface Props {
@@ -14,6 +14,7 @@ const NO_DRAG_STYLE: AppRegionStyle = { WebkitAppRegion: "no-drag" };
 const NAV_ITEMS = [
   { id: "dashboard" as View, icon: Monitor,  label: "Dashboard" },
   { id: "history"   as View, icon: Clock,    label: "History" },
+  { id: "mapping"   as View, icon: Sparkles, label: "Mapping" },
   { id: "settings"  as View, icon: Settings2, label: "Settings" },
 ];
 

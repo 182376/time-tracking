@@ -5,4 +5,4 @@ export interface AppStat {
   suspicious_duration: number;
 }
 
-export type View = "dashboard" | "history" | "settings";
+export type View = "dashboard" | "history" | "mapping" | "settings";

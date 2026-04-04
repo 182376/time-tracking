@@ -28,6 +28,15 @@ export interface OtherCategoryCandidate {
   lastSeenMs: number;
 }
 
+export interface ObservedAppCandidate {
+  exeName: string;
+  appName: string;
+  totalDuration: number;
+  lastSeenMs: number;
+}
+
+type DeleteAppSessionScope = "today" | "all";
+
 function parseNumberSetting(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -144,6 +153,17 @@ export const loadOtherCategoryCandidates = async (
   days: number = 30,
   limit: number = 30,
 ): Promise<OtherCategoryCandidate[]> => {
+  const observed = await loadObservedAppCandidates(days, Math.max(limit, 1) * 2);
+  const otherOnly = observed.filter((item) => (
+    ProcessMapper.map(item.exeName, { appName: item.appName }).category === "other"
+  ));
+  return otherOnly.slice(0, Math.max(1, limit));
+};
+
+export const loadObservedAppCandidates = async (
+  days: number = 30,
+  limit: number = 120,
+): Promise<ObservedAppCandidate[]> => {
   const db = await getDB();
   const sinceMs = Date.now() - (Math.max(1, days) * 24 * 60 * 60 * 1000);
   const nowMs = Date.now();
@@ -163,7 +183,7 @@ export const loadOtherCategoryCandidates = async (
     [nowMs, sinceMs],
   );
 
-  const merged = new Map<string, OtherCategoryCandidate>();
+  const merged = new Map<string, ObservedAppCandidate>();
 
   for (const row of rows) {
     const canonicalExe = resolveCanonicalExecutable(row.exe_name);
@@ -172,10 +192,6 @@ export const loadOtherCategoryCandidates = async (
     }
 
     const mapped = ProcessMapper.map(canonicalExe, { appName: row.app_name });
-    if (mapped.category !== "other") {
-      continue;
-    }
-
     const previous = merged.get(canonicalExe);
     const duration = Math.max(0, Number(row.total_duration ?? 0));
     const lastSeenMs = Math.max(0, Number(row.last_seen_ms ?? 0));
@@ -201,4 +217,51 @@ export const loadOtherCategoryCandidates = async (
   return Array.from(merged.values())
     .sort((a, b) => b.lastSeenMs - a.lastSeenMs || b.totalDuration - a.totalDuration)
     .slice(0, Math.max(1, limit));
+};
+
+export const deleteObservedAppSessions = async (
+  exeName: string,
+  scope: DeleteAppSessionScope = "all",
+): Promise<number> => {
+  const canonicalExe = resolveCanonicalExecutable(exeName);
+  if (!canonicalExe) {
+    return 0;
+  }
+
+  const db = await getDB();
+  const rows = await db.select<Array<{ exe_name: string }>>(
+    "SELECT DISTINCT exe_name FROM sessions",
+  );
+  const matchedExeNames = rows
+    .map((row) => row.exe_name)
+    .filter((rawExeName) => resolveCanonicalExecutable(rawExeName) === canonicalExe);
+
+  if (matchedExeNames.length === 0) {
+    return 0;
+  }
+
+  const placeholders = matchedExeNames.map(() => "?").join(", ");
+  const now = new Date();
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  if (scope === "all") {
+    await db.execute(
+      `DELETE FROM sessions WHERE exe_name IN (${placeholders})`,
+      matchedExeNames,
+    );
+    return matchedExeNames.length;
+  }
+
+  await db.execute(
+    `DELETE FROM sessions
+     WHERE exe_name IN (${placeholders})
+       AND start_time >= ?
+       AND start_time < ?`,
+    [...matchedExeNames, dayStart.getTime(), dayEnd.getTime()],
+  );
+
+  return matchedExeNames.length;
 };

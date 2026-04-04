@@ -35,7 +35,15 @@ export const getIconMap = async (): Promise<Record<string, string>> => {
   const results = await db.select<{ exe_name: string; icon_base64: string }[]>('SELECT exe_name, icon_base64 FROM icon_cache');
   const map: Record<string, string> = {};
   for (const r of results) {
-    map[r.exe_name] = r.icon_base64;
+    const rawExe = (r.exe_name ?? "").trim();
+    if (!rawExe) continue;
+
+    const normalizedExe = resolveCanonicalExecutable(rawExe);
+    const lowerExe = rawExe.toLowerCase();
+
+    map[rawExe] = r.icon_base64;
+    map[lowerExe] = r.icon_base64;
+    map[normalizedExe] = r.icon_base64;
   }
   return map;
 };

@@ -37,7 +37,9 @@ export function formatDateLabel(date: Date) {
 export function buildChartData(weekly: DailySummary[]): HistoryChartPoint[] {
   return weekly.map((item) => ({
     day: item.date.slice(5),
-    hours: Math.round((Math.max(0, item.total_duration) / 3600000) * 10) / 10,
+    // Keep raw hour precision so the trend line updates continuously
+    // instead of jumping by 0.1h steps.
+    hours: Math.max(0, item.total_duration) / 3600000,
   }));
 }
 
@@ -46,14 +48,13 @@ export function formatChartHours(hours: number) {
 }
 
 export function buildChartAxis(points: HistoryChartPoint[]) {
+  const axisStep = 4;
   const maxHours = Math.max(0, ...points.map((point) => point.hours));
-  const roughStep = maxHours > 0 ? maxHours / 4 : 1;
-  const niceSteps = [0.5, 1, 2, 4, 6, 8, 12, 24];
-  const step = niceSteps.find((candidate) => candidate >= roughStep) ?? Math.ceil(roughStep);
-  const domainMax = step * 4;
+  const domainMax = Math.max(axisStep, Math.ceil(maxHours / axisStep) * axisStep);
+  const tickCount = Math.floor(domainMax / axisStep) + 1;
 
   return {
     domainMax,
-    ticks: Array.from({ length: 5 }, (_, index) => index * step),
+    ticks: Array.from({ length: tickCount }, (_, index) => index * axisStep),
   };
 }

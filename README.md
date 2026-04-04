@@ -16,7 +16,9 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **Governed app mapping engine**: Executable identity is normalized through canonical rules and then resolved by default mappings, keyword heuristics, and user override layers.
 - **Expanded app categories**: Supports a finer category model (`development`, `office`, `browser`, `communication`, `meeting`, `video`, `music`, `game`, `design`, `reading`, `finance`, `utility`, `system`, `other`).
 - **Icon-driven app theme colors**: App bars in ranking, timeline, and app distribution prefer dominant icon color; focus distribution remains category-color based.
-- **Low-noise other-category review**: Settings includes a subtle panel that only lists apps that actually appeared and remain in `other`, so users can reclassify without touching raw data.
+- **Dedicated app mapping page**: A standalone `App Classification & Color` page supports reviewing all observed apps in one place with responsive single/double-column layouts.
+- **Global override controls**: Users can rename, reclassify, and recolor apps; overrides apply globally across Dashboard, History, and Smart Timeline.
+- **Per-app lifecycle controls**: Each app can be reset to automatic recognition or fully removed from historical sessions when it is no longer needed.
 - **Timeline-only minimum segment filter**: The minimum-duration setting only filters Smart Timeline display segments and does not alter real-duration stats.
 - **Icon extraction and caching**: Executable icons are extracted natively and cached in SQLite for fast rendering.
 - **History and analytics**: Includes daily app rankings, hourly activity, 7-day trends, and a session timeline view.
@@ -29,7 +31,7 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **Smart timeline minimum segment**: `30s / 1 / 3 / 5 / 10` minutes (display-only, stats are unaffected)
 - **UI refresh interval**: `1 / 3 / 5 / 10` seconds
 - **History cleanup**: delete records older than `7 / 15 / 30 / 60 / 90 / 180` days
-- **Other-category review**: manual category override for real observed `other` apps, plus reset to automatic recognition
+- **App mapping controls**: global rename/category/color overrides for observed apps, reset to auto-recognition, and per-app full-history deletion
 
 ## Current Timing Pipeline
 

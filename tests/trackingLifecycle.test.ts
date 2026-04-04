@@ -522,6 +522,94 @@ runTest("process mapper category snapshot remains stable for key desktop apps", 
   }
 });
 
+runTest("display name overrides propagate into compiled app stats", () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.setUserOverride("vscodium.exe", {
+    displayName: "CodeLab",
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const compiled = compileSessions([
+    makeSession({
+      id: 1,
+      exe_name: "vscodium.exe",
+      app_name: "VSCodium",
+      start_time: 0,
+      end_time: 60_000,
+      duration: 60_000,
+    }),
+  ], {
+    startMs: 0,
+    endMs: 120_000,
+    minSessionSecs: 0,
+  });
+  const stats = buildNormalizedAppStats(compiled);
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].app_name, "CodeLab");
+  ProcessMapper.clearUserOverrides();
+});
+
+runTest("dashboard read model applies display name overrides globally", () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.setUserOverride("vscodium.exe", {
+    displayName: "CodeLab",
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
+  const dashboard = HistoryService.buildDashboardReadModel([
+    makeSession({
+      id: 1,
+      exe_name: "vscodium.exe",
+      app_name: "VSCodium",
+      start_time: 0,
+      end_time: 60_000,
+      duration: 60_000,
+    }),
+  ], trackerHealth, 120_000);
+
+  assert.equal(dashboard.topApplications.length, 1);
+  assert.equal(dashboard.topApplications[0].name, "CodeLab");
+  ProcessMapper.clearUserOverrides();
+});
+
+runTest("history read model applies display name overrides globally", () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.setUserOverride("vscodium.exe", {
+    displayName: "CodeLab",
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
+  const historyView = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({
+        id: 1,
+        exe_name: "vscodium.exe",
+        app_name: "VSCodium",
+        start_time: 0,
+        end_time: 60_000,
+        duration: 60_000,
+      }),
+    ],
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 120_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(historyView.appSummary.length, 1);
+  assert.equal(historyView.appSummary[0].appName, "CodeLab");
+  assert.equal(historyView.timelineSessions.length, 1);
+  assert.equal(historyView.timelineSessions[0].displayName, "CodeLab");
+  ProcessMapper.clearUserOverrides();
+});
+
 runTest("process mapper color output stays stable for same app key", () => {
   ProcessMapper.clearUserOverrides();
   const first = ProcessMapper.map("vscodium.exe", { appName: "VSCodium" });
@@ -532,6 +620,7 @@ runTest("process mapper color output stays stable for same app key", () => {
 runTest("canonical normalization resolves aliases and filters PickerHost", () => {
   assert.equal(resolveCanonicalExecutable("Douyin_tray.exe"), "douyin.exe");
   assert.equal(resolveCanonicalExecutable("Douyin_widget"), "douyin.exe");
+  assert.equal(resolveCanonicalExecutable("steamwebhelper.exe"), "steam.exe");
   assert.equal(resolveCanonicalDisplayName("douyin.exe"), "抖音");
   assert.equal(shouldTrackProcess("PickerHost.exe"), false);
   assert.equal(shouldTrackProcess("pickerhost"), false);
@@ -616,6 +705,53 @@ runTest("min session threshold only affects timeline display, not real duration 
   assert.equal(view.timelineSessions.length, 0);
   assert.equal(view.appSummary.reduce((sum, item) => sum + item.duration, 0), 40_000);
   assert.equal(view.weekly.reduce((sum, item) => sum + item.total_duration, 0), 40_000);
+});
+
+runTest("history timeline keeps latest live session visible below min threshold and hides it once ended", () => {
+  const trackerHealth = resolveTrackerHealth(200_000, 200_000, 8_000);
+
+  const liveView = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({
+        id: 1,
+        exe_name: "vscodium.exe",
+        app_name: "VSCodium",
+        start_time: 195_000,
+        end_time: null,
+        duration: null,
+      }),
+    ],
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 200_000,
+    minSessionSecs: 180,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(liveView.timelineSessions.length, 1);
+  assert.equal(liveView.timelineSessions[0].duration, 5_000);
+
+  const endedView = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({
+        id: 1,
+        exe_name: "vscodium.exe",
+        app_name: "VSCodium",
+        start_time: 195_000,
+        end_time: 197_000,
+        duration: 2_000,
+      }),
+    ],
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 200_000,
+    minSessionSecs: 180,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(endedView.timelineSessions.length, 0);
 });
 
 console.log(`Passed ${passed} tracking lifecycle tests`);

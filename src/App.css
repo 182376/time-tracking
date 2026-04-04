@@ -70,3 +70,50 @@ body {
 h1, h2, h3 {
   letter-spacing: -0.025em;
 }
+
+.dashboard-pulse-card {
+  min-height: 260px;
+}
+
+.dashboard-pulse-chart {
+  min-height: 170px;
+}
+
+@media (max-height: 900px) {
+  .dashboard-focus-card {
+    padding: 1.1rem;
+  }
+
+  .dashboard-focus-chart {
+    height: 150px;
+  }
+
+  .dashboard-focus-legend {
+    margin-top: 0.9rem;
+  }
+
+  .dashboard-pulse-card {
+    min-height: 225px;
+  }
+
+  .dashboard-pulse-chart {
+    min-height: 150px;
+  }
+}
+
+@media (max-height: 780px) {
+  .dashboard-left-column {
+    overflow-y: auto;
+    padding-right: 0.2rem;
+  }
+}
+
+@media (max-width: 1500px), (max-height: 860px) {
+  .dashboard-focus-legend {
+    display: none;
+  }
+
+  .dashboard-focus-card {
+    min-height: 240px;
+  }
+}

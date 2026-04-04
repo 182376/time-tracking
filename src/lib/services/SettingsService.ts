@@ -1,13 +1,16 @@
 import {
   clearAllAppOverrides,
   clearSessionsBefore,
+  deleteObservedAppSessions,
   loadAppOverrides,
+  loadObservedAppCandidates,
   loadOtherCategoryCandidates,
   loadTrackerHealthTimestamp,
   loadSettings,
   saveAppOverride,
   saveSetting,
   type AppSettings,
+  type ObservedAppCandidate,
   type OtherCategoryCandidate,
 } from "../settings";
 import type { AppOverride } from "../ProcessMapper.ts";
@@ -48,5 +51,13 @@ export class SettingsService {
 
   static async loadOtherCategoryCandidates(days: number = 30, limit: number = 30): Promise<OtherCategoryCandidate[]> {
     return loadOtherCategoryCandidates(days, limit);
+  }
+
+  static async loadObservedAppCandidates(days: number = 30, limit: number = 120): Promise<ObservedAppCandidate[]> {
+    return loadObservedAppCandidates(days, limit);
+  }
+
+  static async deleteObservedAppSessions(exeName: string, scope: "today" | "all" = "all") {
+    return deleteObservedAppSessions(exeName, scope);
   }
 }

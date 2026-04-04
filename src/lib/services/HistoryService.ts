@@ -134,11 +134,13 @@ function compileForRange(
   sessions: DiagnosableHistorySession[],
   range: ReturnType<typeof getDayRange>,
   minSessionSecs: number,
+  options: { keepLatestLiveSession?: boolean } = {},
 ) {
   return compileSessions(sessions, {
     startMs: range.startMs,
     endMs: range.endMs,
     minSessionSecs,
+    keepLatestLiveSession: options.keepLatestLiveSession,
   });
 }
 
@@ -232,7 +234,12 @@ export class HistoryService {
     const liveDaySessions = materializeLiveSessions(daySessions, trackerHealth, nowMs);
     const liveWeeklySessions = materializeLiveSessions(weeklySessions, trackerHealth, nowMs);
     const compiledSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
-    const timelineSourceSessions = compileForRange(liveDaySessions, selectedDayRange, minSessionSecs);
+    const timelineSourceSessions = compileForRange(
+      liveDaySessions,
+      selectedDayRange,
+      minSessionSecs,
+      { keepLatestLiveSession: true },
+    );
     const timelineSessions = buildTimelineSessions(timelineSourceSessions, mergeThresholdSecs).slice().reverse();
     const appSummary = buildAppSummary(buildNormalizedAppStats(compiledSessions));
     const weekly = buildDailySummaries(

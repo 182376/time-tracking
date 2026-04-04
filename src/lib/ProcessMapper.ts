@@ -17,6 +17,7 @@ export interface MappingHints {
 export interface AppOverride {
   category?: UserAssignableAppCategory;
   displayName?: string;
+  color?: string;
   enabled?: boolean;
   updatedAt?: number;
 }
@@ -98,6 +99,18 @@ function normalizeDisplayName(name: string | undefined) {
   return (name ?? "").trim().replace(/\.exe$/i, "");
 }
 
+function normalizeHexColor(color: string | undefined): string | null {
+  const raw = (color ?? "").trim();
+  if (!raw) return null;
+
+  const normalized = raw.startsWith("#") ? raw : `#${raw}`;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return null;
+  }
+
+  return normalized.toUpperCase();
+}
+
 function buildSearchText(canonicalExe: string, hints: MappingHints) {
   return [
     canonicalExe,
@@ -131,6 +144,10 @@ function normalizeOverride(override: AppOverride | null | undefined): AppOverrid
   }
   if (override.displayName?.trim()) {
     normalized.displayName = override.displayName.trim();
+  }
+  const color = normalizeHexColor(override.color);
+  if (color) {
+    normalized.color = color;
   }
   if (typeof override.updatedAt === "number" && Number.isFinite(override.updatedAt)) {
     normalized.updatedAt = override.updatedAt;
@@ -198,6 +215,7 @@ export class ProcessMapper {
     const canonicalExe = resolveCanonicalExecutable(exeName);
     const defaultMapping = DEFAULT_APP_MAPPINGS[canonicalExe];
     const override = this.userOverrides[canonicalExe];
+    const hasOverride = Boolean(override?.category || override?.displayName || override?.color);
 
     if (defaultMapping) {
       const category = override?.category ?? defaultMapping.category;
@@ -205,9 +223,9 @@ export class ProcessMapper {
       return {
         name,
         category,
-        color: resolveCategoryColor(category),
-        confidence: override?.category || override?.displayName ? "high" : "high",
-        source: override?.category || override?.displayName ? "override" : "default",
+        color: override?.color ?? resolveCategoryColor(category),
+        confidence: "high",
+        source: hasOverride ? "override" : "default",
       };
     }
 
@@ -219,9 +237,9 @@ export class ProcessMapper {
     return {
       name: resolvedName,
       category: resolvedCategory,
-      color: resolveCategoryColor(resolvedCategory),
-      confidence: override?.category ? "high" : categoryByRule ? "medium" : "low",
-      source: override?.category || override?.displayName ? "override" : categoryByRule ? "heuristic" : "fallback",
+      color: override?.color ?? resolveCategoryColor(resolvedCategory),
+      confidence: override?.category || override?.color ? "high" : categoryByRule ? "medium" : "low",
+      source: hasOverride ? "override" : categoryByRule ? "heuristic" : "fallback",
     };
   }
 
@@ -238,6 +256,7 @@ export class ProcessMapper {
     return JSON.stringify({
       category: override.category ?? null,
       displayName: override.displayName ?? null,
+      color: normalizeHexColor(override.color) ?? null,
       enabled: override.enabled !== false,
       updatedAt: override.updatedAt ?? Date.now(),
     });

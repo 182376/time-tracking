@@ -25,6 +25,7 @@ export interface SessionRange {
 
 export interface CompileSessionsOptions extends SessionRange {
   minSessionSecs: number;
+  keepLatestLiveSession?: boolean;
 }
 
 export interface CompiledSession extends HistorySession {
@@ -38,6 +39,7 @@ export interface CompiledSession extends HistorySession {
   sourceIds: number[];
   diagnosticCodes: SessionDiagnosticCode[];
   suspiciousDuration: number;
+  isLive: boolean;
 }
 
 export type TimelineSession = CompiledSession;
@@ -87,6 +89,11 @@ function resolveCompiledDisplayName(
   session: DiagnosableHistorySession,
   appKey: string,
 ) {
+  const overrideDisplayName = ProcessMapper.getUserOverride(appKey)?.displayName?.trim();
+  if (overrideDisplayName) {
+    return overrideDisplayName;
+  }
+
   const mapped = ProcessMapper.map(appKey, { appName: session.app_name });
   const canonicalName = resolveCanonicalDisplayName(appKey);
   if (canonicalName) {
@@ -155,6 +162,7 @@ function prepareSession(
     sourceIds: [session.id],
     diagnosticCodes: [...(session.diagnosticCodes ?? [])],
     suspiciousDuration: Math.max(0, session.suspiciousDuration ?? 0),
+    isLive: session.end_time === null,
   };
 }
 
@@ -192,6 +200,7 @@ function finalizeCompiledSession(session: CompiledSession): CompiledSession {
 function buildCompiledSessionBase(
   sessions: DiagnosableHistorySession[],
   minSessionSecs: number,
+  keepLatestLiveSession: boolean = false,
 ): CompiledSession[] {
   const directMergeGapMs = minSessionSecs > 0 ? DIRECT_MERGE_GAP_MS : 0;
   const prepared = sessions
@@ -218,6 +227,7 @@ function buildCompiledSessionBase(
       previous.sourceIds = [...previous.sourceIds, ...session.sourceIds];
       previous.diagnosticCodes = mergeDiagnosticCodes(previous.diagnosticCodes, session.diagnosticCodes);
       previous.suspiciousDuration += session.suspiciousDuration;
+      previous.isLive = previous.isLive || session.isLive;
       return acc;
     }
 
@@ -226,9 +236,25 @@ function buildCompiledSessionBase(
   }, []);
 
   const minDurationMs = Math.max(0, minSessionSecs) * 1000;
+  const latestLiveSession = merged.reduce<CompiledSession | null>((latest, session) => {
+    if (!session.isLive) {
+      return latest;
+    }
+
+    if (!latest) {
+      return session;
+    }
+
+    const latestEnd = latest.end_time ?? latest.start_time;
+    const sessionEnd = session.end_time ?? session.start_time;
+    return sessionEnd >= latestEnd ? session : latest;
+  }, null);
 
   return merged
-    .filter((session) => (session.duration ?? 0) >= minDurationMs)
+    .filter((session) => (
+      (session.duration ?? 0) >= minDurationMs
+      || (keepLatestLiveSession && latestLiveSession === session)
+    ))
     .map(finalizeCompiledSession);
 }
 
@@ -278,7 +304,7 @@ export function compileSessions(
   sessions: DiagnosableHistorySession[],
   options: CompileSessionsOptions,
 ): CompiledSession[] {
-  return buildCompiledSessionBase(sessions, options.minSessionSecs)
+  return buildCompiledSessionBase(sessions, options.minSessionSecs, options.keepLatestLiveSession)
     .map((session) => clipCompiledSession(session, options.startMs, options.endMs))
     .filter((session): session is CompiledSession => Boolean(session));
 }
@@ -398,7 +424,7 @@ export function buildDailySummaries(
   dayRanges: SessionRange[],
   minSessionSecs: number,
 ): DailySummary[] {
-  const compiled = buildCompiledSessionBase(sessions, minSessionSecs);
+  const compiled = buildCompiledSessionBase(sessions, minSessionSecs, false);
 
   return dayRanges.map((range) => {
     return {
