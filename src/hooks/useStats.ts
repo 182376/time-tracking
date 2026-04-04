@@ -1,61 +1,87 @@
-import { useEffect, useState, useCallback } from "react";
-import { AppStat } from "../types/app";
-import { getHistoryByDate, getIconMap, type HistorySession } from "../lib/db";
-import { buildNormalizedAppStats, compileSessions, getDayRange } from "../lib/services/sessionCompiler";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import type { HistorySession } from "../lib/db";
+import {
+  HistoryService,
+  type DashboardReadModel,
+} from "../lib/services/HistoryService";
+import type { TrackerHealthSnapshot } from "../types/tracking";
 
 export interface UseStatsResult {
-  stats: AppStat[];
+  dashboard: DashboardReadModel;
   icons: Record<string, string>;
-  todaySessions: HistorySession[];
   refreshNow: () => Promise<void>;
 }
 
-export function useStats(refreshIntervalSecs: number, refreshKey: number, minSessionSecs: number): UseStatsResult {
-  const [stats, setStats] = useState<AppStat[]>([]);
+export function useStats(
+  refreshIntervalSecs: number,
+  refreshKey: number,
+  trackerHealth: TrackerHealthSnapshot,
+): UseStatsResult {
+  const [rawSessions, setRawSessions] = useState<HistorySession[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
-  const [todaySessions, setTodaySessions] = useState<HistorySession[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const fetchData = useCallback(async () => {
     try {
-      const [sessions, iconsData] = await Promise.all([
-        getHistoryByDate(new Date()),
-        getIconMap(),
-      ]);
-      const dayRange = getDayRange(new Date());
-      const compiledSessions = compileSessions(sessions || [], {
-        startMs: dayRange.startMs,
-        endMs: dayRange.endMs,
-        minSessionSecs,
+      const snapshot = await HistoryService.loadDashboardSnapshot(new Date());
+
+      startTransition(() => {
+        setRawSessions(snapshot.sessions);
+        setIcons(snapshot.icons);
+        setNowMs(snapshot.fetchedAtMs);
       });
-      setStats(buildNormalizedAppStats(compiledSessions));
-      setIcons(iconsData || {});
-      setTodaySessions(compiledSessions);
     } catch (err) {
       console.error("Failed to load stats:", err);
     }
-  }, [minSessionSecs]);
+  }, []);
 
   useEffect(() => {
     void fetchData();
-
-    const timer = window.setInterval(() => {
-      void fetchData();
-    }, refreshIntervalSecs * 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [refreshIntervalSecs, fetchData]);
+  }, [fetchData]);
 
   useEffect(() => {
     if (refreshKey === 0) return;
     void fetchData();
   }, [refreshKey, fetchData]);
 
+  useEffect(() => {
+    const hasLiveSession = rawSessions.some((session) => session.end_time === null);
+    if (!hasLiveSession || trackerHealth.status !== "healthy") {
+      return;
+    }
+
+    const hasMissingIcons = rawSessions.some((session) => !icons[session.exe_name]);
+
+    // Keep live durations moving locally without refetching the full day view.
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+
+      if (hasMissingIcons) {
+        void HistoryService.loadIconSnapshot()
+          .then((snapshot) => {
+            startTransition(() => {
+              setIcons(snapshot.icons);
+            });
+          })
+          .catch((error) => {
+            console.warn("Failed to refresh icon cache:", error);
+          });
+      }
+    }, refreshIntervalSecs * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [icons, rawSessions, refreshIntervalSecs, trackerHealth.status]);
+
+  const dashboard = useMemo(
+    () => HistoryService.buildDashboardReadModel(rawSessions, trackerHealth, nowMs),
+    [nowMs, rawSessions, trackerHealth],
+  );
+
   return {
-    stats,
+    dashboard,
     icons,
-    todaySessions,
     refreshNow: fetchData,
   };
 }

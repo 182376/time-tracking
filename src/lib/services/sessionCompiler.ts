@@ -5,6 +5,13 @@ import { cleanWindowTitle } from "./TitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;
 
+export type SessionDiagnosticCode = "tracker_stale_live_session";
+
+export interface DiagnosableHistorySession extends HistorySession {
+  diagnosticCodes?: SessionDiagnosticCode[];
+  suspiciousDuration?: number;
+}
+
 export interface SessionRange {
   startMs: number;
   endMs: number;
@@ -20,6 +27,9 @@ export interface CompiledSession extends HistorySession {
   displayName: string;
   displayTitle: string;
   titleSamples: string[];
+  sourceIds: number[];
+  diagnosticCodes: SessionDiagnosticCode[];
+  suspiciousDuration: number;
 }
 
 export interface TimelineSession extends CompiledSession {}
@@ -45,8 +55,15 @@ function summarizeTitleSamples(titleSamples: string[]) {
   return `${titleSamples[0]} +${titleSamples.length - 1}`;
 }
 
+function mergeDiagnosticCodes(
+  current: SessionDiagnosticCode[],
+  incoming: SessionDiagnosticCode[],
+) {
+  return Array.from(new Set([...current, ...incoming]));
+}
+
 function prepareSession(
-  session: HistorySession,
+  session: DiagnosableHistorySession,
 ): CompiledSession {
   const rawEndTime = Math.max(session.start_time, getSessionRawEndTime(session));
   const displayName = ProcessMapper.map(session.exe_name).name;
@@ -62,6 +79,9 @@ function prepareSession(
     displayName,
     displayTitle: normalizedTitle,
     titleSamples: normalizedTitle ? [normalizedTitle] : [],
+    sourceIds: [session.id],
+    diagnosticCodes: [...(session.diagnosticCodes ?? [])],
+    suspiciousDuration: Math.max(0, session.suspiciousDuration ?? 0),
   };
 }
 
@@ -82,6 +102,7 @@ function clipCompiledSession(
     start_time: clippedStart,
     end_time: clippedEnd,
     duration: clippedEnd - clippedStart,
+    suspiciousDuration: Math.min(Math.max(0, session.suspiciousDuration), clippedEnd - clippedStart),
   };
 }
 
@@ -93,6 +114,58 @@ function finalizeCompiledSession(session: CompiledSession): CompiledSession {
     window_title: displayTitle,
     displayTitle,
   };
+}
+
+function buildCompiledSessionBase(
+  sessions: DiagnosableHistorySession[],
+  minSessionSecs: number,
+): CompiledSession[] {
+  const prepared = sessions
+    .filter((session) => session.exe_name.toLowerCase() !== "time_tracker.exe")
+    .map((session) => prepareSession(session))
+    .sort((a, b) => a.start_time - b.start_time);
+
+  const merged = prepared.reduce<CompiledSession[]>((acc, session) => {
+    const previous = acc[acc.length - 1];
+    if (!previous) {
+      acc.push({ ...session });
+      return acc;
+    }
+
+    const previousEnd = previous.end_time ?? previous.start_time;
+    const gap = session.start_time - previousEnd;
+    const sameApp = previous.appKey === session.appKey;
+
+    if (sameApp && gap >= 0 && gap <= DIRECT_MERGE_GAP_MS) {
+      previous.end_time = Math.max(previousEnd, session.end_time ?? session.start_time);
+      previous.duration = (previous.end_time ?? previousEnd) - previous.start_time;
+      previous.mergedCount += session.mergedCount;
+      previous.titleSamples = mergeTitleSamples(previous.titleSamples, session.titleSamples);
+      previous.sourceIds = [...previous.sourceIds, ...session.sourceIds];
+      previous.diagnosticCodes = mergeDiagnosticCodes(previous.diagnosticCodes, session.diagnosticCodes);
+      previous.suspiciousDuration += session.suspiciousDuration;
+      return acc;
+    }
+
+    acc.push({ ...session });
+    return acc;
+  }, []);
+
+  const minDurationMs = Math.max(0, minSessionSecs) * 1000;
+
+  return merged
+    .filter((session) => (session.duration ?? 0) >= minDurationMs)
+    .map(finalizeCompiledSession);
+}
+
+function getClippedDuration(
+  session: CompiledSession,
+  rangeStartMs: number,
+  rangeEndMs: number,
+) {
+  const clippedStart = Math.max(session.start_time, rangeStartMs);
+  const clippedEnd = Math.min(session.end_time ?? session.start_time, rangeEndMs);
+  return Math.max(0, clippedEnd - clippedStart);
 }
 
 function formatDateKey(timestampMs: number) {
@@ -128,55 +201,30 @@ export function getRollingDayRanges(dayCount: number, nowMs: number = Date.now()
 }
 
 export function compileSessions(
-  sessions: HistorySession[],
+  sessions: DiagnosableHistorySession[],
   options: CompileSessionsOptions,
 ): CompiledSession[] {
-  const prepared = sessions
-    .filter((session) => session.exe_name.toLowerCase() !== "time_tracker.exe")
-    .map((session) => prepareSession(session))
-    .sort((a, b) => a.start_time - b.start_time);
-
-  const merged = prepared.reduce<CompiledSession[]>((acc, session) => {
-    const previous = acc[acc.length - 1];
-    if (!previous) {
-      acc.push({ ...session });
-      return acc;
-    }
-
-    const previousEnd = previous.end_time ?? previous.start_time;
-    const gap = session.start_time - previousEnd;
-    const sameApp = previous.appKey === session.appKey;
-
-    if (sameApp && gap >= 0 && gap <= DIRECT_MERGE_GAP_MS) {
-      previous.end_time = Math.max(previousEnd, session.end_time ?? session.start_time);
-      previous.duration = (previous.end_time ?? previousEnd) - previous.start_time;
-      previous.mergedCount += session.mergedCount;
-      previous.titleSamples = mergeTitleSamples(previous.titleSamples, session.titleSamples);
-      return acc;
-    }
-
-    acc.push({ ...session });
-    return acc;
-  }, []);
-
-  const minDurationMs = Math.max(0, options.minSessionSecs) * 1000;
-
-  return merged
-    .filter((session) => (session.duration ?? 0) >= minDurationMs)
+  return buildCompiledSessionBase(sessions, options.minSessionSecs)
     .map((session) => clipCompiledSession(session, options.startMs, options.endMs))
-    .filter((session): session is CompiledSession => Boolean(session))
-    .map(finalizeCompiledSession);
+    .filter((session): session is CompiledSession => Boolean(session));
 }
 
 export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] {
-  const totals = new Map<string, { app_name: string; exe_name: string; total_duration: number }>();
+  const totals = new Map<string, {
+    app_name: string;
+    exe_name: string;
+    total_duration: number;
+    suspicious_duration: number;
+  }>();
 
   for (const session of sessions) {
     const duration = Math.max(0, session.duration ?? 0);
+    const suspiciousDuration = Math.max(0, session.suspiciousDuration);
     const existing = totals.get(session.appKey);
 
     if (existing) {
       existing.total_duration += duration;
+      existing.suspicious_duration += suspiciousDuration;
       continue;
     }
 
@@ -184,6 +232,7 @@ export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] 
       app_name: session.displayName,
       exe_name: session.exe_name,
       total_duration: duration,
+      suspicious_duration: suspiciousDuration,
     });
   }
 
@@ -192,12 +241,13 @@ export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] 
 
 export function buildAppSummary(
   stats: AppStat[],
-): Array<{ exeName: string; duration: number; percentage: number }> {
+): Array<{ exeName: string; duration: number; suspiciousDuration: number; percentage: number }> {
   const totalDayDuration = stats.reduce((sum, item) => sum + item.total_duration, 0);
 
   return stats.map((item) => ({
     exeName: item.exe_name,
     duration: item.total_duration,
+    suspiciousDuration: item.suspicious_duration,
     percentage: totalDayDuration > 0 ? (item.total_duration / totalDayDuration) * 100 : 0,
   }));
 }
@@ -238,6 +288,9 @@ export function buildTimelineSessions(
           current.duration = Math.max(0, current.duration ?? 0) + Math.max(0, nextCandidate.duration ?? 0);
           current.mergedCount += nextCandidate.mergedCount;
           current.titleSamples = mergeTitleSamples(current.titleSamples, nextCandidate.titleSamples);
+          current.sourceIds = [...current.sourceIds, ...nextCandidate.sourceIds];
+          current.diagnosticCodes = mergeDiagnosticCodes(current.diagnosticCodes, nextCandidate.diagnosticCodes);
+          current.suspiciousDuration += nextCandidate.suspiciousDuration;
           current.displayTitle = summarizeTitleSamples(current.titleSamples);
           current.window_title = current.displayTitle;
           i = j;
@@ -269,16 +322,15 @@ export function buildDailySummaries(
   dayRanges: SessionRange[],
   minSessionSecs: number,
 ): DailySummary[] {
-  return dayRanges.map((range) => {
-    const compiled = compileSessions(sessions, {
-      startMs: range.startMs,
-      endMs: range.endMs,
-      minSessionSecs,
-    });
+  const compiled = buildCompiledSessionBase(sessions, minSessionSecs);
 
+  return dayRanges.map((range) => {
     return {
       date: formatDateKey(range.startMs),
-      total_duration: compiled.reduce((sum, session) => sum + Math.max(0, session.duration ?? 0), 0),
+      total_duration: compiled.reduce(
+        (sum, session) => sum + getClippedDuration(session, range.startMs, range.endMs),
+        0,
+      ),
     };
   });
 }

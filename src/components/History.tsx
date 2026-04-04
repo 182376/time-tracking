@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart,
@@ -10,48 +10,35 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { getHistoryByDate, getSessionsInRange, type DailySummary, type HistorySession } from "../lib/db";
+import { type HistorySession } from "../lib/db";
+import { UI_TEXT } from "../lib/copy";
 import {
   formatDuration,
   formatTime,
   formatDateLabel,
-  buildChartData,
-  buildChartAxis,
   formatChartHours,
 } from "../lib/services/history";
-import {
-  buildAppSummary,
-  buildDailySummaries,
-  buildNormalizedAppStats,
-  buildTimelineSessions,
-  compileSessions,
-  getDayRange,
-  getRollingDayRanges,
-  type TimelineSession,
-} from "../lib/services/sessionCompiler";
+import { HistoryService } from "../lib/services/HistoryService";
 import { ProcessMapper } from "../lib/ProcessMapper";
+import type { TrackerHealthSnapshot } from "../types/tracking";
 
 interface Props {
   icons: Record<string, string>;
   refreshKey?: number;
+  refreshIntervalSecs: number;
   mergeThresholdSecs: number;
   minSessionSecs: number;
+  trackerHealth: TrackerHealthSnapshot;
 }
 
-function materializeLiveSessions(sessions: HistorySession[], nowMs: number) {
-  return sessions.map((session) => {
-    if (session.end_time !== null) {
-      return session;
-    }
-
-    return {
-      ...session,
-      duration: Math.max(0, nowMs - session.start_time),
-    };
-  });
-}
-
-export default function History({ icons, refreshKey = 0, mergeThresholdSecs, minSessionSecs }: Props) {
+export default function History({
+  icons,
+  refreshKey = 0,
+  refreshIntervalSecs,
+  mergeThresholdSecs,
+  minSessionSecs,
+  trackerHealth,
+}: Props) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>([]);
   const [rawWeeklySessions, setRawWeeklySessions] = useState<HistorySession[]>([]);
@@ -65,18 +52,11 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
     }
 
     try {
-      const selectedDayRange = getDayRange(selectedDate);
-      const rollingRanges = getRollingDayRanges(7);
-      const weeklyRangeStart = rollingRanges[0]?.startMs ?? selectedDayRange.startMs;
-      const weeklyRangeEnd = rollingRanges[rollingRanges.length - 1]?.endMs ?? selectedDayRange.endMs;
-      const [daySessions, weeklySessions] = await Promise.all([
-        getHistoryByDate(selectedDate),
-        getSessionsInRange(weeklyRangeStart, weeklyRangeEnd),
-      ]);
+      const snapshot = await HistoryService.loadHistorySnapshot(selectedDate);
 
-      setRawDaySessions(daySessions || []);
-      setRawWeeklySessions(weeklySessions || []);
-      setNowMs(Date.now());
+      setRawDaySessions(snapshot.daySessions);
+      setRawWeeklySessions(snapshot.weeklySessions);
+      setNowMs(snapshot.fetchedAtMs);
       hasLoadedRef.current = true;
     } finally {
       if (showLoading) {
@@ -93,18 +73,20 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
     const hasLiveSession = rawDaySessions.some((session) => session.end_time === null)
       || rawWeeklySessions.some((session) => session.end_time === null);
 
-    if (!hasLiveSession) {
+    if (!hasLiveSession || trackerHealth.status !== "healthy") {
       return;
     }
 
+    // Keep live durations moving locally so the UI stays fresh without
+    // refetching the selected day and weekly range on every timer tick.
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 1000);
+    }, refreshIntervalSecs * 1000);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [rawDaySessions, rawWeeklySessions]);
+  }, [rawDaySessions, rawWeeklySessions, refreshIntervalSecs, trackerHealth.status]);
 
   const changeDate = (delta: number) => {
     const nextDate = new Date(selectedDate);
@@ -115,20 +97,30 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
   };
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
-  const selectedDayRange = getDayRange(selectedDate, nowMs);
-  const rollingRanges = getRollingDayRanges(7, nowMs);
-  const liveDaySessions = materializeLiveSessions(rawDaySessions, nowMs);
-  const liveWeeklySessions = materializeLiveSessions(rawWeeklySessions, nowMs);
-  const compiledSessions = compileSessions(liveDaySessions, {
-    startMs: selectedDayRange.startMs,
-    endMs: selectedDayRange.endMs,
-    minSessionSecs,
-  });
-  const timelineSessions: TimelineSession[] = buildTimelineSessions(compiledSessions, mergeThresholdSecs).slice().reverse();
-  const appSummary = buildAppSummary(buildNormalizedAppStats(compiledSessions));
-  const weekly: DailySummary[] = buildDailySummaries(liveWeeklySessions, rollingRanges, minSessionSecs);
-  const chartData = buildChartData(weekly);
-  const chartAxis = buildChartAxis(chartData);
+  const historyView = useMemo(
+    () => HistoryService.buildHistoryReadModel({
+      daySessions: rawDaySessions,
+      weeklySessions: rawWeeklySessions,
+      selectedDate,
+      nowMs,
+      trackerHealth,
+      minSessionSecs,
+      mergeThresholdSecs,
+    }),
+    [mergeThresholdSecs, minSessionSecs, nowMs, rawDaySessions, rawWeeklySessions, selectedDate, trackerHealth],
+  );
+  const {
+    timelineSessions,
+    appSummary,
+    chartData,
+    chartAxis,
+    diagnostics,
+  } = historyView;
+  const formatDiagnosticTime = (timestampMs: number | null) => (
+    timestampMs === null || timestampMs <= 0
+      ? "--:--"
+      : new Date(timestampMs).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+  );
 
   return (
     <motion.div
@@ -140,10 +132,10 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
     >
       <header className="glass-card p-5 flex items-center justify-between bg-white/40">
         <div>
-          <h1 className="text-2xl font-bold gradient-text">历史概览</h1>
+          <h1 className="text-2xl font-bold gradient-text">{UI_TEXT.history.title}</h1>
           <p className="text-slate-500 text-sm flex items-center gap-1.5 mt-0.5">
             <Calendar size={13} />
-            {formatDateLabel(selectedDate)} · {timelineSessions.length} 段会话
+            {formatDateLabel(selectedDate)} · {UI_TEXT.history.sessionCount(timelineSessions.length)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -172,10 +164,29 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
         </div>
       </header>
 
+      {diagnostics.hasWarnings && (
+        <section className="glass-card p-4 bg-amber-50/80 border border-amber-100 text-slate-700">
+          <div className="text-[11px] font-bold text-amber-700 mb-1">
+            {UI_TEXT.history.diagnosticsTitle}
+          </div>
+          <div className="text-xs leading-6">
+            {diagnostics.trackerStatus === "stale" && (
+              <div>{UI_TEXT.history.staleSince(formatDiagnosticTime(diagnostics.liveCutoffMs))}</div>
+            )}
+            {diagnostics.suspiciousSessionCount > 0 && (
+              <div>{UI_TEXT.history.suspiciousSummary(
+                diagnostics.suspiciousSessionCount,
+                formatDuration(diagnostics.suspiciousDuration),
+              )}</div>
+            )}
+          </div>
+        </section>
+      )}
+
       <div className="flex gap-5 min-h-0 flex-1">
         <div className="w-5/12 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-5 bg-white/30">
-            <h3 className="font-bold text-slate-800 text-sm mb-4">近 7 天</h3>
+            <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.pastSevenDays}</h3>
             <ResponsiveContainer width="100%" height={120}>
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
                 <defs>
@@ -204,9 +215,9 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
           </div>
 
           <div className="glass-card p-5 bg-white/30 flex-1 overflow-y-auto custom-scrollbar">
-            <h3 className="font-bold text-slate-800 text-sm mb-4">应用分布</h3>
+            <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.appDistribution}</h3>
             {appSummary.length === 0 ? (
-              <p className="text-slate-400 text-xs text-center mt-8">暂无数据</p>
+              <p className="text-slate-400 text-xs text-center mt-8">{UI_TEXT.history.noData}</p>
             ) : (
               <div className="space-y-3">
                 {appSummary.slice(0, 15).map((app) => {
@@ -214,9 +225,14 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
                   return (
                     <div key={app.exeName}>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5 min-w-0">
                           {icons[app.exeName] && <img src={icons[app.exeName]} className="w-3.5 h-3.5 object-contain" alt="" />}
-                          {mapped.name}
+                          <span className="truncate">{mapped.name}</span>
+                          {app.suspiciousDuration > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold flex-shrink-0">
+                              {UI_TEXT.history.suspectDuration(formatDuration(app.suspiciousDuration))}
+                            </span>
+                          )}
                         </span>
                         <span className="text-slate-400">{formatDuration(app.duration)}</span>
                       </div>
@@ -238,11 +254,11 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
         </div>
 
         <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden min-h-0">
-          <h3 className="font-bold text-slate-800 text-sm mb-4">智能时间流</h3>
+          <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.timeline}</h3>
           {loading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">加载中...</div>
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">{UI_TEXT.history.loading}</div>
           ) : timelineSessions.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">当天暂无记录</div>
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">{UI_TEXT.history.emptyDay}</div>
           ) : (
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
@@ -270,7 +286,12 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
                           {session.displayName}
                           {session.mergedCount > 1 && (
                             <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">
-                              {session.mergedCount} 次活动
+                              {UI_TEXT.history.mergedCount(session.mergedCount)}
+                            </span>
+                          )}
+                          {session.diagnosticCodes.length > 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold">
+                              {UI_TEXT.history.suspectBadge}
                             </span>
                           )}
                         </div>
@@ -284,7 +305,7 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs, min
                         <div className="text-xs font-bold text-indigo-600">{formatDuration(session.duration || 0)}</div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
                           {formatTime(session.start_time)}
-                          {session.end_time ? ` -> ${formatTime(session.end_time)}` : " 至今"}
+                          {session.end_time ? ` -> ${formatTime(session.end_time)}` : ` ${UI_TEXT.history.untilNow}`}
                         </div>
                       </div>
                     </div>

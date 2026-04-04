@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ProcessMapper } from "./lib/ProcessMapper";
+import { UI_TEXT } from "./lib/copy";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import { useStats } from "./hooks/useStats";
@@ -13,14 +14,23 @@ const Settings = lazy(() => import("./components/Settings"));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
-  const { activeWindow, appSettings, setAppSettings, syncTick } = useWindowTracking();
-  const { stats, icons, todaySessions } = useStats(
+  const {
+    activeWindow,
+    appSettings,
+    setAppSettings,
+    syncTick,
+    trackerHealth,
+  } = useWindowTracking();
+  const { dashboard, icons } = useStats(
     appSettings.refresh_interval_secs,
     syncTick,
-    appSettings.min_session_secs,
+    trackerHealth,
   );
 
-  const activeApp = activeWindow?.exe_name && !activeWindow.is_afk && ProcessMapper.shouldTrack(activeWindow.exe_name)
+  const activeApp = trackerHealth.status === "healthy"
+    && activeWindow?.exe_name
+    && !activeWindow.is_afk
+    && ProcessMapper.shouldTrack(activeWindow.exe_name)
     ? ProcessMapper.map(activeWindow.exe_name)
     : null;
 
@@ -32,7 +42,7 @@ export default function App() {
         <Suspense
           fallback={
             <div className="flex-1 min-h-0 flex items-center justify-center text-slate-400 text-sm">
-              正在加载界面...
+              {UI_TEXT.app.loadingView}
             </div>
           }
         >
@@ -40,11 +50,11 @@ export default function App() {
             {currentView === "dashboard" && (
               <Dashboard
                 key="dashboard"
-                stats={stats}
-                todaySessions={todaySessions}
+                dashboard={dashboard}
                 icons={icons}
                 isAfk={activeWindow?.is_afk ?? false}
                 activeAppName={activeApp?.name ?? null}
+                trackerHealthStatus={trackerHealth.status}
               />
             )}
             {currentView === "history" && (
@@ -52,8 +62,10 @@ export default function App() {
                 key="history"
                 icons={icons}
                 refreshKey={syncTick}
+                refreshIntervalSecs={appSettings.refresh_interval_secs}
                 mergeThresholdSecs={appSettings.afk_timeout_secs}
                 minSessionSecs={appSettings.min_session_secs}
+                trackerHealth={trackerHealth}
               />
             )}
             {currentView === "settings" && (

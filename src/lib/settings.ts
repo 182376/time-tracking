@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
+const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
 const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
 const REFRESH_INTERVAL_OPTIONS = [1, 3, 5, 10];
 const MIN_SESSION_OPTIONS = [30, 60, 180, 300, 600];
@@ -33,6 +34,21 @@ async function upsertSettingValue(key: string, value: string) {
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     [key, value]
   );
+}
+
+async function loadSettingTimestamp(key: string): Promise<number | null> {
+  const db = await getDB();
+  const rows = await db.select<{ value: string }[]>(
+    'SELECT value FROM settings WHERE key = ? LIMIT 1',
+    [key],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const parsed = Number(rows[0].value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export const loadSettings = async (): Promise<AppSettings> => {
@@ -60,18 +76,16 @@ export const clearSessionsBefore = async (cutoffTime: number): Promise<void> => 
 };
 
 export const loadTrackerHeartbeat = async (): Promise<number | null> => {
-  const db = await getDB();
-  const rows = await db.select<{ value: string }[]>(
-    'SELECT value FROM settings WHERE key = ? LIMIT 1',
-    [TRACKER_LAST_HEARTBEAT_KEY],
-  );
+  return loadSettingTimestamp(TRACKER_LAST_HEARTBEAT_KEY);
+};
 
-  if (rows.length === 0) {
-    return null;
+export const loadTrackerHealthTimestamp = async (): Promise<number | null> => {
+  const lastSampleMs = await loadSettingTimestamp(TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY);
+  if (lastSampleMs !== null) {
+    return lastSampleMs;
   }
 
-  const parsed = Number(rows[0].value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return loadTrackerHeartbeat();
 };
 
 export const saveTrackerHeartbeat = async (timestampMs: number): Promise<void> => {

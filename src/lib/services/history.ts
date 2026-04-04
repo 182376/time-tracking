@@ -1,4 +1,5 @@
-import type { DailySummary } from "../db";
+import type { DailySummary } from "../db.ts";
+import { UI_TEXT } from "../copy.ts";
 
 export interface HistoryChartPoint {
   day: string;
@@ -27,8 +28,8 @@ export function formatDateLabel(date: Date) {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) return "今天";
-  if (date.toDateString() === yesterday.toDateString()) return "昨天";
+  if (date.toDateString() === today.toDateString()) return UI_TEXT.date.today;
+  if (date.toDateString() === yesterday.toDateString()) return UI_TEXT.date.yesterday;
 
   return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
 }

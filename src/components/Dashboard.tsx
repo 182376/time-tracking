@@ -1,29 +1,39 @@
 import { motion } from "framer-motion";
 import { Monitor, BarChart3, PieChart as PieIcon, Activity } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
-import {
-  buildTopApplications,
-  formatDashboardDuration,
-  getTotalTrackedTime,
-  buildHourlyActivity,
-  buildCategoryDistribution,
-} from "../lib/services/dashboard";
-import { AppStat } from "../types/app";
-import { type HistorySession } from "../lib/db";
+import { UI_TEXT } from "../lib/copy";
+import { formatDashboardDuration } from "../lib/services/dashboard";
+import type { DashboardReadModel } from "../lib/services/HistoryService";
+import type { TrackerHealthStatus } from "../types/tracking";
 
 interface Props {
-  stats: AppStat[];
-  todaySessions: HistorySession[];
+  dashboard: DashboardReadModel;
   icons: Record<string, string>;
   isAfk: boolean;
   activeAppName: string | null;
+  trackerHealthStatus: TrackerHealthStatus;
 }
 
-export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAppName }: Props) {
-  const totalTrackedTime = getTotalTrackedTime(stats);
-  const topApplications = buildTopApplications(stats);
-  const hourlyActivity = buildHourlyActivity(todaySessions);
-  const categoryDist = buildCategoryDistribution(stats);
+export default function Dashboard({
+  dashboard,
+  icons,
+  isAfk,
+  activeAppName,
+  trackerHealthStatus,
+}: Props) {
+  const {
+    totalTrackedTime,
+    topApplications,
+    hourlyActivity,
+    categoryDist,
+    diagnostics,
+  } = dashboard;
+  const isTrackerHealthy = trackerHealthStatus === "healthy";
+  const formatDiagnosticTime = (timestampMs: number | null) => (
+    timestampMs === null || timestampMs <= 0
+      ? "--:--"
+      : new Date(timestampMs).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+  );
 
   return (
     <motion.div
@@ -40,27 +50,58 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
             <Activity size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">概览</h1>
+            <h1 className="text-xl font-bold text-slate-800">{UI_TEXT.dashboard.title}</h1>
             <p className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${activeAppName ? "bg-emerald-400" : "bg-slate-300"} animate-pulse`} />
-              {activeAppName ? `正在追踪: ${activeAppName}` : "静候活动中"}
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                !isTrackerHealthy
+                  ? "bg-rose-400"
+                  : activeAppName
+                    ? "bg-emerald-400"
+                    : "bg-slate-300"
+              } animate-pulse`} />
+              {!isTrackerHealthy
+                ? UI_TEXT.dashboard.trackerStale
+                : activeAppName
+                  ? UI_TEXT.dashboard.tracking(activeAppName)
+                  : UI_TEXT.dashboard.idle}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 bg-white/60 px-4 py-2 rounded-2xl border border-white/60 shadow-sm">
-          <div className={`w-2.5 h-2.5 rounded-full ${isAfk ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
+          <div className={`w-2.5 h-2.5 rounded-full ${
+            !isTrackerHealthy ? "bg-rose-400" : isAfk ? "bg-amber-400" : "bg-emerald-400"
+          } animate-pulse`} />
           <span className="text-xs font-bold text-slate-600">
-            {isAfk ? "处于挂机状态" : "当前活跃"}
+            {!isTrackerHealthy ? UI_TEXT.dashboard.stale : isAfk ? UI_TEXT.dashboard.afk : UI_TEXT.dashboard.active}
           </span>
         </div>
       </header>
+
+      {diagnostics.hasWarnings && (
+        <section className="glass-card p-4 bg-amber-50/80 border border-amber-100 text-slate-700">
+          <div className="text-[11px] font-bold text-amber-700 mb-1">
+            {UI_TEXT.dashboard.diagnosticsTitle}
+          </div>
+          <div className="text-xs leading-6">
+            {diagnostics.trackerStatus === "stale" && (
+              <div>{UI_TEXT.dashboard.staleSince(formatDiagnosticTime(diagnostics.liveCutoffMs))}</div>
+            )}
+            {diagnostics.suspiciousSessionCount > 0 && (
+              <div>{UI_TEXT.dashboard.suspiciousSummary(
+                diagnostics.suspiciousSessionCount,
+                formatDashboardDuration(diagnostics.suspiciousDuration),
+              )}</div>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-12 gap-5 flex-1 min-h-0">
         <div className="col-span-4 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-6 bg-white/20 flex flex-col items-center relative overflow-hidden">
             <div className="absolute top-4 left-4 text-slate-400 opacity-20"><PieIcon size={40} /></div>
-            <h3 className="w-full text-slate-800 font-bold text-sm mb-4">专注分布</h3>
+            <h3 className="w-full text-slate-800 font-bold text-sm mb-4">{UI_TEXT.dashboard.focusShare}</h3>
             <div className="relative w-full aspect-square max-h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -79,7 +120,7 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
                 <span className="text-2xl font-black text-slate-800 tabular-nums">
                   {formatDashboardDuration(totalTrackedTime)}
                 </span>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">总计</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{UI_TEXT.dashboard.total}</span>
               </div>
             </div>
             <div className="mt-6 w-full space-y-2">
@@ -98,19 +139,19 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
           <div className="glass-card p-5 bg-white/20 flex-1 min-h-0 flex flex-col overflow-hidden">
             <h3 className="text-slate-800 font-bold text-sm mb-4 flex items-center gap-2">
               <BarChart3 size={14} className="text-indigo-500 flex-shrink-0" />
-              今日能量脉冲
+              {UI_TEXT.dashboard.hourlyActivity}
             </h3>
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={hourlyActivity} margin={{ top: 6, right: 12, left: 10, bottom: 4 }}>
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickMargin={8} interval={5} padding={{ left: 12, right: 12 }} />
-                <YAxis hide domain={[0, 60]} allowDataOverflow />
-                <Tooltip
-                  cursor={{ fill: "#e2e8f080" }}
-                  formatter={(v) => [`${Math.round(Number(v))}m`, "活跃"]}
-                  contentStyle={{ borderRadius: "0.75rem", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", fontSize: "10px" }}
-                />
-                <Bar dataKey="minutes" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={8} />
+                  <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickMargin={8} interval={5} padding={{ left: 12, right: 12 }} />
+                  <YAxis hide domain={[0, 60]} allowDataOverflow />
+                  <Tooltip
+                    cursor={{ fill: "#e2e8f080" }}
+                    formatter={(v) => [`${Math.round(Number(v))}m`, UI_TEXT.dashboard.activeMinutes]}
+                    contentStyle={{ borderRadius: "0.75rem", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", fontSize: "10px" }}
+                  />
+                  <Bar dataKey="minutes" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={8} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -119,9 +160,9 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
 
         <div className="col-span-8 glass-card p-6 flex flex-col bg-white/30 overflow-hidden min-h-0">
           <header className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-slate-800 text-base">应用排行</h3>
+            <h3 className="font-bold text-slate-800 text-base">{UI_TEXT.dashboard.topApps}</h3>
             <div className="bg-indigo-50 px-3 py-1 rounded-full text-[10px] font-bold text-indigo-600">
-              前 {topApplications.length} 位
+              {UI_TEXT.dashboard.topAppsBadge(topApplications.length)}
             </div>
           </header>
 
@@ -129,7 +170,7 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
             {topApplications.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2 scale-90">
                 <Monitor size={40} className="opacity-20 translate-y-4" />
-                <p className="text-sm font-medium mt-4">先去专注一会儿吧...</p>
+                <p className="text-sm font-medium mt-4">{UI_TEXT.dashboard.emptyState}</p>
               </div>
             )}
             {topApplications.map((app) => (
@@ -146,9 +187,16 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
                     )}
                   </div>
                   <div className="truncate">
-                    <div className="font-bold text-slate-800 text-sm truncate">{app.name}</div>
+                    <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-2">
+                      <span className="truncate">{app.name}</span>
+                      {app.suspiciousDuration > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold flex-shrink-0">
+                          {UI_TEXT.dashboard.suspectBadge(formatDashboardDuration(app.suspiciousDuration))}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                      占比 {app.percentage}%
+                      {UI_TEXT.dashboard.sharePrefix} {app.percentage}%
                     </div>
                   </div>
                 </div>

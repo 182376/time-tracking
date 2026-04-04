@@ -1,118 +1,73 @@
-import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { ProcessMapper } from "../lib/ProcessMapper";
+import { useEffect, useState } from "react";
 import {
   AppSettings,
   DEFAULT_SETTINGS,
-  loadSettings,
-  loadTrackerHeartbeat,
-  saveTrackerHeartbeat,
 } from "../lib/settings";
-import { endActiveSession, loadActiveSession, startSession } from "../lib/db";
+import { SettingsService } from "../lib/services/SettingsService";
 import {
-  planWindowTransition,
-  resolveStartupSealTime,
-  TrackedWindow,
-} from "../lib/services/trackingLifecycle";
+  TrackingService,
+} from "../lib/services/TrackingService";
+import type {
+  TrackingDataChangedPayload,
+  TrackerHealthSnapshot,
+  TrackingWindowSnapshot,
+} from "../types/tracking";
+import { resolveTrackerHealth } from "../types/tracking";
 
-export interface WindowInfo extends TrackedWindow {}
+export interface WindowInfo extends TrackingWindowSnapshot {}
+
+const TRACKER_HEARTBEAT_POLL_MS = 2_000;
+const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
 
 export function useWindowTracking() {
   const [activeWindow, setActiveWindow] = useState<WindowInfo | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
-  const lastWindowRef = useRef<WindowInfo | null>(null);
-  const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
-  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
-
-  useEffect(() => {
-    settingsRef.current = appSettings;
-  }, [appSettings]);
-
-  const applyWindowSync = async (win: WindowInfo) => {
-    const settings = settingsRef.current;
-    const nowMs = Date.now();
-    const decision = planWindowTransition({
-      previousWindow: lastWindowRef.current,
-      nextWindow: win,
-      settings,
-      nowMs,
-      shouldTrack: (exeName) => ProcessMapper.shouldTrack(exeName),
-    });
-
-    if (decision.shouldEndPrevious) {
-      await endActiveSession(
-        settings.min_session_secs,
-        decision.endTimeOverride
-      );
-    }
-
-    if (decision.shouldStartNext) {
-      const mappedApp = ProcessMapper.map(win.exe_name);
-      await startSession({
-        app_name: mappedApp.name,
-        exe_name: win.exe_name,
-        window_title: win.title,
-        process_path: win.process_path,
-      });
-    }
-
-    if (decision.didChange) {
-      setSyncTick((t) => t + 1);
-    }
-
-    await saveTrackerHeartbeat(nowMs).catch((error) => {
-      console.warn("Tracker heartbeat save failed", error);
-    });
-
-    lastWindowRef.current = win;
-    setActiveWindow(win);
-  };
-
-  const syncCurrentWindow = (win: WindowInfo) => {
-    syncQueueRef.current = syncQueueRef.current
-      .catch(() => undefined)
-      .then(() => applyWindowSync(win))
-      .catch((error) => {
-        console.error("Window sync error", error);
-      });
-
-    return syncQueueRef.current;
-  };
+  const [trackerHealth, setTrackerHealth] = useState<TrackerHealthSnapshot>(() => (
+    resolveTrackerHealth(null, Date.now(), TRACKER_HEARTBEAT_STALE_AFTER_MS)
+  ));
 
   useEffect(() => {
     let cancelled = false;
-    let unlistener: (() => void) | null = null;
+    const unlisteners: Array<() => void> = [];
+    let heartbeatTimer: number | null = null;
+
+    const refreshTrackerHealth = async () => {
+      try {
+        const lastHeartbeatMs = await SettingsService.loadTrackerHealthTimestamp();
+        if (cancelled) return;
+
+        setTrackerHealth(resolveTrackerHealth(
+          lastHeartbeatMs,
+          Date.now(),
+          TRACKER_HEARTBEAT_STALE_AFTER_MS,
+        ));
+      } catch (error) {
+        if (cancelled) return;
+        console.warn("Failed to load tracker heartbeat", error);
+        setTrackerHealth(resolveTrackerHealth(
+          null,
+          Date.now(),
+          TRACKER_HEARTBEAT_STALE_AFTER_MS,
+        ));
+      }
+    };
 
     const init = async () => {
       try {
-        const _settings = await loadSettings();
-        if (cancelled) return;
-        setAppSettings(_settings);
-        settingsRef.current = _settings;
-        await invoke("cmd_set_afk_timeout", { timeoutSecs: _settings.afk_timeout_secs }).catch(console.warn);
+        const settings = await SettingsService.load();
         if (cancelled) return;
 
-        const existingSession = await loadActiveSession().catch(() => null);
-        const lastHeartbeatMs = await loadTrackerHeartbeat().catch(() => null);
+        setAppSettings(settings);
+        await TrackingService.setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
         if (cancelled) return;
-        if (existingSession) {
-          await endActiveSession(
-            _settings.min_session_secs,
-            resolveStartupSealTime({
-              sessionStartTime: existingSession.start_time,
-              lastHeartbeatMs,
-              nowMs: Date.now(),
-            }),
-          );
-          if (cancelled) return;
-        }
 
-        const currentWin = await invoke<WindowInfo>("get_current_active_window").catch(() => null);
+        const currentWin = await TrackingService.getCurrentWindow();
         if (!cancelled && currentWin) {
-          await syncCurrentWindow(currentWin);
+          setActiveWindow(currentWin);
         }
+
+        await refreshTrackerHealth();
       } catch (err) {
         if (cancelled) return;
         console.error("Tracking init error", err);
@@ -120,32 +75,46 @@ export function useWindowTracking() {
 
       if (cancelled) return;
 
-      unlistener = await listen<WindowInfo>("active-window-changed", async (event) => {
+      // Rust owns session persistence now. The frontend only listens for:
+      // 1. active-window updates for display state
+      // 2. tracking-data invalidations for reloading dashboard/history data
+      const activeWindowUnlisten = await TrackingService.onActiveWindowChanged((window) => {
         if (cancelled) return;
-        await syncCurrentWindow(event.payload);
+        setActiveWindow(window);
       });
-
-      if (cancelled && unlistener) {
-        unlistener();
-        unlistener = null;
+      if (cancelled) {
+        activeWindowUnlisten();
+        return;
       }
+      unlisteners.push(activeWindowUnlisten);
+
+      const trackingDataUnlisten = await TrackingService.onTrackingDataChanged(
+        (_payload: TrackingDataChangedPayload) => {
+          if (cancelled) return;
+          setSyncTick((tick) => tick + 1);
+        },
+      );
+      if (cancelled) {
+        trackingDataUnlisten();
+        return;
+      }
+      unlisteners.push(trackingDataUnlisten);
+
+      heartbeatTimer = window.setInterval(() => {
+        void refreshTrackerHealth();
+      }, TRACKER_HEARTBEAT_POLL_MS);
     };
 
     void init();
 
-    const handleBeforeUnload = () => {
-      const shutdownTimeMs = Date.now();
-      void saveTrackerHeartbeat(shutdownTimeMs).catch((error) => {
-        console.warn("Tracker heartbeat save failed", error);
-      });
-      void endActiveSession(settingsRef.current.min_session_secs, shutdownTimeMs);
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
     return () => {
       cancelled = true;
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (unlistener) unlistener();
+      for (const off of unlisteners) {
+        off();
+      }
+      if (heartbeatTimer !== null) {
+        window.clearInterval(heartbeatTimer);
+      }
     };
   }, []);
 
@@ -154,5 +123,6 @@ export function useWindowTracking() {
     appSettings,
     setAppSettings,
     syncTick,
+    trackerHealth,
   };
 }

@@ -1,22 +1,18 @@
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::{ImageBuffer, Rgba};
+use std::ffi::OsStr;
 use std::io::Cursor;
+use std::os::windows::ffi::OsStrExt;
+use windows::Win32::Graphics::Gdi::{
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, GetObjectA, ReleaseDC, BITMAP,
+    BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+};
 use windows::Win32::UI::Shell::ExtractIconExW;
 use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON};
-use windows::Win32::Graphics::Gdi::{
-    GetObjectA, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, BITMAP,
-    BI_RGB, DIB_RGB_COLORS,
-    CreateCompatibleDC, DeleteDC, GetDC, ReleaseDC, DeleteObject,
-};
 
 pub fn get_icon_base64(exe_path: &str) -> Option<String> {
     unsafe {
-        let path_wide: Vec<u16> = OsStr::new(exe_path)
-            .encode_wide()
-            .chain(Some(0))
-            .collect();
+        let path_wide: Vec<u16> = OsStr::new(exe_path).encode_wide().chain(Some(0)).collect();
 
         let mut icon_large = HICON::default();
         let mut icon_small = HICON::default();

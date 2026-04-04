@@ -13,12 +13,22 @@ import {
   getDayRange,
   getRollingDayRanges,
 } from "../src/lib/services/sessionCompiler.ts";
+import { HistoryService } from "../src/lib/services/HistoryService.ts";
 import type { HistorySession } from "../src/lib/db.ts";
+import {
+  isTrackingDataChangedPayload,
+  resolveTrackerHealth,
+  isTrackingWindowSnapshot,
+} from "../src/types/tracking.ts";
 
 const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
 
 function makeWindow(overrides: Partial<TrackedWindow> = {}): TrackedWindow {
   return {
+    hwnd: "0x100",
+    root_owner_hwnd: "0x100",
+    process_id: 123,
+    window_class: "Chrome_WidgetWin_1",
     title: "Window",
     exe_name: "QQ.exe",
     process_path: "C:\\Program Files\\QQ\\QQ.exe",
@@ -66,8 +76,10 @@ runTest("repeated same window does not trigger session changes", () => {
 
   assert.deepEqual(result, {
     didChange: false,
+    reason: "session-no-change",
     shouldEndPrevious: false,
     shouldStartNext: false,
+    shouldRefreshMetadata: false,
     endTimeOverride: undefined,
   });
 });
@@ -83,8 +95,10 @@ runTest("title changes inside the same executable do not trigger session changes
 
   assert.deepEqual(result, {
     didChange: false,
+    reason: "session-metadata-refreshed",
     shouldEndPrevious: false,
     shouldStartNext: false,
+    shouldRefreshMetadata: true,
     endTimeOverride: undefined,
   });
 });
@@ -99,8 +113,10 @@ runTest("switching between tracked windows ends previous session and starts next
   });
 
   assert.equal(result.didChange, true);
+  assert.equal(result.reason, "session-transition-app-change");
   assert.equal(result.shouldEndPrevious, true);
   assert.equal(result.shouldStartNext, true);
+  assert.equal(result.shouldRefreshMetadata, false);
   assert.equal(result.endTimeOverride, undefined);
 });
 
@@ -132,7 +148,32 @@ runTest("afk transition backdates end time and does not start a new session", ()
 
   assert.equal(result.shouldEndPrevious, true);
   assert.equal(result.shouldStartNext, false);
+  assert.equal(result.shouldRefreshMetadata, false);
   assert.equal(result.endTimeOverride, nowMs - 300_000);
+});
+
+runTest("same app different top-level window keeps one session but refreshes metadata", () => {
+  const result = planWindowTransition({
+    previousWindow: makeWindow({
+      hwnd: "0x100",
+      root_owner_hwnd: "0x100",
+      title: "Chat A",
+    }),
+    nextWindow: makeWindow({
+      hwnd: "0x200",
+      root_owner_hwnd: "0x200",
+      title: "Chat B",
+    }),
+    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
+    nowMs: 1_000_000,
+    shouldTrack,
+  });
+
+  assert.equal(result.didChange, false);
+  assert.equal(result.reason, "session-metadata-refreshed");
+  assert.equal(result.shouldEndPrevious, false);
+  assert.equal(result.shouldStartNext, false);
+  assert.equal(result.shouldRefreshMetadata, true);
 });
 
 runTest("startup sealing prefers the last stored heartbeat over current startup time", () => {
@@ -271,6 +312,162 @@ runTest("daily summaries attribute cross-day activity to both days", () => {
   assert.equal(summaries.length, 2);
   assert.equal(summaries[0].total_duration, 10 * 60_000);
   assert.equal(summaries[1].total_duration, 20 * 60_000);
+});
+
+runTest("daily summaries stay consistent with per-day compiled totals", () => {
+  const nowMs = new Date(2026, 3, 4, 12, 0, 0, 0).getTime();
+  const ranges = getRollingDayRanges(3, nowMs);
+  const sessions: HistorySession[] = [
+    makeSession({
+      id: 1,
+      exe_name: "QQ.exe",
+      start_time: new Date(2026, 3, 2, 23, 59, 30, 0).getTime(),
+      end_time: new Date(2026, 3, 3, 0, 1, 0, 0).getTime(),
+      duration: 90_000,
+    }),
+    makeSession({
+      id: 2,
+      exe_name: "Chrome.exe",
+      app_name: "Chrome",
+      start_time: new Date(2026, 3, 4, 8, 0, 0, 0).getTime(),
+      end_time: new Date(2026, 3, 4, 9, 0, 0, 0).getTime(),
+      duration: 60 * 60_000,
+    }),
+  ];
+
+  const summaries = buildDailySummaries(sessions, ranges, 30);
+  const compiledTotals = ranges.map((range) => (
+    compileSessions(sessions, {
+      startMs: range.startMs,
+      endMs: range.endMs,
+      minSessionSecs: 30,
+    }).reduce((sum, session) => sum + Math.max(0, session.duration ?? 0), 0)
+  ));
+
+  assert.deepEqual(
+    summaries.map((item) => item.total_duration),
+    compiledTotals,
+  );
+});
+
+runTest("tracking runtime payload guards accept expected contracts", () => {
+  assert.equal(isTrackingWindowSnapshot({
+    hwnd: "0x100",
+    root_owner_hwnd: "0x100",
+    process_id: 123,
+    window_class: "Chrome_WidgetWin_1",
+    title: "Window",
+    exe_name: "QQ.exe",
+    process_path: "C:\\Program Files\\QQ\\QQ.exe",
+    is_afk: false,
+    idle_time_ms: 0,
+  }), true);
+  assert.equal(isTrackingWindowSnapshot({
+    hwnd: "0x100",
+    root_owner_hwnd: "0x100",
+    process_id: 123,
+    window_class: "Chrome_WidgetWin_1",
+    title: "Window",
+    exe_name: "QQ.exe",
+    process_path: "C:\\Program Files\\QQ\\QQ.exe",
+    is_afk: "false",
+    idle_time_ms: 0,
+  }), false);
+  assert.equal(isTrackingWindowSnapshot({
+    root_owner_hwnd: "0x100",
+    process_id: 123,
+    window_class: "Chrome_WidgetWin_1",
+    title: "Window",
+    exe_name: "QQ.exe",
+    process_path: "C:\\Program Files\\QQ\\QQ.exe",
+    is_afk: false,
+    idle_time_ms: 0,
+  }), false);
+
+  assert.equal(isTrackingDataChangedPayload({
+    reason: "session-transition",
+    changed_at_ms: 123,
+  }), true);
+  assert.equal(isTrackingDataChangedPayload({
+    reason: "session-transition",
+    changed_at_ms: "123",
+  }), false);
+});
+
+runTest("tracker health becomes stale when heartbeat exceeds grace window", () => {
+  const healthy = resolveTrackerHealth(10_000, 16_000, 8_000);
+  const stale = resolveTrackerHealth(10_000, 19_000, 8_000);
+  const missing = resolveTrackerHealth(null, 19_000, 8_000);
+
+  assert.equal(healthy.status, "healthy");
+  assert.equal(stale.status, "stale");
+  assert.equal(missing.status, "stale");
+});
+
+runTest("dashboard read model caps live session growth at the last successful sample when tracker is stale", () => {
+  const trackerHealth = resolveTrackerHealth(10_000, 19_000, 8_000);
+  const dashboard = HistoryService.buildDashboardReadModel([
+    makeSession({
+      id: 1,
+      exe_name: "QQ.exe",
+      start_time: 1_000,
+      end_time: null,
+      duration: null,
+    }),
+  ], trackerHealth, 19_000);
+
+  assert.equal(dashboard.totalTrackedTime, 9_000);
+  assert.equal(dashboard.diagnostics.suspiciousSessionCount, 1);
+  assert.equal(dashboard.diagnostics.suspiciousDuration, 9_000);
+  assert.equal(dashboard.topApplications[0].suspiciousDuration, 9_000);
+});
+
+runTest("history app summary stays on real active duration even when timeline merges interruptions for display", () => {
+  const trackerHealth = resolveTrackerHealth(200_000, 200_000, 8_000);
+  const view = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 60_000, duration: 60_000 }),
+      makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 60_000, end_time: 90_000, duration: 30_000 }),
+      makeSession({ id: 3, exe_name: "QQ.exe", start_time: 90_000, end_time: 150_000, duration: 60_000 }),
+    ],
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 200_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(view.timelineSessions.length, 1);
+  assert.equal(view.timelineSessions[0].duration, 120_000);
+  assert.equal(view.timelineSessions[0].end_time, 150_000);
+  const qqSummary = view.appSummary.find((item) => item.exeName === "QQ.exe");
+
+  assert.ok(qqSummary);
+  assert.equal(qqSummary.duration, 120_000);
+});
+
+runTest("min session threshold only affects timeline display, not real duration stats", () => {
+  const trackerHealth = resolveTrackerHealth(100_000, 100_000, 8_000);
+  const view = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 20_000, duration: 20_000 }),
+      makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 25_000, end_time: 45_000, duration: 20_000 }),
+    ],
+    weeklySessions: [
+      makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 20_000, duration: 20_000 }),
+      makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 25_000, end_time: 45_000, duration: 20_000 }),
+    ],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 100_000,
+    minSessionSecs: 30,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(view.timelineSessions.length, 0);
+  assert.equal(view.appSummary.reduce((sum, item) => sum + item.duration, 0), 40_000);
+  assert.equal(view.weekly.reduce((sum, item) => sum + item.total_duration, 0), 40_000);
 });
 
 console.log(`Passed ${passed} tracking lifecycle tests`);

@@ -1,6 +1,7 @@
-import { AppStat } from "../../types/app";
-import { HistorySession } from "../db";
-import { ProcessMapper } from "../ProcessMapper";
+import type { AppStat } from "../../types/app";
+import type { HistorySession } from "../db.ts";
+import { UI_TEXT } from "../copy.ts";
+import { ProcessMapper } from "../ProcessMapper.ts";
 
 export interface FocusShareItem {
   name: string;
@@ -24,6 +25,7 @@ export interface TopApplicationItem {
   name: string;
   color: string;
   duration: number;
+  suspiciousDuration: number;
   percentage: number;
   categoryInitial: string;
 }
@@ -63,6 +65,7 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
       name: mapped.name,
       color: mapped.color,
       duration: Math.max(0, item.total_duration),
+      suspiciousDuration: Math.max(0, item.suspicious_duration),
       percentage: totalTrackedTime > 0
         ? Math.round((Math.max(0, item.total_duration) / totalTrackedTime) * 100)
         : 0,
@@ -110,11 +113,11 @@ export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] 
   }
 
   const labels: Record<string, { label: string; color: string }> = {
-    work: { label: "工作学习", color: "#6366F1" },
-    social: { label: "社交通讯", color: "#10B981" },
-    entertainment: { label: "娱乐放松", color: "#EC4899" },
-    system: { label: "系统工具", color: "#F59E0B" },
-    other: { label: "其他应用", color: "#94A3B8" },
+    work: { label: UI_TEXT.categories.work, color: "#6366F1" },
+    social: { label: UI_TEXT.categories.social, color: "#10B981" },
+    entertainment: { label: UI_TEXT.categories.entertainment, color: "#EC4899" },
+    system: { label: UI_TEXT.categories.system, color: "#F59E0B" },
+    other: { label: UI_TEXT.categories.other, color: "#94A3B8" },
   };
 
   return Array.from(categories.entries())

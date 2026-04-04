@@ -1,116 +1,117 @@
-# Architecture Optimization Roadmap
+# 架构优化路线图
 
-## Purpose
+## 文档用途
 
-This document is the execution source of truth for incremental architecture work
-on this codebase.
+这份文档是当前仓库后续架构优化工作的执行基线。
 
-It is intentionally conservative:
+原则上我们会保持克制，不做大爆炸式重构：
 
-- keep the current core stack: Rust + Tauri v2 + React + TypeScript
-- optimize responsibilities and data flow before introducing new tools
-- prefer phased, reversible changes over a big-bang rewrite
+- 保留当前核心技术栈：Rust + Tauri v2 + React + TypeScript
+- 优先优化职责边界和数据流，而不是先引入更多工具
+- 采用分阶段、可回退的小步迭代，而不是一次性重写
 
-This roadmap is broader than the earlier tracking-only cleanup work and covers
-ownership boundaries, refresh model, query shape, testing, and engineering
-hygiene.
+这份路线图覆盖的范围比早期的 tracking 专项清理更广，重点包括：
 
-## Current Baseline
+- 原生层与前端层的职责边界
+- 刷新与事件模型
+- 查询和读模型
+- 测试与跨层契约
+- 工程卫生与文案编码
 
-### High-level shape
+## 阶段状态
 
-The app is currently a local-first Windows desktop app with this runtime flow:
+- [x] 阶段 0：文档与基线
+- [x] 阶段 1：刷新模型整理
+- [x] 阶段 2：将 tracking 主责下沉到 Rust
+- [x] 阶段 3：引入应用服务层与查询边界
+- [x] 阶段 4：读模型与聚合优化
+- [x] 阶段 5：跨层契约、测试与可观测性
+- [x] 阶段 6：工程卫生与文案清理
 
-1. Rust polls the foreground window and AFK state through the Windows API.
-2. Rust emits `active-window-changed` to the Tauri webview every 2 seconds.
-3. React listens for that event and decides whether to end/start a session.
-4. React writes session rows directly into SQLite through `@tauri-apps/plugin-sql`.
-5. Dashboard and history views read raw session rows and compile display data in
-   TypeScript.
+## 当前基线
 
-### Current ownership by layer
+### 当前整体形态
+
+目前这是一个本地优先、Windows 优先的桌面应用，当前运行时的数据流大致如下：
+
+1. Rust 通过 Windows API 轮询前台窗口和 AFK 状态。
+2. Rust tracking runtime 负责 session 状态机、启动补封口、写库和图标缓存补全。
+3. Rust 只在窗口状态有意义变化时发送 `active-window-changed`，并在 tracking 数据变更时发送 `tracking-data-changed`。
+4. React 通过 `TrackingService`、`HistoryService`、`SettingsService` 消费应用级接口，而不是自己驱动写库。
+5. Dashboard 和 History 通过 service 层构建读模型，并对 live 时长做轻量级本地刷新。
+
+### 当前分层职责
 
 - Rust / Tauri
-  - foreground window detection
-  - AFK detection
-  - icon extraction
-  - SQLite migrations
-  - event emission to the frontend
+  - 前台窗口检测
+  - AFK 检测
+  - session 切换决策
+  - 启动补封口 / 崩溃恢复
+  - session start / end 持久化
+  - 图标提取
+  - SQLite migration
+  - 向前端派发事件
 - React / TypeScript
-  - session transition decisions
-  - startup sealing with heartbeat recovery
-  - session writes and updates
-  - settings persistence
-  - stats compilation
-  - history timeline compilation
-  - UI rendering
+  - settings 持久化
+  - service 层读模型组装
+  - Dashboard / History 展示层聚合
+  - 运行时契约校验
+  - UI 渲染
 
-### Current strengths
+### 当前优势
 
-- The codebase already has a useful separation between native capture, query
-  helpers, UI hooks, and view-specific components.
-- Tracking compilation behavior is now centralized more than before through
-  `sessionCompiler`.
-- The app is still small enough that targeted refactors can improve structure
-  without a rewrite.
+- 原生采集、查询辅助、UI hooks、页面组件已经有初步分层。
+- 通过 `sessionCompiler`，tracking 编译逻辑比之前更集中。
+- 项目规模还不大，适合做有边界的小步优化，而不是推倒重来。
 
-## Main Problems To Solve
+## 主要问题
 
-### P1. Tracking correctness depends on the webview lifecycle
+### P1. tracking 正确性仍依赖 webview 生命周期
 
-Rust captures the window state, but the frontend currently owns the session
-state machine and database writes. If the webview freezes, reloads, or crashes,
-tracking correctness depends on recovery logic rather than on the native layer
-remaining authoritative.
+Rust 负责采集窗口状态，但 session 状态机和写库仍主要由前端掌控。
+如果 webview 卡死、刷新或崩溃，tracking 正确性就会依赖补救逻辑，而不是由原生层持续负责。
 
-### P2. The refresh model is duplicated
+### P2. 刷新模型重复
 
-The native side emits a window event every 2 seconds, while the frontend also
-polls stats on a configurable interval. This creates duplicate work:
+原生层每 2 秒发一次窗口事件，前端又按配置周期轮询统计数据，导致重复工作：
 
-- repeated event handling
-- repeated database reads
-- repeated session compilation
+- 重复事件处理
+- 重复数据库读取
+- 重复 session 编译
 
-### P3. Data access is spread across UI-facing modules
+### P3. 数据访问散落在 UI 侧模块中
 
-Hooks and components reach into settings, `invoke`, and raw database helpers
-directly. This works today, but it makes later refactors harder because view
-logic and persistence details are coupled.
+hooks 和组件会直接访问 settings、`invoke`、数据库辅助方法。当前能工作，但后续重构时会让视图逻辑和持久化细节过度耦合。
 
-### P4. Aggregation happens repeatedly in the frontend
+### P4. 聚合计算主要发生在前端
 
-Dashboard and history both derive their display models in TypeScript from raw
-rows. This is correct, but as data grows it will increase:
+Dashboard 和 History 都会从原始行数据出发，在 TypeScript 中重新编译展示模型。短期可接受，但随着数据增长，会持续增加：
 
-- client CPU work
-- database read volume
-- duplicated view-model logic
+- 前端 CPU 开销
+- 数据库读取量
+- 重复的展示层计算逻辑
 
-### P5. Cross-layer contracts are implicit
+### P5. 跨层契约仍偏隐式
 
-The Rust event payloads and TypeScript consumer types rely on matching shape and
-naming, but there is no explicit shared contract or integration-level safety net.
+Rust 事件载荷和 TypeScript 类型当前更多依赖“约定一致”，缺少更明确的共享契约和集成层保护。
 
-### P6. Engineering hygiene needs a pass
+### P6. 工程卫生还需要整理
 
-Several UI files currently contain mojibake/encoding corruption in user-facing
-strings. This is not the core architecture problem, but it is a maintenance
-risk and should be cleaned up as part of the roadmap.
+当前多个 UI 文件里已经存在乱码或编码异常的用户文案。这不是最核心的架构问题，但会持续拉低维护体验，应纳入路线图。
 
-## Architecture Principles
+## 架构原则
 
-- Native owns long-lived tracking correctness.
-- Frontend focuses on presentation and user interaction.
-- Prefer event-driven invalidation over periodic full refresh.
-- Keep raw facts in storage; compile or aggregate at well-defined boundaries.
-- Optimize boundaries before adding infrastructure.
-- Avoid introducing an external backend for this local desktop app.
-- Add tests at the seams where responsibility changes.
+- tracking 的长期正确性应由原生层负责
+- 前端主要负责展示和交互
+- 优先用事件驱动失效，而不是周期性全量刷新
+- 存储层尽量保留原始事实，编译和聚合放在明确边界上
+- 先优化边界，再考虑新增基础设施
+- 当前阶段不引入独立远程后端
+- 每次职责迁移都要补对应测试
 
-## Target Architecture
+## 目标架构
 
-### Desired runtime flow
+### 目标运行流
 
 ```text
 Windows API
@@ -122,248 +123,243 @@ Windows API
   -> UI components
 ```
 
-### Desired ownership by layer
+### 目标职责划分
 
 - Rust / Tauri
-  - active window capture
-  - AFK detection
-  - session transition logic
-  - startup sealing / crash recovery
-  - session persistence
-  - icon extraction and cache fill
-  - coarse-grained read models or query commands
+  - 活动窗口采集
+  - AFK 检测
+  - session 切换逻辑
+  - 启动补封口 / 崩溃恢复
+  - session 持久化
+  - 图标提取与缓存填充
+  - 粗粒度读模型或查询命令
 - React / TypeScript
-  - current UI state
-  - page navigation
-  - settings form interactions
-  - rendering dashboard/history/settings views
-  - lightweight live display updates
+  - 当前 UI 状态
+  - 页面导航
+  - 设置表单交互
+  - Dashboard / History / Settings 渲染
+  - 轻量级实时显示更新
 
-### Desired frontend boundary
+### 目标前端边界
 
-The frontend should consume a small number of application-level entry points
-rather than raw persistence helpers, for example:
+前端应尽量只消费少量应用级入口，而不是直接调用底层持久化辅助方法，例如：
 
 - `TrackingService`
 - `HistoryService`
 - `SettingsService`
 
-These may still call Tauri commands or local helpers internally, but components
-should not need to know how data is stored or stitched together.
+这些服务内部仍可以调用 Tauri command 或本地 helper，但组件本身不应该关心数据怎么存、怎么拼。
 
-## Scope Boundaries
+## 范围边界
 
-### In scope
+### 当前纳入范围
 
-- native/frontend ownership cleanup
-- refresh model cleanup
-- query and read-model cleanup
-- stronger tests around migrations, events, and session behavior
-- string/encoding hygiene
+- 原生层与前端层职责整理
+- 刷新模型整理
+- 查询与读模型整理
+- migration、事件、session 行为相关测试增强
+- 文案和编码卫生清理
 
-### Out of scope for now
+### 当前不纳入范围
 
-- replacing Tauri
-- replacing React
-- introducing a remote backend or cloud sync
-- microservices or IPC between multiple custom processes
-- adding a heavy global state library just for architecture polish
-- cross-platform tracking support beyond the current Windows focus
+- 替换 Tauri
+- 替换 React
+- 引入远程后端或云同步
+- 拆成微服务或多进程自定义 IPC 架构
+- 仅为了“看起来更规范”而增加重量级全局状态库
+- 超出当前 Windows 重点范围的平台支持
 
-## Phased Plan
+## 分阶段计划
 
-### Phase 0. Documentation and baseline
+### 阶段 0：文档与基线
 
-Objective:
-Create the source-of-truth roadmap and freeze the important current behavior.
+目标：
+建立统一路线图，并固定当前关键行为基线。
 
-Tasks:
+任务清单：
 
-- add this document
-- record which modules currently own capture, writes, queries, and rendering
-- keep tests for current tracking correctness passing before larger moves
+- [x] 新建并维护这份路线图文档
+- [x] 记录当前哪些模块负责采集、写入、查询和渲染
+- [x] 在大改动前保留现有 tracking 行为测试基线
 
-Acceptance criteria:
+验收标准：
 
-- the team has one document to sequence future work
-- future tasks can reference a phase and acceptance criteria directly
+- [x] 团队后续推进有一份统一执行文档
+- [x] 后续任务可以直接引用阶段编号和验收标准
 
-### Phase 1. Refresh model cleanup
+### 阶段 1：刷新模型整理
 
-Objective:
-Reduce duplicate refresh work without changing the external feature set.
+目标：
+在不改变外部功能的前提下，减少重复刷新和重复计算。
 
-Tasks:
+任务清单：
 
-- stop emitting `active-window-changed` on every identical poll when nothing
-  track-relevant changed
-- separate "window state changed" from "session data invalidated" if needed
-- reduce UI-side full refreshes triggered on timers alone
-- keep local live duration display lightweight instead of refetching whole views
+- [x] 当 track 相关状态未变化时，不再无差别重复发出 `active-window-changed`
+- [x] 如有必要，拆分“窗口状态变化”和“session 数据失效”两类事件
+- [x] 减少仅由定时器触发的 UI 全量刷新
+- [x] 正在进行中的时长显示尽量本地增量更新，而不是整页重拉
 
-Acceptance criteria:
+验收标准：
 
-- no visible regression in active app display
-- dashboard/history stop doing unnecessary full refresh cycles
-- session updates still appear promptly
+- [x] 当前活跃应用显示无明显回归
+- [x] Dashboard / History 不再执行明显多余的全量刷新
+- [x] session 更新仍能及时反映到界面
 
-Notes:
+备注：
 
-- this phase can be done before moving tracking ownership into Rust
-- it should produce an immediate CPU/IO reduction
+- [x] 本阶段可以在 tracking 主责迁移到 Rust 之前先完成
+- [x] 本阶段应带来直接的 CPU / IO 降低
 
-### Phase 2. Move tracking ownership to Rust
+### 阶段 2：将 tracking 主责下沉到 Rust
 
-Objective:
-Make the native side authoritative for session correctness.
+目标：
+让原生层成为 session 正确性的单一权威来源。
 
-Tasks:
+任务清单：
 
-- move transition planning from the React hook into Rust
-- move startup sealing / stale session recovery into Rust
-- move normal session start/end writes into Rust
-- keep the frontend focused on consuming tracker state and rendering it
-- preserve existing SQLite schema where possible during the first pass
+- [x] 将 React hook 中的 transition planning 下沉到 Rust
+- [x] 将启动补封口 / 旧 session 恢复逻辑下沉到 Rust
+- [x] 将正常的 session start / end 写入下沉到 Rust
+- [x] 前端改为消费 tracker 状态和渲染结果，而不是自己驱动写库
+- [x] 第一轮尽量保留现有 SQLite schema，避免不必要迁移
 
-Acceptance criteria:
+验收标准：
 
-- a webview reload does not break or distort session continuity
-- only one active session can exist after normal runtime and startup recovery
-- AFK backdating still works
-- startup sealing still works
+- [x] webview 刷新或重载不再破坏 session 连续性
+- [x] 正常运行和启动恢复后都只能存在一个 active session
+- [x] AFK 回溯截断仍然正确
+- [x] 启动补封口仍然正确
 
-Risks:
+风险提示：
 
-- this is the most valuable phase, but it changes the deepest ownership boundary
-- migrations and rollback strategy should stay simple
+- [x] 这是价值最高的阶段，但也是最深的一次职责迁移
+- [x] migration 和回滚策略必须保持简单可控
 
-### Phase 3. Introduce application services and query boundary
+### 阶段 3：引入应用服务层与查询边界
 
-Objective:
-Make the frontend depend on stable application-level read/write entry points.
+目标：
+让前端依赖稳定的应用级读写入口，而不是分散的底层 helper。
 
-Tasks:
+任务清单：
 
-- introduce `TrackingService`, `HistoryService`, and `SettingsService`
-- route hot-path reads through service entry points instead of directly through
-  components and hooks
-- move command/invoke details behind those services
-- define a small set of explicit DTOs for the UI
+- [x] 引入 `TrackingService`、`HistoryService`、`SettingsService`
+- [x] 热路径读取统一走 service 层，而不是组件和 hook 直接访问底层
+- [x] 将 command / invoke 细节收口到 service 内部
+- [x] 为 UI 定义一组更明确的 DTO / 返回模型
 
-Acceptance criteria:
+验收标准：
 
-- components no longer know about raw SQL or low-level persistence helpers
-- command payloads and return shapes are explicit and documented in code
-- follow-up refactors can change internals without touching every component
+- [x] 组件层不再直接依赖原始 SQL 或低层持久化细节
+- [x] command 入参与返回模型在代码中是显式的
+- [x] 后续内部重构不再需要联动大量组件文件
 
-### Phase 4. Read-model and aggregation optimization
+### 阶段 4：读模型与聚合优化
 
-Objective:
-Reduce repeated frontend compilation work for common views.
+目标：
+减少常用视图中重复发生的前端编译开销。
 
-Tasks:
+任务清单：
 
-- identify which dashboard reads can be served by summarized queries
-- keep detailed timeline compilation where it still adds value
-- consider cached daily summaries or query-level aggregation for:
-  - top applications
-  - total tracked time
-  - seven-day trend summaries
-- avoid premature caching for rarely-used or low-cost computations
+- [x] 识别 Dashboard 中哪些读取适合改成聚合查询或摘要查询
+- [x] 保留确实有价值的细粒度 timeline 编译能力
+- [x] 评估是否为以下场景引入缓存摘要或查询级聚合
+- [x] 为 Top Applications 提供更轻的读模型
+- [x] 为总时长提供更轻的读模型
+- [x] 为 7 天趋势提供更轻的读模型
+- [x] 避免对低频、低成本计算做过早缓存
 
-Acceptance criteria:
+验收标准：
 
-- dashboard no longer needs to rebuild every view model from raw rows each time
-- history detail remains correct for clipped, merged, and cross-day sessions
-- totals remain consistent with compiled source data
+- [x] Dashboard 不再每次都从原始 rows 全量重建所有展示模型
+- [x] History 仍能正确处理裁剪、合并、跨天 session
+- [x] 聚合后的 totals 与编译源数据保持一致
 
-### Phase 5. Cross-layer contracts, tests, and observability
+结果说明：
 
-Objective:
-Make architecture changes safer to evolve.
+- 当前通过 `HistoryService` 收口 Dashboard / History 读模型，并把 7 天汇总改成单次编译复用。
+- 当前阶段没有引入持久化摘要表，只在内存中降低热路径成本，避免过早缓存。
 
-Tasks:
+### 阶段 5：跨层契约、测试与可观测性
 
-- formalize Rust <-> TypeScript DTO contracts
-- add tests around:
-  - migrations
-  - startup sealing
-  - AFK transitions
-  - single-active-session guarantees
-  - command/event contract expectations
-- add structured logs or at least clearer diagnostic messages in the tracking
-  pipeline
+目标：
+让后续架构演进更安全、更容易排查问题。
 
-Acceptance criteria:
+任务清单：
 
-- critical tracking behavior is protected by automated checks
-- a contract change across layers is hard to miss
-- runtime debugging gets easier during future refactors
+- [x] 明确 Rust <-> TypeScript DTO 契约
+- [x] 增加 migration 相关测试
+- [x] 增加启动补封口相关测试
+- [x] 增加 AFK 转换相关测试
+- [x] 增加单 active session 保证相关测试
+- [x] 增加 command / event 契约相关测试
+- [x] 为 tracking 管线补结构化日志或至少更清晰的诊断信息
 
-### Phase 6. Engineering hygiene and copy cleanup
+验收标准：
 
-Objective:
-Remove avoidable maintenance friction.
+- [x] 关键 tracking 行为被自动化测试保护
+- [x] 跨层契约变更不容易被悄悄漏掉
+- [x] 后续调试时能更快定位 tracking 问题
 
-Tasks:
+### 阶段 6：工程卫生与文案清理
 
-- normalize all source files to UTF-8
-- fix mojibake in UI strings and app labels
-- consider centralizing user-facing copy to reduce repeated corruption risk
-- clean up stale comments or inaccurate names left by earlier refactors
+目标：
+减少不必要的维护摩擦。
 
-Acceptance criteria:
+任务清单：
 
-- user-facing text renders correctly
-- future content changes do not reintroduce encoding drift
+- [x] 统一源文件编码为 UTF-8
+- [x] 修复 UI 字符串和应用标签中的乱码问题
+- [x] 评估是否集中管理用户可见文案，降低再次乱码的风险
+- [x] 清理过时注释、误导命名和历史遗留描述
 
-## Recommended Execution Order
+验收标准：
 
-The recommended order is:
+- [x] 用户可见文本显示正确
+- [x] 后续文案修改不再轻易引入编码漂移
 
-1. Phase 0
-2. Phase 1
-3. Phase 2
-4. Phase 3
-5. Phase 5
-6. Phase 4
-7. Phase 6
+## 建议执行顺序
 
-Rationale:
+建议顺序如下：
 
-- Phase 1 gives an early performance and clarity win with low risk.
-- Phase 2 fixes the highest-value architectural issue.
-- Phase 3 makes later work easier to contain.
-- Phase 5 reduces the chance of regressions while Phase 4 changes query shape.
-- Phase 6 is important, but it should not block ownership and data-flow work.
+1. 阶段 0
+2. 阶段 1
+3. 阶段 2
+4. 阶段 3
+5. 阶段 5
+6. 阶段 4
+7. 阶段 6
 
-## What We Should Not Do Yet
+原因：
 
-- Do not add Redux, Zustand, or another state layer just to "make architecture
-  cleaner" unless a concrete state problem appears.
-- Do not split this into a networked backend service.
-- Do not redesign the UI while the data flow is still being stabilized.
-- Do not attempt Windows hook changes and ownership migration in the same phase.
+- 阶段 1 风险低，且能较早带来性能与结构收益
+- 阶段 2 解决最关键的架构问题
+- 阶段 3 能让后续改动更容易收口
+- 阶段 5 可以在阶段 4 改查询形态前先补安全网
+- 阶段 6 很重要，但不应阻塞主责迁移和数据流整理
 
-## Immediate Next Tasks
+## 暂时不要做的事
 
-When we start executing this roadmap, the first concrete tasks should be:
+- 不要仅为了“架构更漂亮”就提前引入 Redux、Zustand 等全局状态层
+- 不要把这个本地桌面应用拆成远程服务架构
+- 不要在数据流还没稳定前就先做大范围 UI 重设计
+- 不要把 Windows hook 迁移和 tracking 主责迁移放在同一个阶段同时做
 
-1. document the current event and timer refresh paths in code comments or a
-   short dev note
-2. make the native poll emitter change-aware instead of unconditional
-3. reduce redundant UI full refreshes that duplicate the native event loop
+## 立即可执行的下一步
 
-These are intentionally smaller than the Rust ownership migration and will give
-us a cleaner base before moving the session state machine.
+后续开始执行这份路线图时，优先从下面三项开始：
 
-## Definition of Done For The Roadmap
+- [x] 在代码注释或简短开发文档里补齐当前事件流和定时刷新路径
+- [x] 让原生轮询事件发送变成“有变化才发”，而不是无条件发
+- [x] 减少 UI 侧与原生事件循环重复的全量刷新
 
-This roadmap can be considered successfully executed when:
+这些任务都比“直接把 tracking 状态机迁到 Rust”更小，适合作为正式进入阶段 1 的起点。
 
-- tracking correctness is owned by Rust rather than by the webview
-- the frontend consumes stable application services instead of raw DB helpers on
-  hot paths
-- common read models are cheaper to build than they are today
-- cross-layer behavior is covered by automated tests
-- user-facing text and codebase hygiene are no longer a distraction
+## 路线图完成定义
+
+当以下条件都满足时，可以认为本路线图基本执行完成：
+
+- [x] tracking 正确性由 Rust 而不是 webview 主导
+- [x] 前端热路径读取通过稳定 service 层，而不是直接依赖原始 DB helper
+- [x] 常用读模型的构建成本低于当前实现
+- [x] 跨层关键行为有自动化测试保护
+- [x] 用户可见文案和工程卫生不再成为日常阻碍

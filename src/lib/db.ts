@@ -1,6 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
-import { ProcessMapper } from './ProcessMapper';
+import { ProcessMapper } from './ProcessMapper.ts';
 
 let dbInstance: Database | null = null;
 let dbInstancePromise: Promise<Database> | null = null;
@@ -132,7 +132,12 @@ export const getIconMap = async (): Promise<Record<string, string>> => {
 export const getDailyStats = async () => {
   try {
     const sessions = await getHistoryByDate(new Date());
-    const totals = new Map<string, { app_name: string; exe_name: string; total_duration: number }>();
+    const totals = new Map<string, {
+      app_name: string;
+      exe_name: string;
+      total_duration: number;
+      suspicious_duration: number;
+    }>();
 
     for (const session of sessions) {
       const key = session.exe_name.toLowerCase();
@@ -148,6 +153,7 @@ export const getDailyStats = async () => {
         app_name: session.app_name,
         exe_name: session.exe_name,
         total_duration: duration,
+        suspicious_duration: 0,
       });
     }
 

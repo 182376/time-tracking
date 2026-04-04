@@ -4706,6 +4706,7 @@ dependencies = [
  "image",
  "serde",
  "serde_json",
+ "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
