@@ -7,6 +7,26 @@ export interface AppInfo {
 
 const NON_TRACKABLE_EXE_NAMES = new Set([
   "time_tracker.exe",
+  "searchhost.exe",
+  "searchapp.exe",
+  "searchindexer.exe",
+  "shellexperiencehost.exe",
+  "startmenuexperiencehost.exe",
+  "applicationframehost.exe",
+  "textinputhost.exe",
+  "runtimebroker.exe",
+  "taskhostw.exe",
+  "consent.exe",
+  "lockapp.exe",
+  "logonui.exe",
+  "sihost.exe",
+  "dwm.exe",
+  "ctfmon.exe",
+  "fontdrvhost.exe",
+  "securityhealthsystray.exe",
+  "smartscreen.exe",
+  "winlogon.exe",
+  "userinit.exe",
 ]);
 
 const MAPPINGS: Record<string, AppInfo> = {
@@ -81,6 +101,17 @@ const MAPPINGS: Record<string, AppInfo> = {
   "regedit.exe": { name: "注册表编辑器", category: "system", color: "#4D4D4D" },
   "mmc.exe": { name: "管理控制台", category: "system", color: "#4D4D4D" },
   "control.exe": { name: "控制面板", category: "system", color: "#0078D4" },
+  "searchhost.exe": { name: "Windows 搜索", category: "system", color: "#4D4D4D" },
+  "shellexperiencehost.exe": { name: "Windows Shell", category: "system", color: "#4D4D4D" },
+  "consent.exe": { name: "UAC 权限确认", category: "system", color: "#4D4D4D" },
+  "startmenuexperiencehost.exe": { name: "开始菜单", category: "system", color: "#4D4D4D" },
+  "applicationframehost.exe": { name: "应用框架宿主", category: "system", color: "#4D4D4D" },
+  "textinputhost.exe": { name: "文本输入宿主", category: "system", color: "#4D4D4D" },
+  "runtimebroker.exe": { name: "运行时代理", category: "system", color: "#4D4D4D" },
+  "taskhostw.exe": { name: "任务宿主", category: "system", color: "#4D4D4D" },
+  "lockapp.exe": { name: "锁屏界面", category: "system", color: "#4D4D4D" },
+  "logonui.exe": { name: "登录界面", category: "system", color: "#4D4D4D" },
+  "dwm.exe": { name: "桌面窗口管理器", category: "system", color: "#4D4D4D" },
 
   "time_tracker.exe": { name: "Time Tracker", category: "work", color: "#6366F1" },
 };

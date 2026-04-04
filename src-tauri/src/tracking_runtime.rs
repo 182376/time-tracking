@@ -433,8 +433,26 @@ fn should_track(exe_name: &str) -> bool {
             | "regedit.exe"
             | "mmc.exe"
             | "control.exe"
+            | "searchhost.exe"
+            | "searchapp.exe"
+            | "searchindexer.exe"
+            | "shellexperiencehost.exe"
+            | "startmenuexperiencehost.exe"
+            | "applicationframehost.exe"
+            | "textinputhost.exe"
+            | "runtimebroker.exe"
+            | "taskhostw.exe"
+            | "consent.exe"
             | "lockapp.exe"
             | "logonui.exe"
+            | "sihost.exe"
+            | "dwm.exe"
+            | "ctfmon.exe"
+            | "fontdrvhost.exe"
+            | "securityhealthsystray.exe"
+            | "smartscreen.exe"
+            | "winlogon.exe"
+            | "userinit.exe"
     ) {
         return false;
     }
@@ -815,6 +833,9 @@ mod tests {
     fn lock_screen_processes_are_not_trackable() {
         assert!(!should_track("LockApp.exe"));
         assert!(!should_track("LogonUI.exe"));
+        assert!(!should_track("SearchHost.exe"));
+        assert!(!should_track("ShellExperienceHost.exe"));
+        assert!(!should_track("Consent.exe"));
     }
 
     #[test]

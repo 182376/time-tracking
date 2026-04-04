@@ -20,6 +20,7 @@ import {
   resolveTrackerHealth,
   isTrackingWindowSnapshot,
 } from "../src/types/tracking.ts";
+import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
 
 const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
 
@@ -402,6 +403,13 @@ runTest("tracker health becomes stale when heartbeat exceeds grace window", () =
   assert.equal(healthy.status, "healthy");
   assert.equal(stale.status, "stale");
   assert.equal(missing.status, "stale");
+});
+
+runTest("system windows processes are excluded from tracking", () => {
+  assert.equal(ProcessMapper.shouldTrack("SearchHost.exe"), false);
+  assert.equal(ProcessMapper.shouldTrack("ShellExperienceHost.exe"), false);
+  assert.equal(ProcessMapper.shouldTrack("Consent.exe"), false);
+  assert.equal(ProcessMapper.shouldTrack("Antigravity.exe"), true);
 });
 
 runTest("dashboard read model caps live session growth at the last successful sample when tracker is stale", () => {
