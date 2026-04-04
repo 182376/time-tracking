@@ -35,6 +35,10 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **Database**: SQLite via `@tauri-apps/plugin-sql`
 - **Windows integration**: `windows` crate
 
+## Project Docs
+
+- [`docs/architecture-optimization-roadmap.md`](docs/architecture-optimization-roadmap.md): phased architecture optimization plan for future work
+
 ## Getting Started
 
 ### Prerequisites

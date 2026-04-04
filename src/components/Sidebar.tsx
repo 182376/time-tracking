@@ -17,8 +17,9 @@ const NAV_ITEMS = [
 export default function Sidebar({ currentView, onNavigate }: Props) {
   return (
     <motion.aside
-      initial={{ x: -20, opacity: 0 }}
+      initial={{ x: -8, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
       className="w-20 glass-effect flex flex-col items-center py-8 gap-8"
       style={{ WebkitAppRegion: "no-drag" } as any}
     >
@@ -32,11 +33,12 @@ export default function Sidebar({ currentView, onNavigate }: Props) {
         {NAV_ITEMS.map((item) => (
           <motion.button
             key={item.id}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ x: 1 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             title={item.label}
             onClick={() => onNavigate(item.id)}
-            className={`p-4 rounded-2xl transition-all relative ${
+            className={`p-4 rounded-2xl transition-colors relative ${
               currentView === item.id
                 ? "bg-indigo-50 text-indigo-600"
                 : "text-slate-400 hover:text-slate-600"
@@ -46,6 +48,7 @@ export default function Sidebar({ currentView, onNavigate }: Props) {
             {currentView === item.id && (
               <motion.div
                 layoutId="nav-pill"
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
                 className="absolute left-[-12px] top-4 w-1 h-6 bg-indigo-600 rounded-full"
               />
             )}

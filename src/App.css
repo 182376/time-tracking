@@ -33,12 +33,12 @@ body {
 }
 
 .glass-card {
-  @apply backdrop-blur-lg bg-white/50 border border-white/20 shadow-sm transition-all duration-300;
+  @apply backdrop-blur-lg bg-white/50 border border-white/20 shadow-sm transition-[background-color,border-color,box-shadow] duration-200;
   border-radius: 1.5rem;
 }
 
 .glass-card:hover {
-  @apply bg-white/80 shadow-md translate-y-[-2px] border-white/60;
+  @apply bg-white/75 shadow-md border-white/50;
 }
 
 /* 隐藏滚动条但保留功能 */

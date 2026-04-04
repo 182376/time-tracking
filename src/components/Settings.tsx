@@ -82,9 +82,10 @@ export default function Settings({ onSettingsChanged }: Props) {
   return (
     <motion.div
       key="settings"
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex flex-col gap-6 h-full max-w-5xl"
     >
       <header className="glass-card p-6 flex justify-between items-center bg-white/40">
@@ -224,8 +225,9 @@ export default function Settings({ onSettingsChanged }: Props) {
                 </select>
 
                 <motion.button
-                  whileHover={{ scale: isCleaning ? 1 : 1.02, backgroundColor: isCleaning ? undefined : "rgba(244, 63, 94, 0.1)" }}
-                  whileTap={{ scale: isCleaning ? 1 : 0.98 }}
+                  whileHover={isCleaning ? undefined : { y: -1 }}
+                  whileTap={isCleaning ? undefined : { scale: 0.99 }}
+                  transition={{ duration: 0.14, ease: "easeOut" }}
                   onClick={handleCleanup}
                   disabled={isCleaning}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-100 text-rose-600 font-bold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

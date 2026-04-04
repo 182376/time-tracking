@@ -1,7 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
 import { ProcessMapper } from './ProcessMapper';
-import { planSessionFinalization } from './services/trackingLifecycle';
 
 let dbInstance: Database | null = null;
 let dbInstancePromise: Promise<Database> | null = null;
@@ -82,7 +81,7 @@ export const startSession = async (info: { app_name: string; exe_name: string; w
   });
 };
 
-export const endActiveSession = async (minSessionSecs: number = 0, endTimeOverride?: number) => {
+export const endActiveSession = async (_minSessionSecs: number = 0, endTimeOverride?: number) => {
   const db = await getDB();
   const activeSessions = await db.select<Array<{ id: number; start_time: number }>>(
     'SELECT id, start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC, id DESC'
@@ -92,7 +91,6 @@ export const endActiveSession = async (minSessionSecs: number = 0, endTimeOverri
   const rawEndTime = endTimeOverride ?? Date.now();
   const activeIds = activeSessions.map((session) => session.id);
   const activeIdPlaceholders = activeIds.map(() => '?').join(', ');
-  const { idsToDelete } = planSessionFinalization(activeSessions, rawEndTime, minSessionSecs);
 
   await db.execute(
     `UPDATE sessions
@@ -102,13 +100,6 @@ export const endActiveSession = async (minSessionSecs: number = 0, endTimeOverri
     [rawEndTime, rawEndTime, rawEndTime, rawEndTime, ...activeIds]
   );
 
-  if (idsToDelete.length > 0) {
-    const deletePlaceholders = idsToDelete.map(() => '?').join(', ');
-    await db.execute(
-      `DELETE FROM sessions WHERE id IN (${deletePlaceholders})`,
-      idsToDelete
-    );
-  }
 };
 
 export const loadIconCache = async (exeName: string, processPath: string) => {
@@ -140,18 +131,27 @@ export const getIconMap = async (): Promise<Record<string, string>> => {
 
 export const getDailyStats = async () => {
   try {
-    const db = await getDB();
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const ts = startOfToday.getTime();
-    const now = Date.now();
+    const sessions = await getHistoryByDate(new Date());
+    const totals = new Map<string, { app_name: string; exe_name: string; total_duration: number }>();
 
-    const rows = await db.select<Array<{ app_name: string; exe_name: string; total_duration: number }>>(
-      "SELECT app_name, exe_name, SUM(COALESCE(duration, MAX(0, ? - start_time))) as total_duration FROM sessions WHERE start_time >= ? GROUP BY exe_name ORDER BY total_duration DESC",
-      [now, ts]
-    );
+    for (const session of sessions) {
+      const key = session.exe_name.toLowerCase();
+      const duration = Math.max(0, session.duration ?? 0);
+      const existing = totals.get(key);
 
-    return rows.filter((row) => ProcessMapper.shouldTrack(row.exe_name));
+      if (existing) {
+        existing.total_duration += duration;
+        continue;
+      }
+
+      totals.set(key, {
+        app_name: session.app_name,
+        exe_name: session.exe_name,
+        total_duration: duration,
+      });
+    }
+
+    return Array.from(totals.values()).sort((a, b) => b.total_duration - a.total_duration);
   } catch (e) {
     console.error("Query stats failed:", e);
     throw e;
@@ -168,19 +168,23 @@ export interface HistorySession {
   duration: number | null;
 }
 
-export const getHistoryByDate = async (date: Date): Promise<HistorySession[]> => {
+export const getSessionsInRange = async (startMs: number, endMs: number): Promise<HistorySession[]> => {
   const db = await getDB();
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
   const now = Date.now();
   const rows = await db.select<HistorySession[]>(
-    "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, MAX(0, ? - start_time)) as duration FROM sessions WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC",
-    [now, start.getTime(), end.getTime()]
+    "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, MAX(0, ? - start_time)) as duration FROM sessions WHERE start_time < ? AND COALESCE(end_time, ?) > ? ORDER BY start_time ASC",
+    [now, endMs, now, startMs]
   );
 
   return rows.filter((row) => ProcessMapper.shouldTrack(row.exe_name));
+};
+
+export const getHistoryByDate = async (date: Date): Promise<HistorySession[]> => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(24, 0, 0, 0);
+  return getSessionsInRange(start.getTime(), end.getTime());
 };
 
 export interface DailySummary {
@@ -189,21 +193,36 @@ export interface DailySummary {
 }
 
 export const getWeeklyStats = async (): Promise<DailySummary[]> => {
-  const db = await getDB();
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const rows = await db.select<Array<{ exe_name: string; start_time: number; duration: number }>>(
-    "SELECT exe_name, start_time, COALESCE(duration, MAX(0, ? - start_time)) as duration FROM sessions WHERE start_time >= ? ORDER BY start_time ASC",
-    [now, sevenDaysAgo]
-  );
-
+  const rangeEnd = now;
+  const rangeStartDate = new Date(now);
+  rangeStartDate.setHours(0, 0, 0, 0);
+  rangeStartDate.setDate(rangeStartDate.getDate() - 6);
+  const rangeStart = rangeStartDate.getTime();
+  const sessions = await getSessionsInRange(rangeStart, rangeEnd);
   const totals = new Map<string, number>();
-  for (const row of rows) {
-    if (!ProcessMapper.shouldTrack(row.exe_name)) continue;
 
-    const date = new Date(row.start_time);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    totals.set(key, (totals.get(key) ?? 0) + row.duration);
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(rangeStart);
+    day.setDate(day.getDate() + i);
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    totals.set(key, 0);
+  }
+
+  for (const session of sessions) {
+    const rawEnd = session.end_time ?? (session.start_time + Math.max(0, session.duration ?? 0));
+    let cursor = Math.max(session.start_time, rangeStart);
+    const cappedEnd = Math.min(rawEnd, rangeEnd);
+
+    while (cursor < cappedEnd) {
+      const nextDay = new Date(cursor);
+      nextDay.setHours(24, 0, 0, 0);
+      const segmentEnd = Math.min(cappedEnd, nextDay.getTime());
+      const currentDay = new Date(cursor);
+      const currentKey = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}-${String(currentDay.getDate()).padStart(2, '0')}`;
+      totals.set(currentKey, (totals.get(currentKey) ?? 0) + (segmentEnd - cursor));
+      cursor = segmentEnd;
+    }
   }
 
   return Array.from(totals.entries())

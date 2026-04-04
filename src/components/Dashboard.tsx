@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Monitor, BarChart3, PieChart as PieIcon, Activity } from "lucide-react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
   buildTopApplications,
   formatDashboardDuration,
@@ -28,9 +28,10 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
   return (
     <motion.div
       key="dashboard"
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex flex-col gap-5 h-full overflow-hidden"
     >
       <header className="glass-card p-5 flex justify-between items-center bg-white/40">
@@ -94,22 +95,25 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
             </div>
           </div>
 
-          <div className="glass-card p-5 bg-white/20 flex-1 min-h-0">
+          <div className="glass-card p-5 bg-white/20 flex-1 min-h-0 flex flex-col overflow-hidden">
             <h3 className="text-slate-800 font-bold text-sm mb-4 flex items-center gap-2">
-              <BarChart3 size={14} className="text-indigo-500" />
+              <BarChart3 size={14} className="text-indigo-500 flex-shrink-0" />
               今日能量脉冲
             </h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hourlyActivity}>
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval={5} />
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={hourlyActivity} margin={{ top: 6, right: 12, left: 10, bottom: 4 }}>
+                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickMargin={8} interval={5} padding={{ left: 12, right: 12 }} />
+                <YAxis hide domain={[0, 60]} allowDataOverflow />
                 <Tooltip
                   cursor={{ fill: "#e2e8f080" }}
                   formatter={(v) => [`${Math.round(Number(v))}m`, "活跃"]}
                   contentStyle={{ borderRadius: "0.75rem", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", fontSize: "10px" }}
                 />
                 <Bar dataKey="minutes" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={8} />
-              </BarChart>
-            </ResponsiveContainer>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
 
@@ -128,17 +132,13 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
                 <p className="text-sm font-medium mt-4">先去专注一会儿吧...</p>
               </div>
             )}
-            {topApplications.map((app, index) => (
-              <motion.div
+            {topApplications.map((app) => (
+              <div
                 key={app.exeName}
-                layout
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.04 }}
                 className="flex items-center justify-between p-4 bg-white/40 rounded-2xl border border-transparent hover:border-indigo-100 hover:bg-white/80 transition-all cursor-default group shadow-sm"
               >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-105 transition-transform overflow-hidden p-2">
+                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden p-2">
                     {icons[app.exeName] ? (
                       <img src={icons[app.exeName]} className="w-full h-full object-contain" alt="" />
                     ) : (
@@ -161,13 +161,13 @@ export default function Dashboard({ stats, todaySessions, icons, isAfk, activeAp
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${app.percentage}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
                       className="h-full rounded-full"
                       style={{ backgroundColor: app.color }}
                     />
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

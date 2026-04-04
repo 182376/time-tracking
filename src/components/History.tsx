@@ -1,69 +1,141 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { getHistoryByDate, getWeeklyStats, DailySummary } from "../lib/db";
+import { getHistoryByDate, getSessionsInRange, type DailySummary, type HistorySession } from "../lib/db";
 import {
   formatDuration,
   formatTime,
   formatDateLabel,
   buildChartData,
-  buildAppSummary,
-  mergeSessionsForTimeline,
-  TimelineSession,
+  buildChartAxis,
+  formatChartHours,
 } from "../lib/services/history";
+import {
+  buildAppSummary,
+  buildDailySummaries,
+  buildNormalizedAppStats,
+  buildTimelineSessions,
+  compileSessions,
+  getDayRange,
+  getRollingDayRanges,
+  type TimelineSession,
+} from "../lib/services/sessionCompiler";
 import { ProcessMapper } from "../lib/ProcessMapper";
 
 interface Props {
   icons: Record<string, string>;
   refreshKey?: number;
   mergeThresholdSecs: number;
+  minSessionSecs: number;
 }
 
-export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: Props) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [timelineSessions, setTimelineSessions] = useState<TimelineSession[]>([]);
-  const [appSummary, setAppSummary] = useState<ReturnType<typeof buildAppSummary>>([]);
-  const [weekly, setWeekly] = useState<DailySummary[]>([]);
-  const [loading, setLoading] = useState(false);
+function materializeLiveSessions(sessions: HistorySession[], nowMs: number) {
+  return sessions.map((session) => {
+    if (session.end_time !== null) {
+      return session;
+    }
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+    return {
+      ...session,
+      duration: Math.max(0, nowMs - session.start_time),
+    };
+  });
+}
+
+export default function History({ icons, refreshKey = 0, mergeThresholdSecs, minSessionSecs }: Props) {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>([]);
+  const [rawWeeklySessions, setRawWeeklySessions] = useState<HistorySession[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
+
+  const loadData = useCallback(async (showLoading: boolean = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+
     try {
-      const [rawSessions, rawWeekly] = await Promise.all([
+      const selectedDayRange = getDayRange(selectedDate);
+      const rollingRanges = getRollingDayRanges(7);
+      const weeklyRangeStart = rollingRanges[0]?.startMs ?? selectedDayRange.startMs;
+      const weeklyRangeEnd = rollingRanges[rollingRanges.length - 1]?.endMs ?? selectedDayRange.endMs;
+      const [daySessions, weeklySessions] = await Promise.all([
         getHistoryByDate(selectedDate),
-        getWeeklyStats(),
+        getSessionsInRange(weeklyRangeStart, weeklyRangeEnd),
       ]);
 
-      setTimelineSessions(mergeSessionsForTimeline(rawSessions || [], mergeThresholdSecs));
-      setAppSummary(buildAppSummary(rawSessions || []));
-      setWeekly(rawWeekly || []);
+      setRawDaySessions(daySessions || []);
+      setRawWeeklySessions(weeklySessions || []);
+      setNowMs(Date.now());
+      hasLoadedRef.current = true;
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
-  }, [selectedDate, mergeThresholdSecs]);
+  }, [selectedDate]);
 
   useEffect(() => {
-    void loadData();
+    void loadData(!hasLoadedRef.current);
   }, [loadData, refreshKey]);
 
+  useEffect(() => {
+    const hasLiveSession = rawDaySessions.some((session) => session.end_time === null)
+      || rawWeeklySessions.some((session) => session.end_time === null);
+
+    if (!hasLiveSession) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [rawDaySessions, rawWeeklySessions]);
+
   const changeDate = (delta: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + delta);
-    if (d <= new Date()) setSelectedDate(d);
+    const nextDate = new Date(selectedDate);
+    nextDate.setDate(nextDate.getDate() + delta);
+    if (nextDate <= new Date()) {
+      setSelectedDate(nextDate);
+    }
   };
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
+  const selectedDayRange = getDayRange(selectedDate, nowMs);
+  const rollingRanges = getRollingDayRanges(7, nowMs);
+  const liveDaySessions = materializeLiveSessions(rawDaySessions, nowMs);
+  const liveWeeklySessions = materializeLiveSessions(rawWeeklySessions, nowMs);
+  const compiledSessions = compileSessions(liveDaySessions, {
+    startMs: selectedDayRange.startMs,
+    endMs: selectedDayRange.endMs,
+    minSessionSecs,
+  });
+  const timelineSessions: TimelineSession[] = buildTimelineSessions(compiledSessions, mergeThresholdSecs).slice().reverse();
+  const appSummary = buildAppSummary(buildNormalizedAppStats(compiledSessions));
+  const weekly: DailySummary[] = buildDailySummaries(liveWeeklySessions, rollingRanges, minSessionSecs);
   const chartData = buildChartData(weekly);
+  const chartAxis = buildChartAxis(chartData);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex-1 min-h-0 flex flex-col gap-5 h-full overflow-hidden"
     >
       <header className="glass-card p-5 flex items-center justify-between bg-white/40">
@@ -76,8 +148,9 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
         </div>
         <div className="flex items-center gap-2">
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ x: -1 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             onClick={() => changeDate(-1)}
             className="p-2.5 rounded-xl glass-card hover:bg-white/70 text-slate-500"
           >
@@ -87,8 +160,9 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
             {formatDateLabel(selectedDate)}
           </span>
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ x: 1 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             onClick={() => changeDate(1)}
             disabled={isToday}
             className="p-2.5 rounded-xl glass-card hover:bg-white/70 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -112,12 +186,19 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f020" />
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  ticks={chartAxis.ticks}
+                  domain={[0, chartAxis.domainMax]}
+                  tickFormatter={(value) => formatChartHours(Number(value))}
+                />
                 <Tooltip
-                  formatter={(v) => [`${Number(v)}m`, "时长"]}
+                  formatter={(value) => `${formatChartHours(Number(value))}h`}
                   contentStyle={{ borderRadius: "1rem", border: "none", fontSize: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}
                 />
-                <Area type="monotone" dataKey="minutes" stroke="#6366f1" strokeWidth={2} fill="url(#areaGrad)" dot={{ fill: "#6366f1", r: 3 }} />
+                <Area type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} fill="url(#areaGrad)" dot={{ fill: "#6366f1", r: 3 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -143,7 +224,7 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${app.percentage}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
+                          transition={{ duration: 0.3, ease: "easeOut" }}
                           className="h-full rounded-full"
                           style={{ backgroundColor: mapped.color }}
                         />
@@ -165,14 +246,12 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
           ) : (
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
-                {timelineSessions.map((s, i) => {
-                  const mapped = ProcessMapper.map(s.exe_name);
+                {timelineSessions.map((session) => {
+                  const mapped = ProcessMapper.map(session.exe_name);
+
                   return (
-                    <motion.div
-                      key={s.id}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.02 }}
+                    <div
+                      key={session.id}
                       className="flex items-center gap-3 p-3 bg-white/50 rounded-xl hover:bg-white/80 transition-all group"
                     >
                       <div
@@ -180,35 +259,35 @@ export default function History({ icons, refreshKey = 0, mergeThresholdSecs }: P
                         style={{ backgroundColor: mapped.color }}
                       />
                       <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden p-1.5">
-                        {icons[s.exe_name] ? (
-                          <img src={icons[s.exe_name]} className="w-full h-full object-contain" alt="" />
+                        {icons[session.exe_name] ? (
+                          <img src={icons[session.exe_name]} className="w-full h-full object-contain" alt="" />
                         ) : (
                           <div className="text-[10px] font-bold opacity-30">{mapped.category[0].toUpperCase()}</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-slate-800 text-xs truncate flex items-center gap-2">
-                          {s.displayName}
-                          {s.mergedCount > 1 && (
+                          {session.displayName}
+                          {session.mergedCount > 1 && (
                             <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">
-                              {s.mergedCount} 次活动
+                              {session.mergedCount} 次活动
                             </span>
                           )}
                         </div>
-                        {s.displayTitle && (
+                        {session.displayTitle && (
                           <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {s.displayTitle}
+                            {session.displayTitle}
                           </div>
                         )}
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-xs font-bold text-indigo-600">{formatDuration(s.duration || 0)}</div>
+                        <div className="text-xs font-bold text-indigo-600">{formatDuration(session.duration || 0)}</div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          {formatTime(s.start_time)}
-                          {s.end_time ? ` → ${formatTime(s.end_time)}` : " 至今"}
+                          {formatTime(session.start_time)}
+                          {session.end_time ? ` -> ${formatTime(session.end_time)}` : " 至今"}
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </AnimatePresence>

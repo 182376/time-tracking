@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import {
   isTrackableWindow,
-  planSessionFinalization,
   planWindowTransition,
   resolveStartupSealTime,
-  type ActiveSessionSnapshot,
   type TrackedWindow,
 } from "../src/lib/services/trackingLifecycle.ts";
-import { buildNormalizedAppStats, mergeSessionsForTimeline } from "../src/lib/services/history.ts";
+import {
+  buildDailySummaries,
+  buildNormalizedAppStats,
+  buildTimelineSessions,
+  compileSessions,
+  getDayRange,
+  getRollingDayRanges,
+} from "../src/lib/services/sessionCompiler.ts";
 import type { HistorySession } from "../src/lib/db.ts";
 
 const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
@@ -67,6 +72,23 @@ runTest("repeated same window does not trigger session changes", () => {
   });
 });
 
+runTest("title changes inside the same executable do not trigger session changes", () => {
+  const result = planWindowTransition({
+    previousWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat A" }),
+    nextWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat B" }),
+    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
+    nowMs: 1_000_000,
+    shouldTrack,
+  });
+
+  assert.deepEqual(result, {
+    didChange: false,
+    shouldEndPrevious: false,
+    shouldStartNext: false,
+    endTimeOverride: undefined,
+  });
+});
+
 runTest("switching between tracked windows ends previous session and starts next", () => {
   const result = planWindowTransition({
     previousWindow: makeWindow({ exe_name: "QQ.exe", title: "QQ Chat" }),
@@ -113,17 +135,6 @@ runTest("afk transition backdates end time and does not start a new session", ()
   assert.equal(result.endTimeOverride, nowMs - 300_000);
 });
 
-runTest("session finalization only deletes short sessions that were active in this close operation", () => {
-  const activeSessions: ActiveSessionSnapshot[] = [
-    { id: 11, start_time: 1_000 },
-    { id: 12, start_time: 9_000 },
-  ];
-
-  const result = planSessionFinalization(activeSessions, 12_000, 5);
-
-  assert.deepEqual(result.idsToDelete, [12]);
-});
-
 runTest("startup sealing prefers the last stored heartbeat over current startup time", () => {
   const endTime = resolveStartupSealTime({
     sessionStartTime: 1_000,
@@ -155,8 +166,13 @@ runTest("normalized app stats keep different executables separate even if displa
     makeSession({ id: 1, exe_name: "QQ.exe", app_name: "QQ", duration: 120_000, end_time: 121_000 }),
     makeSession({ id: 2, exe_name: "QQNT.exe", app_name: "QQ", start_time: 200_000, end_time: 320_000, duration: 120_000 }),
   ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 400_000,
+    minSessionSecs: 30,
+  });
 
-  const stats = buildNormalizedAppStats(sessions);
+  const stats = buildNormalizedAppStats(compiled);
 
   assert.equal(stats.length, 2);
   assert.deepEqual(
@@ -165,19 +181,96 @@ runTest("normalized app stats keep different executables separate even if displa
   );
 });
 
+runTest("short same-app fragments survive when filtering happens after merge", () => {
+  const sessions: HistorySession[] = [
+    makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 20_000, duration: 20_000 }),
+    makeSession({ id: 2, exe_name: "QQ.exe", start_time: 22_000, end_time: 42_000, duration: 20_000, window_title: "QQ Other" }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 100_000,
+    minSessionSecs: 30,
+  });
+
+  assert.equal(compiled.length, 1);
+  assert.equal(compiled[0].duration, 42_000);
+});
+
 runTest("timeline merge does not merge different executables with the same mapped display name", () => {
   const sessions: HistorySession[] = [
     makeSession({ id: 1, exe_name: "QQ.exe", app_name: "QQ", start_time: 0, end_time: 60_000, duration: 60_000 }),
     makeSession({ id: 2, exe_name: "QQNT.exe", app_name: "QQ", start_time: 62_000, end_time: 122_000, duration: 60_000 }),
   ];
-
-  const timeline = mergeSessionsForTimeline(sessions, 180);
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 200_000,
+    minSessionSecs: 30,
+  });
+  const timeline = buildTimelineSessions(compiled, 180);
 
   assert.equal(timeline.length, 2);
   assert.deepEqual(
     timeline.map((item) => item.exe_name),
     ["QQ.exe", "QQNT.exe"],
   );
+});
+
+runTest("timeline grouping preserves active duration while extending the visible span", () => {
+  const sessions: HistorySession[] = [
+    makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 60_000, duration: 60_000 }),
+    makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 60_000, end_time: 90_000, duration: 30_000 }),
+    makeSession({ id: 3, exe_name: "QQ.exe", start_time: 90_000, end_time: 150_000, duration: 60_000 }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 200_000,
+    minSessionSecs: 30,
+  });
+  const timeline = buildTimelineSessions(compiled, 180);
+
+  assert.equal(timeline.length, 1);
+  assert.equal(timeline[0].start_time, 0);
+  assert.equal(timeline[0].end_time, 150_000);
+  assert.equal(timeline[0].duration, 120_000);
+});
+
+runTest("day compilation clips cross-day sessions to the selected date", () => {
+  const day = new Date(2026, 3, 4, 12, 0, 0, 0);
+  const range = getDayRange(day, new Date(2026, 3, 5, 0, 0, 0, 0).getTime());
+  const sessions: HistorySession[] = [
+    makeSession({
+      id: 1,
+      start_time: new Date(2026, 3, 3, 23, 50, 0, 0).getTime(),
+      end_time: new Date(2026, 3, 4, 0, 20, 0, 0).getTime(),
+      duration: 30 * 60_000,
+    }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: range.startMs,
+    endMs: range.endMs,
+    minSessionSecs: 30,
+  });
+
+  assert.equal(compiled.length, 1);
+  assert.equal(compiled[0].duration, 20 * 60_000);
+});
+
+runTest("daily summaries attribute cross-day activity to both days", () => {
+  const nowMs = new Date(2026, 3, 4, 12, 0, 0, 0).getTime();
+  const ranges = getRollingDayRanges(2, nowMs);
+  const sessions: HistorySession[] = [
+    makeSession({
+      id: 1,
+      start_time: new Date(2026, 3, 3, 23, 50, 0, 0).getTime(),
+      end_time: new Date(2026, 3, 4, 0, 20, 0, 0).getTime(),
+      duration: 30 * 60_000,
+    }),
+  ];
+  const summaries = buildDailySummaries(sessions, ranges, 30);
+
+  assert.equal(summaries.length, 2);
+  assert.equal(summaries[0].total_duration, 10 * 60_000);
+  assert.equal(summaries[1].total_duration, 20 * 60_000);
 });
 
 console.log(`Passed ${passed} tracking lifecycle tests`);

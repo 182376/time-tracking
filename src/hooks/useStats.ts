@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { AppStat } from "../types/app";
 import { getHistoryByDate, getIconMap, type HistorySession } from "../lib/db";
-import { buildNormalizedAppStats } from "../lib/services/history";
+import { buildNormalizedAppStats, compileSessions, getDayRange } from "../lib/services/sessionCompiler";
 
 export interface UseStatsResult {
   stats: AppStat[];
@@ -10,7 +10,7 @@ export interface UseStatsResult {
   refreshNow: () => Promise<void>;
 }
 
-export function useStats(refreshIntervalSecs: number, refreshKey: number): UseStatsResult {
+export function useStats(refreshIntervalSecs: number, refreshKey: number, minSessionSecs: number): UseStatsResult {
   const [stats, setStats] = useState<AppStat[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [todaySessions, setTodaySessions] = useState<HistorySession[]>([]);
@@ -21,13 +21,19 @@ export function useStats(refreshIntervalSecs: number, refreshKey: number): UseSt
         getHistoryByDate(new Date()),
         getIconMap(),
       ]);
-      setStats(buildNormalizedAppStats(sessions || []));
+      const dayRange = getDayRange(new Date());
+      const compiledSessions = compileSessions(sessions || [], {
+        startMs: dayRange.startMs,
+        endMs: dayRange.endMs,
+        minSessionSecs,
+      });
+      setStats(buildNormalizedAppStats(compiledSessions));
       setIcons(iconsData || {});
-      setTodaySessions(sessions || []);
+      setTodaySessions(compiledSessions);
     } catch (err) {
       console.error("Failed to load stats:", err);
     }
-  }, []);
+  }, [minSessionSecs]);
 
   useEffect(() => {
     void fetchData();

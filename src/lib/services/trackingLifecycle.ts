@@ -52,9 +52,7 @@ export function planWindowTransition(args: {
   const { previousWindow, nextWindow, nowMs, shouldTrack } = args;
   const lastTrackable = isTrackableWindow(previousWindow, shouldTrack);
   const nextTrackable = isTrackableWindow(nextWindow, shouldTrack);
-  const identityChanged =
-    previousWindow?.exe_name !== nextWindow.exe_name ||
-    previousWindow?.title !== nextWindow.title;
+  const identityChanged = previousWindow?.exe_name !== nextWindow.exe_name;
   const trackingStateChanged = lastTrackable !== nextTrackable;
   const didChange = identityChanged || trackingStateChanged;
   const shouldEndPrevious = lastTrackable && didChange;
@@ -69,23 +67,6 @@ export function planWindowTransition(args: {
         ? nowMs - nextWindow.idle_time_ms
         : undefined,
   };
-}
-
-export function planSessionFinalization(
-  activeSessions: ActiveSessionSnapshot[],
-  rawEndTime: number,
-  minSessionSecs: number,
-): SessionFinalizationPlan {
-  if (minSessionSecs <= 0) {
-    return { idsToDelete: [] };
-  }
-
-  const minDurationMs = minSessionSecs * 1000;
-  const idsToDelete = activeSessions
-    .filter((session) => Math.max(0, rawEndTime - session.start_time) < minDurationMs)
-    .map((session) => session.id);
-
-  return { idsToDelete };
 }
 
 export function resolveStartupSealTime(args: StartupSealTimeArgs) {
