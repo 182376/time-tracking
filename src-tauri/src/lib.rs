@@ -1,5 +1,4 @@
 mod icon_extractor;
-mod power_watcher;
 mod tracker;
 
 
@@ -70,96 +69,6 @@ pub fn run() {
                 WHERE end_time IS NULL;
             ",
             kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 4,
-            description: "create_raw_event_tables",
-            sql: "
-                CREATE TABLE IF NOT EXISTS raw_window_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp_ms INTEGER NOT NULL,
-                    exe_name TEXT NOT NULL,
-                    window_title TEXT NOT NULL,
-                    process_path TEXT NOT NULL,
-                    source TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_raw_window_events_timestamp
-                ON raw_window_events(timestamp_ms);
-
-                CREATE TABLE IF NOT EXISTS raw_presence_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp_ms INTEGER NOT NULL,
-                    state TEXT NOT NULL,
-                    idle_time_ms INTEGER NOT NULL,
-                    source TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_raw_presence_events_timestamp
-                ON raw_presence_events(timestamp_ms);
-
-                CREATE TABLE IF NOT EXISTS raw_power_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp_ms INTEGER NOT NULL,
-                    state TEXT NOT NULL,
-                    source TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_raw_power_events_timestamp
-                ON raw_power_events(timestamp_ms);
-            ",
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 5,
-            description: "add_raw_event_queue_and_dedupe_keys",
-            sql: "
-                ALTER TABLE raw_window_events ADD COLUMN dedupe_key TEXT;
-                ALTER TABLE raw_presence_events ADD COLUMN dedupe_key TEXT;
-                ALTER TABLE raw_power_events ADD COLUMN dedupe_key TEXT;
-
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_window_events_dedupe_key
-                ON raw_window_events(dedupe_key);
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_presence_events_dedupe_key
-                ON raw_presence_events(dedupe_key);
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_power_events_dedupe_key
-                ON raw_power_events(dedupe_key);
-
-                CREATE TABLE IF NOT EXISTS raw_event_queue (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_kind TEXT NOT NULL,
-                    timestamp_ms INTEGER NOT NULL,
-                    source TEXT NOT NULL,
-                    dedupe_key TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    enqueued_at_ms INTEGER NOT NULL
-                );
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_event_queue_dedupe_key
-                ON raw_event_queue(dedupe_key);
-                CREATE INDEX IF NOT EXISTS idx_raw_event_queue_id
-                ON raw_event_queue(id);
-            ",
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 6,
-            description: "create_derived_sessions_table",
-            sql: "
-                CREATE TABLE IF NOT EXISTS derived_sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    start_time_ms INTEGER NOT NULL,
-                    end_time_ms INTEGER NOT NULL,
-                    duration_ms INTEGER NOT NULL,
-                    exe_name TEXT NOT NULL,
-                    window_title TEXT NOT NULL,
-                    process_path TEXT NOT NULL,
-                    cut_reason TEXT NOT NULL,
-                    source_window_start_id INTEGER NOT NULL,
-                    source_window_end_id INTEGER NOT NULL,
-                    source_presence_start_id INTEGER NOT NULL,
-                    source_presence_end_id INTEGER NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_derived_sessions_start_time
-                ON derived_sessions(start_time_ms);
-            ",
-            kind: MigrationKind::Up,
         }
     ];
 
@@ -173,7 +82,6 @@ pub fn run() {
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
-            power_watcher::start(app_handle.clone());
             tauri::async_runtime::spawn(async move {
                 loop {
                     let window_info = tracker::get_active_window();

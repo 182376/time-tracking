@@ -27,10 +27,10 @@ export interface SessionFinalizationPlan {
   idsToDelete: number[];
 }
 
-export interface PowerTransitionDecision {
-  shouldEndActiveSession: boolean;
-  endTimeOverride?: number;
-  shouldResetWindowState: boolean;
+export interface StartupSealTimeArgs {
+  sessionStartTime: number;
+  lastHeartbeatMs: number | null;
+  nowMs: number;
 }
 
 export function isTrackableWindow(
@@ -71,21 +71,6 @@ export function planWindowTransition(args: {
   };
 }
 
-export function planPowerTransition(args: {
-  state: "startup" | "shutdown" | "lock" | "unlock" | "suspend" | "resume";
-  timestampMs: number;
-}): PowerTransitionDecision {
-  const { state, timestampMs } = args;
-  const isHardBoundary =
-    state === "lock" || state === "suspend" || state === "shutdown";
-
-  return {
-    shouldEndActiveSession: isHardBoundary,
-    endTimeOverride: isHardBoundary ? timestampMs : undefined,
-    shouldResetWindowState: isHardBoundary,
-  };
-}
-
 export function planSessionFinalization(
   activeSessions: ActiveSessionSnapshot[],
   rawEndTime: number,
@@ -101,4 +86,14 @@ export function planSessionFinalization(
     .map((session) => session.id);
 
   return { idsToDelete };
+}
+
+export function resolveStartupSealTime(args: StartupSealTimeArgs) {
+  const { sessionStartTime, lastHeartbeatMs, nowMs } = args;
+
+  if (!Number.isFinite(lastHeartbeatMs ?? NaN)) {
+    return nowMs;
+  }
+
+  return Math.min(nowMs, Math.max(sessionStartTime, lastHeartbeatMs!));
 }
