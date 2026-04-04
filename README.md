@@ -49,6 +49,9 @@ It watches the active window on Windows, records app sessions locally, and turns
 
 - [`docs/architecture-optimization-roadmap.md`](docs/architecture-optimization-roadmap.md): phased architecture optimization plan for future work
 - [`docs/timing-algorithm-optimization-plan.md`](docs/timing-algorithm-optimization-plan.md): timing / tracking algorithm optimization plan based on real failure cases
+- [`docs/tracking-governed-implementation-plan.md`](docs/tracking-governed-implementation-plan.md): governance checklist for tracking architecture and release safety
+- [`docs/session-data-contract.md`](docs/session-data-contract.md): raw session field semantics and read-model contract
+- [`docs/app-mapping-governance-plan.md`](docs/app-mapping-governance-plan.md): executable mapping, categorization, and color-governance execution plan
 
 ## Getting Started
 
