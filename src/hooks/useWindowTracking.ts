@@ -1,26 +1,23 @@
 import { useEffect, useState } from "react";
 import {
-  AppSettings,
   DEFAULT_SETTINGS,
 } from "../lib/settings";
+import type { AppSettings } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
 import {
   TrackingService,
 } from "../lib/services/TrackingService";
 import type {
-  TrackingDataChangedPayload,
   TrackerHealthSnapshot,
   TrackingWindowSnapshot,
 } from "../types/tracking";
 import { resolveTrackerHealth } from "../types/tracking";
 
-export interface WindowInfo extends TrackingWindowSnapshot {}
-
 const TRACKER_HEARTBEAT_POLL_MS = 2_000;
 const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
 
 export function useWindowTracking() {
-  const [activeWindow, setActiveWindow] = useState<WindowInfo | null>(null);
+  const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
   const [trackerHealth, setTrackerHealth] = useState<TrackerHealthSnapshot>(() => (
@@ -89,7 +86,7 @@ export function useWindowTracking() {
       unlisteners.push(activeWindowUnlisten);
 
       const trackingDataUnlisten = await TrackingService.onTrackingDataChanged(
-        (_payload: TrackingDataChangedPayload) => {
+        () => {
           if (cancelled) return;
           setSyncTick((tick) => tick + 1);
         },

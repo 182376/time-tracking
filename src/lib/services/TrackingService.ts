@@ -1,10 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
-import type {
-  TrackingDataChangedPayload,
-  TrackingWindowSnapshot,
-} from "../../types/tracking";
 import {
+  type TrackingDataChangedPayload,
+  type TrackingWindowSnapshot,
   parseTrackingDataChangedPayload,
   parseTrackingWindowSnapshot,
 } from "../../types/tracking";

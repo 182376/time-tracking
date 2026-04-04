@@ -9,7 +9,6 @@ import type { TrackerHealthSnapshot } from "../types/tracking";
 export interface UseStatsResult {
   dashboard: DashboardReadModel;
   icons: Record<string, string>;
-  refreshNow: () => Promise<void>;
 }
 
 export function useStats(
@@ -82,6 +81,5 @@ export function useStats(
   return {
     dashboard,
     icons,
-    refreshNow: fetchData,
   };
 }

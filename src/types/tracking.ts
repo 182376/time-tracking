@@ -1,6 +1,6 @@
 import type { TrackedWindow } from "../lib/services/trackingLifecycle";
 
-export interface TrackingWindowSnapshot extends TrackedWindow {}
+export type TrackingWindowSnapshot = TrackedWindow;
 
 export interface TrackingDataChangedPayload {
   reason: string;

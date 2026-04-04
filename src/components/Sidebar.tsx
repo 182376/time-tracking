@@ -1,12 +1,15 @@
+import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { Zap, Monitor, Clock, Settings2 } from "lucide-react";
-
-type View = "dashboard" | "history" | "settings";
+import type { View } from "../types/app";
 
 interface Props {
   currentView: View;
   onNavigate: (view: View) => void;
 }
+
+type AppRegionStyle = CSSProperties & { WebkitAppRegion?: "drag" | "no-drag" };
+const NO_DRAG_STYLE: AppRegionStyle = { WebkitAppRegion: "no-drag" };
 
 const NAV_ITEMS = [
   { id: "dashboard" as View, icon: Monitor,  label: "Dashboard" },
@@ -21,7 +24,7 @@ export default function Sidebar({ currentView, onNavigate }: Props) {
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
       className="w-20 glass-effect flex flex-col items-center py-8 gap-8"
-      style={{ WebkitAppRegion: "no-drag" } as any}
+      style={NO_DRAG_STYLE}
     >
       {/* Logo */}
       <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">

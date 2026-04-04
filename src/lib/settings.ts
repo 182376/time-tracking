@@ -75,17 +75,13 @@ export const clearSessionsBefore = async (cutoffTime: number): Promise<void> => 
   await db.execute('DELETE FROM sessions WHERE start_time < ?', [cutoffTime]);
 };
 
-export const loadTrackerHeartbeat = async (): Promise<number | null> => {
-  return loadSettingTimestamp(TRACKER_LAST_HEARTBEAT_KEY);
-};
-
 export const loadTrackerHealthTimestamp = async (): Promise<number | null> => {
   const lastSampleMs = await loadSettingTimestamp(TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY);
   if (lastSampleMs !== null) {
     return lastSampleMs;
   }
 
-  return loadTrackerHeartbeat();
+  return loadSettingTimestamp(TRACKER_LAST_HEARTBEAT_KEY);
 };
 
 export const saveTrackerHeartbeat = async (timestampMs: number): Promise<void> => {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap } from "lucide-react";
 import { UI_TEXT } from "../lib/copy";
-import { AppSettings } from "../lib/settings";
+import type { AppSettings } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
 
 interface Props {

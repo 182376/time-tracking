@@ -1,33 +1,10 @@
+import { resolveCanonicalExecutable, shouldTrackProcess } from "./processNormalization.ts";
+
 export interface AppInfo {
   name: string;
-  icon?: string;
   category: "work" | "entertainment" | "social" | "system" | "other";
   color: string;
 }
-
-const NON_TRACKABLE_EXE_NAMES = new Set([
-  "time_tracker.exe",
-  "searchhost.exe",
-  "searchapp.exe",
-  "searchindexer.exe",
-  "shellexperiencehost.exe",
-  "startmenuexperiencehost.exe",
-  "applicationframehost.exe",
-  "textinputhost.exe",
-  "runtimebroker.exe",
-  "taskhostw.exe",
-  "consent.exe",
-  "lockapp.exe",
-  "logonui.exe",
-  "sihost.exe",
-  "dwm.exe",
-  "ctfmon.exe",
-  "fontdrvhost.exe",
-  "securityhealthsystray.exe",
-  "smartscreen.exe",
-  "winlogon.exe",
-  "userinit.exe",
-]);
 
 const MAPPINGS: Record<string, AppInfo> = {
   "chrome.exe": { name: "Google Chrome", category: "work", color: "#4285F4" },
@@ -93,6 +70,7 @@ const MAPPINGS: Record<string, AppInfo> = {
   "csgo.exe": { name: "CS:GO", category: "entertainment", color: "#F5A623" },
   "cs2.exe": { name: "CS2", category: "entertainment", color: "#F5A623" },
   "bilibili.exe": { name: "哔哩哔哩", category: "entertainment", color: "#00AEEC" },
+  "douyin.exe": { name: "抖音", category: "entertainment", color: "#111111" },
   "qqmusic.exe": { name: "QQ音乐", category: "entertainment", color: "#FFBE00" },
   "neteasemusic.exe": { name: "网易云音乐", category: "entertainment", color: "#CC0000" },
 
@@ -116,9 +94,19 @@ const MAPPINGS: Record<string, AppInfo> = {
   "time_tracker.exe": { name: "Time Tracker", category: "work", color: "#6366F1" },
 };
 
+function formatFallbackName(exeName: string) {
+  return exeName
+    .replace(/\.exe$/i, "")
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export class ProcessMapper {
   static map(exeName: string): AppInfo {
-    const lowerName = exeName.toLowerCase();
+    const canonicalExe = resolveCanonicalExecutable(exeName);
+    const lowerName = canonicalExe.toLowerCase();
 
     if (MAPPINGS[lowerName]) {
       return MAPPINGS[lowerName];
@@ -137,31 +125,20 @@ export class ProcessMapper {
       return { name: "IDE / Editor", category: "work", color: "#607D8B" };
     }
 
-    const cleanName = exeName.replace(/\.exe$/i, "");
+    const cleanName = formatFallbackName(canonicalExe);
     return {
-      name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+      name: cleanName || canonicalExe,
       category: "other",
       color: "#9E9E9E",
     };
   }
 
   static shouldTrack(exeName: string): boolean {
-    const lowerName = exeName.toLowerCase();
-    if (NON_TRACKABLE_EXE_NAMES.has(lowerName)) {
+    const canonicalExe = resolveCanonicalExecutable(exeName);
+    if (!shouldTrackProcess(canonicalExe)) {
       return false;
     }
 
-    return this.map(lowerName).category !== "system";
-  }
-
-  static getCategoryColor(category: AppInfo["category"]): string {
-    const colors: Record<AppInfo["category"], string> = {
-      work: "#4F46E5",
-      entertainment: "#EC4899",
-      social: "#10B981",
-      system: "#F59E0B",
-      other: "#6B7280",
-    };
-    return colors[category];
+    return this.map(canonicalExe).category !== "system";
   }
 }

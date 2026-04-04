@@ -21,6 +21,7 @@ import {
   getRollingDayRanges,
   type CompiledSession,
   type DiagnosableHistorySession,
+  type NormalizedAppSummaryItem,
   type TimelineSession,
 } from "./sessionCompiler.ts";
 
@@ -54,7 +55,7 @@ export interface DashboardReadModel {
 export interface HistoryReadModel {
   compiledSessions: CompiledSession[];
   timelineSessions: TimelineSession[];
-  appSummary: Array<{ exeName: string; duration: number; suspiciousDuration: number; percentage: number }>;
+  appSummary: NormalizedAppSummaryItem[];
   weekly: DailySummary[];
   chartData: HistoryChartPoint[];
   chartAxis: ReturnType<typeof buildChartAxis>;
@@ -129,6 +130,18 @@ function buildDiagnostics(
   };
 }
 
+function compileForRange(
+  sessions: DiagnosableHistorySession[],
+  range: ReturnType<typeof getDayRange>,
+  minSessionSecs: number,
+) {
+  return compileSessions(sessions, {
+    startMs: range.startMs,
+    endMs: range.endMs,
+    minSessionSecs,
+  });
+}
+
 export class HistoryService {
   static async loadDashboardSnapshot(date: Date = new Date()): Promise<DashboardSnapshot> {
     const [sessions, icons] = await Promise.all([
@@ -138,8 +151,8 @@ export class HistoryService {
 
     return {
       fetchedAtMs: Date.now(),
-      icons: icons || {},
-      sessions: sessions || [],
+      icons,
+      sessions,
     };
   }
 
@@ -156,8 +169,8 @@ export class HistoryService {
 
     return {
       fetchedAtMs: Date.now(),
-      daySessions: daySessions || [],
-      weeklySessions: weeklySessions || [],
+      daySessions,
+      weeklySessions,
     };
   }
 
@@ -166,7 +179,7 @@ export class HistoryService {
 
     return {
       fetchedAtMs: Date.now(),
-      icons: icons || {},
+      icons,
     };
   }
 
@@ -177,11 +190,7 @@ export class HistoryService {
   ): DashboardReadModel {
     const dayRange = getDayRange(new Date(nowMs), nowMs);
     const liveSessions = materializeLiveSessions(sessions, trackerHealth, nowMs);
-    const compiledSessions = compileSessions(liveSessions, {
-      startMs: dayRange.startMs,
-      endMs: dayRange.endMs,
-      minSessionSecs: 0,
-    });
+    const compiledSessions = compileForRange(liveSessions, dayRange, 0);
     const stats = buildNormalizedAppStats(compiledSessions);
     const diagnostics = buildDiagnostics(
       compiledSessions,
@@ -222,16 +231,8 @@ export class HistoryService {
     const rollingRanges = getRollingDayRanges(7, nowMs);
     const liveDaySessions = materializeLiveSessions(daySessions, trackerHealth, nowMs);
     const liveWeeklySessions = materializeLiveSessions(weeklySessions, trackerHealth, nowMs);
-    const compiledSessions = compileSessions(liveDaySessions, {
-      startMs: selectedDayRange.startMs,
-      endMs: selectedDayRange.endMs,
-      minSessionSecs: 0,
-    });
-    const timelineSourceSessions = compileSessions(liveDaySessions, {
-      startMs: selectedDayRange.startMs,
-      endMs: selectedDayRange.endMs,
-      minSessionSecs,
-    });
+    const compiledSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
+    const timelineSourceSessions = compileForRange(liveDaySessions, selectedDayRange, minSessionSecs);
     const timelineSessions = buildTimelineSessions(timelineSourceSessions, mergeThresholdSecs).slice().reverse();
     const appSummary = buildAppSummary(buildNormalizedAppStats(compiledSessions));
     const weekly = buildDailySummaries(

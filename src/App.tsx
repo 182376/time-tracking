@@ -2,11 +2,12 @@ import { Suspense, lazy, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ProcessMapper } from "./lib/ProcessMapper";
 import { UI_TEXT } from "./lib/copy";
+import { resolveCanonicalExecutable, shouldTrackProcess } from "./lib/processNormalization";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import { useStats } from "./hooks/useStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
-import { View } from "./types/app";
+import type { View } from "./types/app";
 import "./App.css";
 
 const History = lazy(() => import("./components/History"));
@@ -27,11 +28,15 @@ export default function App() {
     trackerHealth,
   );
 
+  const activeCanonicalExe = activeWindow?.exe_name
+    ? resolveCanonicalExecutable(activeWindow.exe_name)
+    : null;
   const activeApp = trackerHealth.status === "healthy"
-    && activeWindow?.exe_name
-    && !activeWindow.is_afk
-    && ProcessMapper.shouldTrack(activeWindow.exe_name)
-    ? ProcessMapper.map(activeWindow.exe_name)
+    && activeCanonicalExe
+    && !activeWindow?.is_afk
+    && shouldTrackProcess(activeCanonicalExe)
+    && ProcessMapper.shouldTrack(activeCanonicalExe)
+    ? ProcessMapper.map(activeCanonicalExe)
     : null;
 
   return (
@@ -54,7 +59,6 @@ export default function App() {
                 icons={icons}
                 isAfk={activeWindow?.is_afk ?? false}
                 activeAppName={activeApp?.name ?? null}
-                trackerHealthStatus={trackerHealth.status}
               />
             )}
             {currentView === "history" && (

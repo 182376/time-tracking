@@ -3,12 +3,6 @@ import type { HistorySession } from "../db.ts";
 import { UI_TEXT } from "../copy.ts";
 import { ProcessMapper } from "../ProcessMapper.ts";
 
-export interface FocusShareItem {
-  name: string;
-  value: number;
-  color: string;
-}
-
 export interface HourlyActivityPoint {
   hour: string;
   minutes: number;
@@ -44,25 +38,15 @@ export function getTotalTrackedTime(stats: AppStat[]) {
   return stats.reduce((total, item) => total + Math.max(0, item.total_duration), 0);
 }
 
-export function buildFocusShare(stats: AppStat[]): FocusShareItem[] {
-  return stats.slice(0, 5).map((item) => {
-    const mapped = ProcessMapper.map(item.exe_name);
-    return {
-      name: mapped.name,
-      value: Math.max(0, item.total_duration),
-      color: mapped.color,
-    };
-  });
-}
-
 export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
   const totalTrackedTime = getTotalTrackedTime(stats);
 
   return stats.map((item) => {
     const mapped = ProcessMapper.map(item.exe_name);
+    const name = item.app_name.trim() || mapped.name;
     return {
       exeName: item.exe_name,
-      name: mapped.name,
+      name,
       color: mapped.color,
       duration: Math.max(0, item.total_duration),
       suspiciousDuration: Math.max(0, item.suspicious_duration),

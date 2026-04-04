@@ -1,6 +1,5 @@
 import {
   clearSessionsBefore,
-  loadTrackerHeartbeat,
   loadTrackerHealthTimestamp,
   loadSettings,
   saveSetting,
@@ -23,10 +22,6 @@ export class SettingsService {
 
   static async clearSessionsBefore(cutoffTime: number) {
     await clearSessionsBefore(cutoffTime);
-  }
-
-  static async loadTrackerHeartbeat() {
-    return loadTrackerHeartbeat();
   }
 
   static async loadTrackerHealthTimestamp() {

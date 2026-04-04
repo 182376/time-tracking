@@ -1,6 +1,12 @@
 import type { AppStat } from "../../types/app";
 import type { DailySummary, HistorySession } from "../db";
 import { ProcessMapper } from "../ProcessMapper.ts";
+import {
+  normalizeExecutable,
+  resolveCanonicalDisplayName,
+  resolveCanonicalExecutable,
+  shouldTrackProcess,
+} from "../processNormalization.ts";
 import { cleanWindowTitle } from "./TitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;
@@ -22,8 +28,10 @@ export interface CompileSessionsOptions extends SessionRange {
 }
 
 export interface CompiledSession extends HistorySession {
+  // Stable grouping key for stats and timeline merges.
   appKey: string;
   mergedCount: number;
+  // User-facing display name produced by normalization rules.
   displayName: string;
   displayTitle: string;
   titleSamples: string[];
@@ -32,7 +40,15 @@ export interface CompiledSession extends HistorySession {
   suspiciousDuration: number;
 }
 
-export interface TimelineSession extends CompiledSession {}
+export type TimelineSession = CompiledSession;
+
+export interface NormalizedAppSummaryItem {
+  exeName: string;
+  appName: string;
+  duration: number;
+  suspiciousDuration: number;
+  percentage: number;
+}
 
 function getSessionRawEndTime(session: HistorySession) {
   const duration = Math.max(0, session.duration ?? 0);
@@ -62,11 +78,68 @@ function mergeDiagnosticCodes(
   return Array.from(new Set([...current, ...incoming]));
 }
 
+function shouldTrackInReadModel(exeName: string) {
+  const canonicalExe = resolveCanonicalExecutable(exeName);
+  return shouldTrackProcess(canonicalExe) && ProcessMapper.shouldTrack(canonicalExe);
+}
+
+function resolveCompiledDisplayName(
+  session: DiagnosableHistorySession,
+  appKey: string,
+) {
+  const mapped = ProcessMapper.map(appKey);
+  const canonicalName = resolveCanonicalDisplayName(appKey);
+  if (canonicalName) {
+    return canonicalName;
+  }
+  const appName = session.app_name.trim();
+  const rawExeKey = normalizeExecutable(session.exe_name);
+
+  if (appKey !== rawExeKey) {
+    return mapped.name;
+  }
+
+  if (appName) {
+    return appName;
+  }
+
+  return mapped.name;
+}
+
+function resolveStatsExeName(session: CompiledSession) {
+  const rawExeKey = normalizeExecutable(session.exe_name);
+  // Keep original exe_name only when it already matches the canonical key.
+  // Otherwise persist the canonical executable as the stats identity.
+  return session.appKey === rawExeKey ? session.exe_name : session.appKey;
+}
+
+function containsCjkCharacters(value: string) {
+  return /[\u3400-\u9fff]/.test(value);
+}
+
+function scoreDisplayNameForStats(name: string) {
+  const normalized = name.trim();
+  if (!normalized) return 0;
+
+  const lower = normalized.toLowerCase();
+  if (lower.includes("tray") || lower.includes("widget")) return 1;
+  if (containsCjkCharacters(normalized)) return 4;
+  if (lower.includes("_") || lower.includes("-")) return 2;
+  return 3;
+}
+
+function pickPreferredAppName(current: string, next: string) {
+  const currentScore = scoreDisplayNameForStats(current);
+  const nextScore = scoreDisplayNameForStats(next);
+  return nextScore > currentScore ? next : current;
+}
+
 function prepareSession(
   session: DiagnosableHistorySession,
 ): CompiledSession {
   const rawEndTime = Math.max(session.start_time, getSessionRawEndTime(session));
-  const displayName = ProcessMapper.map(session.exe_name).name;
+  const appKey = resolveCanonicalExecutable(session.exe_name);
+  const displayName = resolveCompiledDisplayName(session, appKey);
   const cleanedTitle = cleanWindowTitle(session.window_title, session.exe_name);
   const normalizedTitle = normalizeTitle(cleanedTitle, displayName);
 
@@ -74,7 +147,7 @@ function prepareSession(
     ...session,
     end_time: rawEndTime,
     duration: rawEndTime - session.start_time,
-    appKey: session.exe_name.toLowerCase(),
+    appKey,
     mergedCount: 1,
     displayName,
     displayTitle: normalizedTitle,
@@ -120,8 +193,9 @@ function buildCompiledSessionBase(
   sessions: DiagnosableHistorySession[],
   minSessionSecs: number,
 ): CompiledSession[] {
+  const directMergeGapMs = minSessionSecs > 0 ? DIRECT_MERGE_GAP_MS : 0;
   const prepared = sessions
-    .filter((session) => session.exe_name.toLowerCase() !== "time_tracker.exe")
+    .filter((session) => shouldTrackInReadModel(session.exe_name))
     .map((session) => prepareSession(session))
     .sort((a, b) => a.start_time - b.start_time);
 
@@ -136,7 +210,7 @@ function buildCompiledSessionBase(
     const gap = session.start_time - previousEnd;
     const sameApp = previous.appKey === session.appKey;
 
-    if (sameApp && gap >= 0 && gap <= DIRECT_MERGE_GAP_MS) {
+    if (sameApp && gap >= 0 && gap <= directMergeGapMs) {
       previous.end_time = Math.max(previousEnd, session.end_time ?? session.start_time);
       previous.duration = (previous.end_time ?? previousEnd) - previous.start_time;
       previous.mergedCount += session.mergedCount;
@@ -225,12 +299,13 @@ export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] 
     if (existing) {
       existing.total_duration += duration;
       existing.suspicious_duration += suspiciousDuration;
+      existing.app_name = pickPreferredAppName(existing.app_name, session.displayName);
       continue;
     }
 
     totals.set(session.appKey, {
       app_name: session.displayName,
-      exe_name: session.exe_name,
+      exe_name: resolveStatsExeName(session),
       total_duration: duration,
       suspicious_duration: suspiciousDuration,
     });
@@ -241,11 +316,12 @@ export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] 
 
 export function buildAppSummary(
   stats: AppStat[],
-): Array<{ exeName: string; duration: number; suspiciousDuration: number; percentage: number }> {
+): NormalizedAppSummaryItem[] {
   const totalDayDuration = stats.reduce((sum, item) => sum + item.total_duration, 0);
 
   return stats.map((item) => ({
     exeName: item.exe_name,
+    appName: item.app_name,
     duration: item.total_duration,
     suspiciousDuration: item.suspicious_duration,
     percentage: totalDayDuration > 0 ? (item.total_duration / totalDayDuration) * 100 : 0,

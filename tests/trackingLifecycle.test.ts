@@ -21,6 +21,11 @@ import {
   isTrackingWindowSnapshot,
 } from "../src/types/tracking.ts";
 import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
+import {
+  resolveCanonicalDisplayName,
+  resolveCanonicalExecutable,
+  shouldTrackProcess,
+} from "../src/lib/processNormalization.ts";
 
 const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
 
@@ -70,7 +75,6 @@ runTest("repeated same window does not trigger session changes", () => {
   const result = planWindowTransition({
     previousWindow: currentWindow,
     nextWindow: currentWindow,
-    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
     nowMs: 1_000_000,
     shouldTrack,
   });
@@ -89,7 +93,6 @@ runTest("title changes inside the same executable do not trigger session changes
   const result = planWindowTransition({
     previousWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat A" }),
     nextWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat B" }),
-    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
     nowMs: 1_000_000,
     shouldTrack,
   });
@@ -108,7 +111,6 @@ runTest("switching between tracked windows ends previous session and starts next
   const result = planWindowTransition({
     previousWindow: makeWindow({ exe_name: "QQ.exe", title: "QQ Chat" }),
     nextWindow: makeWindow({ exe_name: "Antigravity.exe", title: "Editor", process_path: "C:\\Apps\\Antigravity.exe" }),
-    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
     nowMs: 1_000_000,
     shouldTrack,
   });
@@ -142,7 +144,6 @@ runTest("afk transition backdates end time and does not start a new session", ()
       is_afk: true,
       idle_time_ms: 300_000,
     }),
-    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
     nowMs,
     shouldTrack,
   });
@@ -165,7 +166,6 @@ runTest("same app different top-level window keeps one session but refreshes met
       root_owner_hwnd: "0x200",
       title: "Chat B",
     }),
-    settings: { afk_timeout_secs: 300, min_session_secs: 5 },
     nowMs: 1_000_000,
     shouldTrack,
   });
@@ -221,6 +221,74 @@ runTest("normalized app stats keep different executables separate even if displa
     stats.map((item) => item.exe_name).sort(),
     ["QQ.exe", "QQNT.exe"].sort(),
   );
+});
+
+runTest("normalized app stats merge known alias executables into one app group", () => {
+  const sessions: HistorySession[] = [
+    makeSession({ id: 1, exe_name: "douyin.exe", app_name: "抖音", start_time: 0, end_time: 120_000, duration: 120_000 }),
+    makeSession({ id: 2, exe_name: "DouYin_Tray.exe", app_name: "Douyin_tray", start_time: 130_000, end_time: 190_000, duration: 60_000 }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 300_000,
+    minSessionSecs: 0,
+  });
+  const stats = buildNormalizedAppStats(compiled);
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].exe_name.toLowerCase(), "douyin.exe");
+  assert.equal(stats[0].app_name, resolveCanonicalDisplayName("douyin.exe"));
+  assert.equal(stats[0].total_duration, 180_000);
+});
+
+runTest("alias-first sessions still use canonical display name", () => {
+  const sessions: HistorySession[] = [
+    makeSession({ id: 1, exe_name: "DouYin_Tray.exe", app_name: "Douyin_tray", start_time: 0, end_time: 60_000, duration: 60_000 }),
+    makeSession({ id: 2, exe_name: "douyin.exe", app_name: "抖音", start_time: 65_000, end_time: 125_000, duration: 60_000 }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 300_000,
+    minSessionSecs: 0,
+  });
+  const stats = buildNormalizedAppStats(compiled);
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].exe_name.toLowerCase(), "douyin.exe");
+  assert.equal(stats[0].app_name, resolveCanonicalDisplayName("douyin.exe"));
+});
+
+runTest("non-aliased apps prefer session app_name for display", () => {
+  const sessions: HistorySession[] = [
+    makeSession({
+      id: 1,
+      exe_name: "snowshot.exe",
+      app_name: "Snow Shot",
+      window_title: "Snow Shot",
+      start_time: 0,
+      end_time: 60_000,
+      duration: 60_000,
+    }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 120_000,
+    minSessionSecs: 0,
+  });
+  const stats = buildNormalizedAppStats(compiled);
+
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].app_name, "Snow Shot");
+});
+
+runTest("empty executable rows are excluded from compiled sessions", () => {
+  const compiled = compileSessions([
+    makeSession({ id: 1, exe_name: "", app_name: "", window_title: "", start_time: 0, end_time: 60_000, duration: 60_000 }),
+  ], {
+    startMs: 0,
+    endMs: 100_000,
+    minSessionSecs: 0,
+  });
+
+  assert.equal(compiled.length, 0);
 });
 
 runTest("short same-app fragments survive when filtering happens after merge", () => {
@@ -409,7 +477,38 @@ runTest("system windows processes are excluded from tracking", () => {
   assert.equal(ProcessMapper.shouldTrack("SearchHost.exe"), false);
   assert.equal(ProcessMapper.shouldTrack("ShellExperienceHost.exe"), false);
   assert.equal(ProcessMapper.shouldTrack("Consent.exe"), false);
+  assert.equal(ProcessMapper.shouldTrack("PickerHost.exe"), false);
   assert.equal(ProcessMapper.shouldTrack("Antigravity.exe"), true);
+});
+
+runTest("process mapper resolves known alias executables to canonical app identity", () => {
+  const mapped = ProcessMapper.map("DouYin_Tray.exe");
+
+  assert.equal(mapped.name, "抖音");
+  assert.equal(mapped.category, "entertainment");
+});
+
+runTest("canonical normalization resolves aliases and filters PickerHost", () => {
+  assert.equal(resolveCanonicalExecutable("Douyin_tray.exe"), "douyin.exe");
+  assert.equal(resolveCanonicalExecutable("Douyin_widget"), "douyin.exe");
+  assert.equal(resolveCanonicalDisplayName("douyin.exe"), "抖音");
+  assert.equal(shouldTrackProcess("PickerHost.exe"), false);
+  assert.equal(shouldTrackProcess("pickerhost"), false);
+  assert.equal(shouldTrackProcess("Antigravity.exe"), true);
+});
+
+runTest("compiler removes PickerHost from read model", () => {
+  const compiled = compileSessions([
+    makeSession({ id: 1, exe_name: "PickerHost.exe", app_name: "PickerHost", start_time: 0, end_time: 60_000, duration: 60_000 }),
+    makeSession({ id: 2, exe_name: "QQ.exe", app_name: "QQ", start_time: 60_000, end_time: 120_000, duration: 60_000 }),
+  ], {
+    startMs: 0,
+    endMs: 200_000,
+    minSessionSecs: 0,
+  });
+
+  assert.equal(compiled.length, 1);
+  assert.equal(compiled[0].exe_name, "QQ.exe");
 });
 
 runTest("dashboard read model caps live session growth at the last successful sample when tracker is stale", () => {

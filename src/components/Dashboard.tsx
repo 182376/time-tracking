@@ -4,14 +4,12 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import { UI_TEXT } from "../lib/copy";
 import { formatDashboardDuration } from "../lib/services/dashboard";
 import type { DashboardReadModel } from "../lib/services/HistoryService";
-import type { TrackerHealthStatus } from "../types/tracking";
 
 interface Props {
   dashboard: DashboardReadModel;
   icons: Record<string, string>;
   isAfk: boolean;
   activeAppName: string | null;
-  trackerHealthStatus: TrackerHealthStatus;
 }
 
 export default function Dashboard({
@@ -19,21 +17,13 @@ export default function Dashboard({
   icons,
   isAfk,
   activeAppName,
-  trackerHealthStatus,
 }: Props) {
   const {
     totalTrackedTime,
     topApplications,
     hourlyActivity,
     categoryDist,
-    diagnostics,
   } = dashboard;
-  const isTrackerHealthy = trackerHealthStatus === "healthy";
-  const formatDiagnosticTime = (timestampMs: number | null) => (
-    timestampMs === null || timestampMs <= 0
-      ? "--:--"
-      : new Date(timestampMs).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
-  );
 
   return (
     <motion.div
@@ -53,49 +43,26 @@ export default function Dashboard({
             <h1 className="text-xl font-bold text-slate-800">{UI_TEXT.dashboard.title}</h1>
             <p className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
               <span className={`w-1.5 h-1.5 rounded-full ${
-                !isTrackerHealthy
-                  ? "bg-rose-400"
-                  : activeAppName
-                    ? "bg-emerald-400"
-                    : "bg-slate-300"
+                activeAppName
+                  ? "bg-emerald-400"
+                  : "bg-slate-300"
               } animate-pulse`} />
-              {!isTrackerHealthy
-                ? UI_TEXT.dashboard.trackerStale
-                : activeAppName
-                  ? UI_TEXT.dashboard.tracking(activeAppName)
-                  : UI_TEXT.dashboard.idle}
+              {activeAppName
+                ? UI_TEXT.dashboard.tracking(activeAppName)
+                : UI_TEXT.dashboard.idle}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 bg-white/60 px-4 py-2 rounded-2xl border border-white/60 shadow-sm">
           <div className={`w-2.5 h-2.5 rounded-full ${
-            !isTrackerHealthy ? "bg-rose-400" : isAfk ? "bg-amber-400" : "bg-emerald-400"
+            isAfk ? "bg-amber-400" : "bg-emerald-400"
           } animate-pulse`} />
           <span className="text-xs font-bold text-slate-600">
-            {!isTrackerHealthy ? UI_TEXT.dashboard.stale : isAfk ? UI_TEXT.dashboard.afk : UI_TEXT.dashboard.active}
+            {isAfk ? UI_TEXT.dashboard.afk : UI_TEXT.dashboard.active}
           </span>
         </div>
       </header>
-
-      {diagnostics.hasWarnings && (
-        <section className="glass-card p-4 bg-amber-50/80 border border-amber-100 text-slate-700">
-          <div className="text-[11px] font-bold text-amber-700 mb-1">
-            {UI_TEXT.dashboard.diagnosticsTitle}
-          </div>
-          <div className="text-xs leading-6">
-            {diagnostics.trackerStatus === "stale" && (
-              <div>{UI_TEXT.dashboard.staleSince(formatDiagnosticTime(diagnostics.liveCutoffMs))}</div>
-            )}
-            {diagnostics.suspiciousSessionCount > 0 && (
-              <div>{UI_TEXT.dashboard.suspiciousSummary(
-                diagnostics.suspiciousSessionCount,
-                formatDashboardDuration(diagnostics.suspiciousDuration),
-              )}</div>
-            )}
-          </div>
-        </section>
-      )}
 
       <div className="grid grid-cols-12 gap-5 flex-1 min-h-0">
         <div className="col-span-4 flex flex-col gap-5 min-h-0">
@@ -189,11 +156,6 @@ export default function Dashboard({
                   <div className="truncate">
                     <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-2">
                       <span className="truncate">{app.name}</span>
-                      {app.suspiciousDuration > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold flex-shrink-0">
-                          {UI_TEXT.dashboard.suspectBadge(formatDashboardDuration(app.suspiciousDuration))}
-                        </span>
-                      )}
                     </div>
                     <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
                       {UI_TEXT.dashboard.sharePrefix} {app.percentage}%

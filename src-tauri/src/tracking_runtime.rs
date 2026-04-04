@@ -1,6 +1,8 @@
 use crate::{icon_extractor, tracker};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 use std::sync::{
     atomic::{AtomicI64, Ordering},
     Arc,
@@ -9,6 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_sql::{DbInstances, DbPool};
 use tokio::task::spawn_blocking;
 use tokio::time::{sleep, timeout, Duration};
+use windows::core::PCWSTR;
+use windows::Win32::Storage::FileSystem::{
+    GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
+};
 
 const DB_NAME: &str = "sqlite:timetracker.db";
 const TRACKER_LAST_HEARTBEAT_KEY: &str = "__tracker_last_heartbeat_ms";
@@ -17,6 +23,14 @@ const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 const TRACKER_WATCHDOG_POLL_MS: u64 = 1_000;
 const TRACKER_STALL_SEAL_AFTER_MS: i64 = 8_000;
+const VERSION_INFO_NAME_KEYS: [&str; 2] = ["FileDescription", "ProductName"];
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct LangAndCodePage {
+    language: u16,
+    code_page: u16,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackingDataChangedPayload {
@@ -453,11 +467,30 @@ fn should_track(exe_name: &str) -> bool {
             | "smartscreen.exe"
             | "winlogon.exe"
             | "userinit.exe"
+            | "pickerhost.exe"
     ) {
         return false;
     }
 
+    if is_likely_system_process(&lower_name) {
+        return false;
+    }
+
     true
+}
+
+fn is_likely_system_process(lower_name: &str) -> bool {
+    (lower_name.starts_with("search") && lower_name.ends_with(".exe"))
+        || (lower_name.ends_with("host.exe")
+            && (lower_name.contains("experience")
+                || lower_name.contains("runtime")
+                || lower_name.contains("task")
+                || lower_name.contains("applicationframe")
+                || lower_name.contains("textinput")
+                || lower_name.contains("fontdrv")))
+        || lower_name.ends_with("broker.exe")
+        || lower_name.ends_with("systray.exe")
+        || matches!(lower_name, "svchost.exe" | "dllhost.exe" | "conhost.exe")
 }
 
 fn resolve_startup_seal_time(
@@ -628,7 +661,7 @@ async fn start_session(
         }
     }
 
-    let app_name = map_app_name(&window.exe_name);
+    let app_name = map_app_name(&window.exe_name, &window.process_path);
 
     sqlx::query(
         "INSERT INTO sessions (app_name, exe_name, window_title, start_time)
@@ -695,10 +728,179 @@ async fn ensure_icon_cache(
     Ok(())
 }
 
-fn map_app_name(exe_name: &str) -> String {
-    let clean_name = exe_name.trim_end_matches(".exe");
-    let mut chars = clean_name.chars();
+fn map_app_name(exe_name: &str, process_path: &str) -> String {
+    if let Some(display_name) = resolve_process_display_name(process_path) {
+        let normalized = normalize_display_name(&display_name);
+        if !normalized.is_empty() {
+            return normalized;
+        }
+    }
 
+    fallback_app_name(exe_name)
+}
+
+fn resolve_process_display_name(process_path: &str) -> Option<String> {
+    if process_path.trim().is_empty() {
+        return None;
+    }
+
+    let path_wide: Vec<u16> = OsStr::new(process_path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let mut handle = 0u32;
+    let size = unsafe { GetFileVersionInfoSizeW(PCWSTR(path_wide.as_ptr()), Some(&mut handle)) };
+    if size == 0 {
+        return None;
+    }
+
+    let mut version_data = vec![0u8; size as usize];
+    unsafe {
+        GetFileVersionInfoW(
+            PCWSTR(path_wide.as_ptr()),
+            Some(0),
+            size,
+            version_data.as_mut_ptr().cast(),
+        )
+        .ok()?;
+    }
+
+    for (language, code_page) in iter_version_translations(&version_data) {
+        for key in VERSION_INFO_NAME_KEYS {
+            if let Some(value) = query_version_string(&version_data, language, code_page, key) {
+                if !value.trim().is_empty() {
+                    return Some(value);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn iter_version_translations(version_data: &[u8]) -> Vec<(u16, u16)> {
+    let mut translations = Vec::new();
+    let translation_key: Vec<u16> = "\\VarFileInfo\\Translation"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut buffer_ptr: *mut core::ffi::c_void = std::ptr::null_mut();
+    let mut buffer_len = 0u32;
+
+    let found_translation = unsafe {
+        VerQueryValueW(
+            version_data.as_ptr().cast(),
+            PCWSTR(translation_key.as_ptr()),
+            &mut buffer_ptr,
+            &mut buffer_len,
+        )
+        .as_bool()
+    };
+
+    if found_translation
+        && !buffer_ptr.is_null()
+        && buffer_len >= std::mem::size_of::<LangAndCodePage>() as u32
+    {
+        let count = buffer_len as usize / std::mem::size_of::<LangAndCodePage>();
+        let table =
+            unsafe { std::slice::from_raw_parts(buffer_ptr as *const LangAndCodePage, count) };
+
+        for entry in table {
+            let pair = (entry.language, entry.code_page);
+            if !translations.contains(&pair) {
+                translations.push(pair);
+            }
+        }
+    }
+
+    for fallback in [(0x0804u16, 0x04B0u16), (0x0409u16, 0x04B0u16)] {
+        if !translations.contains(&fallback) {
+            translations.push(fallback);
+        }
+    }
+
+    translations
+}
+
+fn query_version_string(
+    version_data: &[u8],
+    language: u16,
+    code_page: u16,
+    key: &str,
+) -> Option<String> {
+    let query_path = format!(
+        "\\StringFileInfo\\{:04X}{:04X}\\{}",
+        language, code_page, key
+    );
+    let query_wide: Vec<u16> = query_path
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut value_ptr: *mut core::ffi::c_void = std::ptr::null_mut();
+    let mut value_len = 0u32;
+
+    let found = unsafe {
+        VerQueryValueW(
+            version_data.as_ptr().cast(),
+            PCWSTR(query_wide.as_ptr()),
+            &mut value_ptr,
+            &mut value_len,
+        )
+        .as_bool()
+    };
+
+    if !found || value_ptr.is_null() || value_len == 0 {
+        return None;
+    }
+
+    let raw_slice =
+        unsafe { std::slice::from_raw_parts(value_ptr as *const u16, value_len as usize) };
+    let value = String::from_utf16_lossy(raw_slice);
+    let trimmed = value.trim_matches('\0').trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn normalize_display_name(name: &str) -> String {
+    name.trim().trim_end_matches(".exe").trim().to_string()
+}
+
+fn fallback_app_name(exe_name: &str) -> String {
+    let raw = exe_name
+        .trim()
+        .trim_matches('"')
+        .trim_end_matches(".exe")
+        .trim();
+    if raw.is_empty() {
+        return String::new();
+    }
+
+    let mut normalized = String::with_capacity(raw.len());
+    let mut previous_was_separator = false;
+    for ch in raw.chars() {
+        let is_separator = matches!(ch, '_' | '-' | '.');
+        if is_separator {
+            if !normalized.is_empty() && !previous_was_separator {
+                normalized.push(' ');
+            }
+            previous_was_separator = true;
+            continue;
+        }
+
+        normalized.push(ch);
+        previous_was_separator = false;
+    }
+
+    let normalized = normalized.trim();
+    if normalized.is_empty() {
+        return String::new();
+    }
+
+    let mut chars = normalized.chars();
     match chars.next() {
         Some(first) => {
             let mut result = first.to_uppercase().collect::<String>();
@@ -836,6 +1038,10 @@ mod tests {
         assert!(!should_track("SearchHost.exe"));
         assert!(!should_track("ShellExperienceHost.exe"));
         assert!(!should_track("Consent.exe"));
+        assert!(!should_track("PickerHost.exe"));
+        assert!(!should_track("SearchUXHost.exe"));
+        assert!(!should_track("FooExperienceHost.exe"));
+        assert!(!should_track("svchost.exe"));
     }
 
     #[test]
@@ -1008,6 +1214,49 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
             let reason = apply_power_lifecycle_event(&pool, "unlock", 5_000)
+                .await
+                .unwrap();
+
+            let active_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE end_time IS NULL")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+
+            assert_eq!(reason, None);
+            assert_eq!(active_count, 0);
+        });
+    }
+
+    #[test]
+    fn suspend_event_seals_active_session_immediately() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+
+            let reason = apply_power_lifecycle_event(&pool, "suspend", 5_000)
+                .await
+                .unwrap();
+
+            let ended: Option<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL LIMIT 1",
+            )
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(reason, Some("session-ended-suspend"));
+            assert_eq!(ended, Some((5_000, 4_000)));
+        });
+    }
+
+    #[test]
+    fn resume_event_does_not_mutate_sessions() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let reason = apply_power_lifecycle_event(&pool, "resume", 5_000)
                 .await
                 .unwrap();
 

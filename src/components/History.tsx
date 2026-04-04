@@ -114,13 +114,7 @@ export default function History({
     appSummary,
     chartData,
     chartAxis,
-    diagnostics,
   } = historyView;
-  const formatDiagnosticTime = (timestampMs: number | null) => (
-    timestampMs === null || timestampMs <= 0
-      ? "--:--"
-      : new Date(timestampMs).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
-  );
 
   return (
     <motion.div
@@ -164,25 +158,6 @@ export default function History({
         </div>
       </header>
 
-      {diagnostics.hasWarnings && (
-        <section className="glass-card p-4 bg-amber-50/80 border border-amber-100 text-slate-700">
-          <div className="text-[11px] font-bold text-amber-700 mb-1">
-            {UI_TEXT.history.diagnosticsTitle}
-          </div>
-          <div className="text-xs leading-6">
-            {diagnostics.trackerStatus === "stale" && (
-              <div>{UI_TEXT.history.staleSince(formatDiagnosticTime(diagnostics.liveCutoffMs))}</div>
-            )}
-            {diagnostics.suspiciousSessionCount > 0 && (
-              <div>{UI_TEXT.history.suspiciousSummary(
-                diagnostics.suspiciousSessionCount,
-                formatDuration(diagnostics.suspiciousDuration),
-              )}</div>
-            )}
-          </div>
-        </section>
-      )}
-
       <div className="flex gap-5 min-h-0 flex-1">
         <div className="w-5/12 flex flex-col gap-5 min-h-0">
           <div className="glass-card p-5 bg-white/30">
@@ -222,17 +197,13 @@ export default function History({
               <div className="space-y-3">
                 {appSummary.slice(0, 15).map((app) => {
                   const mapped = ProcessMapper.map(app.exeName);
+                  const appName = app.appName.trim() || mapped.name;
                   return (
                     <div key={app.exeName}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-semibold text-slate-700 flex items-center gap-1.5 min-w-0">
                           {icons[app.exeName] && <img src={icons[app.exeName]} className="w-3.5 h-3.5 object-contain" alt="" />}
-                          <span className="truncate">{mapped.name}</span>
-                          {app.suspiciousDuration > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold flex-shrink-0">
-                              {UI_TEXT.history.suspectDuration(formatDuration(app.suspiciousDuration))}
-                            </span>
-                          )}
+                          <span className="truncate">{appName}</span>
                         </span>
                         <span className="text-slate-400">{formatDuration(app.duration)}</span>
                       </div>
@@ -287,11 +258,6 @@ export default function History({
                           {session.mergedCount > 1 && (
                             <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">
                               {UI_TEXT.history.mergedCount(session.mergedCount)}
-                            </span>
-                          )}
-                          {session.diagnosticCodes.length > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold">
-                              {UI_TEXT.history.suspectBadge}
                             </span>
                           )}
                         </div>

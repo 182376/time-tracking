@@ -10,11 +10,6 @@ export interface TrackedWindow {
   idle_time_ms: number;
 }
 
-export interface TrackingSettingsSnapshot {
-  afk_timeout_secs: number;
-  min_session_secs: number;
-}
-
 export interface WindowTransitionDecision {
   didChange: boolean;
   reason: string;
@@ -27,15 +22,6 @@ export interface WindowTransitionDecision {
 export interface WindowSessionIdentity {
   appKey: string;
   instanceKey: string;
-}
-
-export interface ActiveSessionSnapshot {
-  id: number;
-  start_time: number;
-}
-
-export interface SessionFinalizationPlan {
-  idsToDelete: number[];
 }
 
 export interface StartupSealTimeArgs {
@@ -75,7 +61,6 @@ export function resolveWindowSessionIdentity(
 export function planWindowTransition(args: {
   previousWindow: TrackedWindow | null;
   nextWindow: TrackedWindow;
-  settings: TrackingSettingsSnapshot;
   nowMs: number;
   shouldTrack: (exeName: string) => boolean;
 }): WindowTransitionDecision {
