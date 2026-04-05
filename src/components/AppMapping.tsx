@@ -109,15 +109,27 @@ export default function AppMapping({
     const load = async () => {
       setLoading(true);
       try {
-        const [observed, loadedOverrides, loadedCategoryColorOverrides, loadedCustomCategories, loadedDeletedCategories] = await Promise.all([
+        const [
+          observed,
+          loadedOverrides,
+          loadedCategoryColorOverrides,
+          loadedCategoryDefaultColorAssignments,
+          loadedCustomCategories,
+          loadedDeletedCategories,
+        ] = await Promise.all([
           SettingsService.loadObservedAppCandidates(),
           SettingsService.loadAppOverrides(),
           SettingsService.loadCategoryColorOverrides(),
+          SettingsService.loadCategoryDefaultColorAssignments(),
           SettingsService.loadCustomCategories(),
           SettingsService.loadDeletedCategories(),
         ]);
         if (cancelled) return;
         ProcessMapper.setCategoryColorOverrides(loadedCategoryColorOverrides ?? {});
+        ProcessMapper.setCategoryDefaultColorAssignments(loadedCategoryDefaultColorAssignments ?? {});
+        ProcessMapper.setCategoryDefaultColorAssignmentPersistence(
+          SettingsService.saveCategoryDefaultColorAssignment.bind(SettingsService),
+        );
         ProcessMapper.setDeletedCategories(loadedDeletedCategories ?? []);
         ProcessMapper.setUserOverrides(loadedOverrides);
         setCategoryColorOverrides(loadedCategoryColorOverrides ?? {});
@@ -322,6 +334,7 @@ export default function AppMapping({
       }
 
       if (isCustomCategory(category)) {
+        await ProcessMapper.removeCategoryDefaultColorAssignment(category);
         await SettingsService.deleteCustomCategory(category);
         setCustomCategories((prev) => prev.filter((item) => item !== category));
         await SettingsService.saveDeletedCategory(category, false);
@@ -492,25 +505,25 @@ export default function AppMapping({
   return (
     <motion.div
       key="app-mapping"
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex h-full min-w-0 flex-col gap-5 overflow-hidden"
+      exit={{ opacity: 0, y: -3 }}
+      transition={{ duration: 0.16, ease: "easeOut" }}
+      className="flex h-full min-w-0 flex-col gap-4 md:gap-5 overflow-hidden"
     >
-      <header className="glass-card flex items-center justify-between bg-white/40 p-5">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 text-indigo-600 shadow-inner flex items-center justify-center">
-            <Sparkles size={24} />
+      <header className="qp-panel flex items-center justify-between p-4 md:p-5">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] text-[var(--qp-accent-default)] flex items-center justify-center">
+            <Sparkles size={18} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">应用美化与隐私</h1>
-            <p className="mt-0.5 text-xs text-slate-500">按应用设置分类、颜色与标题记录</p>
+            <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">应用美化与隐私</h1>
+            <p className="mt-1 text-[11px] text-[var(--qp-text-tertiary)]">按应用设置分类、颜色与标题记录</p>
           </div>
         </div>
       </header>
 
-      <section className="glass-card bg-white/25 p-4">
+      <section className="qp-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {FILTER_OPTIONS.map((item) => {
@@ -523,10 +536,10 @@ export default function AppMapping({
                 <button
                   key={item.value}
                   onClick={() => setFilter(item.value)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`rounded-[8px] border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     filter === item.value
-                      ? "bg-indigo-100 text-indigo-700"
-                      : "bg-white text-slate-600 hover:bg-slate-100"
+                      ? "border-[color:var(--qp-accent-default)] bg-[var(--qp-accent-muted)] text-[var(--qp-accent-default)]"
+                      : "border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] text-[var(--qp-text-secondary)] hover:border-[var(--qp-border-strong)]"
                   }`}
                 >
                   {item.label} ({count})
@@ -537,7 +550,7 @@ export default function AppMapping({
           <button
             type="button"
             onClick={() => setShowCategoryDialog(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white"
+            className="qp-button-secondary inline-flex items-center gap-2 rounded-[8px] px-3 py-2 text-xs font-semibold"
           >
             <SlidersHorizontal size={14} />
             分类控制
@@ -545,14 +558,14 @@ export default function AppMapping({
         </div>
       </section>
 
-      <div className="glass-card flex-1 min-h-0 bg-white/25 p-4">
+      <div className="qp-panel flex-1 min-h-0 p-4">
         {loading ? (
-          <div className="h-full flex items-center justify-center gap-2 text-slate-400">
-            <RefreshCw size={16} className="animate-spin" />
+          <div className="h-full flex items-center justify-center gap-2 text-[var(--qp-text-tertiary)]">
+            <RefreshCw size={15} className="animate-spin" />
             加载中...
           </div>
         ) : filteredCandidates.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-sm text-slate-400">
+          <div className="h-full flex items-center justify-center text-sm text-[var(--qp-text-tertiary)]">
             当前筛选下暂无应用
           </div>
         ) : (
@@ -572,18 +585,18 @@ export default function AppMapping({
               return (
                 <div
                   key={candidate.exeName}
-                  className="relative rounded-2xl border border-white/75 bg-white/60 px-4 py-4 shadow-[0_10px_28px_-22px_rgba(15,23,42,0.55)] backdrop-blur-[1px]"
+                  className="relative rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-4 py-3.5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <div
-                        className="mt-0.5 h-10 w-10 rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm"
+                        className="mt-0.5 h-10 w-10 rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-1.5"
                         style={{ boxShadow: `0 0 0 2px ${displayColor}22` }}
                       >
                         {icons[candidate.exeName] ? (
                           <img src={icons[candidate.exeName]} className="h-full w-full object-contain" alt="" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-sm font-bold text-slate-400">
+                          <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[var(--qp-text-tertiary)]">
                             {(displayName || candidate.exeName).slice(0, 1).toUpperCase()}
                           </div>
                         )}
@@ -617,10 +630,10 @@ export default function AppMapping({
                                   setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
                                 }
                               }}
-                              className="max-w-[240px] truncate rounded-lg border border-indigo-200 bg-white/90 px-2 py-1 text-base font-semibold text-slate-800 outline-none ring-2 ring-indigo-100 disabled:cursor-not-allowed"
+                              className="max-w-[240px] truncate rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-1 text-[15px] font-semibold text-[var(--qp-text-primary)] outline-none disabled:cursor-not-allowed"
                             />
                           ) : (
-                            <span className="truncate rounded-lg px-2 py-1 text-base font-semibold text-slate-800">
+                            <span className="truncate rounded-[8px] px-2 py-1 text-[15px] font-semibold text-[var(--qp-text-primary)]">
                               {displayName}
                             </span>
                           )}
@@ -634,23 +647,23 @@ export default function AppMapping({
                                 [candidate.exeName]: prev[candidate.exeName] ?? displayName,
                               }));
                             }}
-                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[var(--qp-text-tertiary)] transition hover:bg-[var(--qp-bg-panel)] hover:text-[var(--qp-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
                             title="修改应用名称"
                           >
                             <Pencil size={13} />
                           </button>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 px-2">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-0.5 text-[11px] font-medium text-[var(--qp-text-secondary)]">
                             {candidate.exeName}
                           </span>
                           {!trackingEnabled && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            <span className="rounded-[6px] border border-[color:var(--qp-warning)]/25 bg-[color:var(--qp-warning)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--qp-warning)]">
                               不统计
                             </span>
                           )}
                           {!titleCaptureEnabled && (
-                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-badge-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--qp-text-secondary)]">
                               不记标题
                             </span>
                           )}
@@ -660,9 +673,9 @@ export default function AppMapping({
 
                     <div className="flex min-w-0 flex-col gap-2 items-end">
                       <div className="flex flex-nowrap items-center gap-2">
-                      <div className="order-2 flex max-w-full flex-wrap items-center gap-2 rounded-xl bg-white px-2 py-1.5 ring-1 ring-slate-100">
-                        <Palette size={14} className="text-slate-500" />
-                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                      <div className="order-2 flex max-w-full flex-wrap items-center gap-2 rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-1.5">
+                        <Palette size={14} className="text-[var(--qp-text-tertiary)]" />
+                        <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--qp-text-secondary)]">
                           {displayColor}
                         </span>
                         <input
@@ -670,15 +683,15 @@ export default function AppMapping({
                           value={displayColor}
                           disabled={isBusy}
                           onChange={(event) => void handleColorAssign(candidate, event.target.value)}
-                          className="h-7 w-7 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-0.5 disabled:cursor-not-allowed"
+                          className="h-7 w-7 cursor-pointer rounded-[6px] border border-[var(--qp-border-subtle)] bg-transparent p-0.5 disabled:cursor-not-allowed"
                           title="应用颜色"
                         />
                         <button
                           type="button"
                           disabled={isBusy}
                           onClick={() => void handleColorAssign(candidate, null)}
-                          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                            hasManualColor ? "text-slate-400 hover:text-slate-600" : "text-slate-300"
+                          className={`rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            hasManualColor ? "text-[var(--qp-text-tertiary)] hover:text-[var(--qp-text-secondary)]" : "text-[var(--qp-text-disabled)]"
                           }`}
                           title="恢复默认颜色"
                         >
@@ -687,7 +700,7 @@ export default function AppMapping({
                       </div>
 
                       <select
-                        className="order-1 min-w-[120px] rounded-xl border-none bg-white/90 px-3 py-2 text-sm font-semibold shadow-sm ring-1 ring-slate-100 outline-none cursor-pointer focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed"
+                        className="qp-control order-1 min-w-[120px] rounded-[8px] border bg-[var(--qp-bg-panel)] px-3 py-2 text-sm font-semibold text-[var(--qp-text-secondary)] outline-none cursor-pointer disabled:cursor-not-allowed"
                         value={assignedCategory}
                         disabled={isBusy}
                         onChange={(event) => void handleCategoryAssign(candidate, event.target.value)}
@@ -706,10 +719,10 @@ export default function AppMapping({
                           type="button"
                           disabled={isBusy}
                           onClick={() => void handleTitleCaptureToggle(candidate, !titleCaptureEnabled)}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             titleCaptureEnabled
-                              ? "text-slate-700 hover:bg-slate-100"
-                              : "text-indigo-700 hover:bg-indigo-50"
+                              ? "text-[var(--qp-text-secondary)] hover:bg-[var(--qp-bg-panel)]"
+                              : "text-[var(--qp-accent-default)] hover:bg-[var(--qp-accent-muted)]"
                           }`}
                           title={titleCaptureEnabled ? "不记录该应用窗口标题" : "恢复记录该应用窗口标题"}
                         >
@@ -719,10 +732,10 @@ export default function AppMapping({
                           type="button"
                           disabled={isBusy}
                           onClick={() => void handleTrackingToggle(candidate, !trackingEnabled)}
-                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             trackingEnabled
-                              ? "text-amber-700 hover:bg-amber-50"
-                              : "text-emerald-700 hover:bg-emerald-50"
+                              ? "text-[var(--qp-warning)] hover:bg-[color:var(--qp-warning)]/10"
+                              : "text-[var(--qp-success)] hover:bg-[color:var(--qp-success)]/10"
                           }`}
                           title={trackingEnabled ? "将该应用排除出统计" : "恢复该应用进入统计"}
                         >
@@ -732,7 +745,7 @@ export default function AppMapping({
                           type="button"
                           disabled={isBusy}
                           onClick={() => void handleResetAppOverride(candidate)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium text-[var(--qp-text-secondary)] hover:bg-[var(--qp-bg-panel)] disabled:cursor-not-allowed disabled:opacity-50"
                           title="恢复该应用默认识别"
                         >
                           <RotateCcw size={12} />
@@ -742,7 +755,7 @@ export default function AppMapping({
                           type="button"
                           disabled={isBusy}
                           onClick={() => void handleDeleteAllSessions(candidate)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium text-[var(--qp-danger)] hover:bg-[color:var(--qp-danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
                           title="删除应用记录"
                         >
                           <Trash2 size={12} />
@@ -760,25 +773,25 @@ export default function AppMapping({
       </div>
 
       {showCategoryDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
-          <div className="w-full max-w-5xl rounded-2xl border border-white/70 bg-white/95 p-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/22 p-4">
+          <div className="w-full max-w-5xl rounded-[14px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-canvas)] p-4 shadow-[var(--qp-shadow-overlay)]">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-800">分类控制</h3>
-                <p className="text-xs text-slate-500">在这里新建分类并调整分类主色</p>
+                <h3 className="text-base font-semibold text-[var(--qp-text-primary)]">分类控制</h3>
+                <p className="text-xs text-[var(--qp-text-tertiary)]">在这里新建分类并调整分类主色</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void handleCreateCustomCategory()}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="qp-button-secondary rounded-[8px] px-2.5 py-1.5 text-xs font-semibold"
                 >
                   + 新建分类
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCategoryDialog(false)}
-                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                  className="rounded-[8px] p-1.5 text-[var(--qp-text-tertiary)] hover:bg-[var(--qp-bg-panel)]"
                   title="关闭"
                 >
                   <X size={16} />

@@ -39,6 +39,7 @@ const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
 const APP_OVERRIDE_KEY_PREFIX = "__app_override::";
 const CATEGORY_COLOR_OVERRIDE_KEY_PREFIX = "__category_color_override::";
+const CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX = "__category_default_color_assignment::";
 const CUSTOM_CATEGORY_KEY_PREFIX = "__custom_category::";
 const DELETED_CATEGORY_KEY_PREFIX = "__deleted_category::";
 const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
@@ -274,6 +275,44 @@ export const clearAllCategoryColorOverrides = async (): Promise<void> => {
   await db.execute('DELETE FROM settings WHERE key LIKE ?', [`${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}%`]);
 };
 
+export const loadCategoryDefaultColorAssignments = async (): Promise<Record<string, string>> => {
+  const db = await getDB();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    "SELECT key, value FROM settings WHERE key LIKE ?",
+    [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}%`],
+  );
+
+  const assignments: Record<string, string> = {};
+  for (const row of rows) {
+    const category = row.key.slice(CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX.length);
+    if (!isAppCategory(category)) {
+      continue;
+    }
+    const color = normalizeHexColor(row.value);
+    if (!color) {
+      continue;
+    }
+    assignments[category] = color;
+  }
+
+  return assignments;
+};
+
+export const saveCategoryDefaultColorAssignment = async (
+  category: AppCategory,
+  colorValue: string | null,
+): Promise<void> => {
+  const key = `${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`;
+  const db = await getDB();
+  const normalizedColor = normalizeHexColor(colorValue ?? undefined);
+  if (!normalizedColor) {
+    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    return;
+  }
+
+  await upsertSettingValue(key, normalizedColor);
+};
+
 export const loadCustomCategories = async (): Promise<CustomAppCategory[]> => {
   const db = await getDB();
   const rows = await db.select<{ key: string }[]>(
@@ -302,6 +341,7 @@ export const deleteCustomCategory = async (category: CustomAppCategory): Promise
   const db = await getDB();
   await db.execute("DELETE FROM settings WHERE key = ?", [`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`]);
   await db.execute("DELETE FROM settings WHERE key = ?", [`${DELETED_CATEGORY_KEY_PREFIX}${category}`]);
+  await db.execute("DELETE FROM settings WHERE key = ?", [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`]);
 };
 
 export const loadDeletedCategories = async (): Promise<AppCategory[]> => {
@@ -331,6 +371,7 @@ export const saveDeletedCategory = async (category: AppCategory, deleted: boolea
     return;
   }
   await upsertSettingValue(key, String(Date.now()));
+  await db.execute("DELETE FROM settings WHERE key = ?", [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`]);
 };
 
 export const loadOtherCategoryCandidates = async (

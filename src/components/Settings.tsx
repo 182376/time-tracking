@@ -222,7 +222,7 @@ export default function Settings({
 
   if (loading || !settings) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-400 gap-3 animate-pulse">
+      <div className="flex-1 flex items-center justify-center text-[var(--qp-text-tertiary)] gap-3">
         <RefreshCw className="animate-spin" size={20} />
         <span className="text-sm font-medium">{UI_TEXT.settings.loading}</span>
       </div>
@@ -232,56 +232,56 @@ export default function Settings({
   return (
     <motion.div
       key="settings"
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex h-full w-full min-w-0 flex-col gap-6"
+      exit={{ opacity: 0, y: -3 }}
+      transition={{ duration: 0.16, ease: "easeOut" }}
+      className="flex h-full w-full min-w-0 flex-col gap-4 md:gap-5"
     >
-      <header className="glass-card p-6 flex justify-between items-center bg-white/40">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 shadow-inner">
-            <Zap size={24} />
+      <header className="qp-panel p-4 md:p-5 flex justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] flex items-center justify-center text-[var(--qp-accent-default)]">
+            <Zap size={18} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">{UI_TEXT.settings.title}</h1>
-            <p className="text-slate-500 text-xs mt-0.5">{UI_TEXT.settings.subtitle}</p>
+            <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.settings.title}</h1>
+            <p className="text-[11px] text-[var(--qp-text-tertiary)] mt-1">{UI_TEXT.settings.subtitle}</p>
           </div>
         </div>
-        <div className="flex bg-white/60 px-4 py-2 rounded-2xl items-center text-xs font-bold shadow-sm border border-white/40">
+        <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
           {saveStatus === "saving" && (
-            <span className="text-indigo-500 animate-pulse flex items-center gap-2">
+            <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
               <RefreshCw size={12} className="animate-spin" />
               {UI_TEXT.settings.saving}
             </span>
           )}
           {saveStatus === "saved" && (
-            <span className="text-emerald-500 flex items-center gap-1.5">
+            <span className="text-[var(--qp-success)] flex items-center gap-1.5">
               <Save size={14} />
               {UI_TEXT.settings.saved}
             </span>
           )}
-          {saveStatus === "idle" && <span className="text-slate-400">{UI_TEXT.settings.idle}</span>}
+          {saveStatus === "idle" && <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.settings.idle}</span>}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-        <div className="grid grid-cols-1 gap-6">
-          <section className="glass-card min-h-[240px] bg-white/30 p-6">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-              <Clock size={16} className="text-indigo-500" />
-              <h2 className="text-sm font-bold text-slate-800">追踪</h2>
+        <div className="grid grid-cols-1 gap-4 md:gap-5">
+          <section className="qp-panel min-h-[240px] p-5 md:p-6">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-[var(--qp-border-subtle)]">
+              <Clock size={16} className="text-[var(--qp-accent-default)]" />
+              <h2 className="text-sm font-semibold text-[var(--qp-text-primary)]">追踪</h2>
             </div>
 
             <div className="mt-5 space-y-5">
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.afkLabel}</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.afkLabel}</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.afkHint}</p>
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.afkHint}</p>
                   <select
                     value={settings.afk_timeout_secs}
                     onChange={(e) => void handleChange("afk_timeout_secs", Number(e.target.value))}
-                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
                     <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
@@ -291,13 +291,13 @@ export default function Settings({
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.minSessionLabel}</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.minSessionLabel}</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
                   <select
                     value={settings.min_session_secs}
                     onChange={(e) => void handleChange("min_session_secs", Number(e.target.value))}
-                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
+                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value={30}>30 s</option>
                     <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
@@ -309,16 +309,16 @@ export default function Settings({
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">暂停追踪</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">暂停追踪</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     暂停后不再写入新记录，恢复后继续计时。
                   </p>
                   <button
                     type="button"
                     onClick={() => void handleChange("tracking_paused", !settings.tracking_paused)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.tracking_paused ? "bg-amber-500" : "bg-slate-300"
+                      settings.tracking_paused ? "bg-[var(--qp-warning)]" : "bg-[var(--qp-control-off)]"
                     }`}
                     aria-label="切换暂停追踪"
                   >
@@ -333,23 +333,23 @@ export default function Settings({
             </div>
           </section>
 
-          <section className="glass-card min-h-[220px] bg-white/30 p-6">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-              <Monitor size={16} className="text-emerald-500" />
-              <h2 className="text-sm font-bold text-slate-800">常驻</h2>
+          <section className="qp-panel min-h-[220px] p-5 md:p-6">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-[var(--qp-border-subtle)]">
+              <Monitor size={16} className="text-[var(--qp-accent-default)]" />
+              <h2 className="text-sm font-semibold text-[var(--qp-text-primary)]">常驻</h2>
             </div>
 
             <div className="mt-5 space-y-5">
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">最小化按钮行为</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">最小化按钮行为</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     点最小化后，选择去任务栏或托盘。
                   </p>
                   <select
                     value={settings.minimize_behavior}
                     onChange={(e) => void handleChange("minimize_behavior", e.target.value as MinimizeBehavior)}
-                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-emerald-200 outline-none cursor-pointer"
+                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value="taskbar">最小化到任务栏</option>
                     <option value="tray">最小化到托盘</option>
@@ -358,15 +358,15 @@ export default function Settings({
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">关闭按钮行为</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">关闭按钮行为</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     点关闭后，选择直接退出或隐藏到托盘。
                   </p>
                   <select
                     value={settings.close_behavior}
                     onChange={(e) => void handleChange("close_behavior", e.target.value as CloseBehavior)}
-                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-emerald-200 outline-none cursor-pointer"
+                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value="tray">最小化到托盘</option>
                     <option value="exit">直接退出</option>
@@ -375,16 +375,16 @@ export default function Settings({
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">开机自启动</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">开机自启动</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     开启后，系统登录时自动启动应用。
                   </p>
                   <button
                     type="button"
                     onClick={() => void handleChange("launch_at_login", !settings.launch_at_login)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.launch_at_login ? "bg-emerald-500" : "bg-slate-300"
+                      settings.launch_at_login ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
                     }`}
                     aria-label="切换开机自启动"
                   >
@@ -398,9 +398,9 @@ export default function Settings({
               </div>
 
               <div>
-                <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">启动时最小化</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">启动时最小化</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
-                  <p className="text-sm text-slate-500 leading-relaxed">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     仅对自启动生效：启动后直接进托盘。
                   </p>
                   <button
@@ -408,7 +408,7 @@ export default function Settings({
                     disabled={!settings.launch_at_login}
                     onClick={() => void handleChange("start_minimized", !settings.start_minimized)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.start_minimized ? "bg-emerald-500" : "bg-slate-300"
+                      settings.start_minimized ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
                     } ${!settings.launch_at_login ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-label="切换启动时最小化"
                   >
@@ -423,45 +423,45 @@ export default function Settings({
             </div>
           </section>
 
-          <section className="glass-card p-6 bg-white/30">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 mb-5">
-              <Database size={16} className="text-rose-500" />
-              <h2 className="text-sm font-bold text-slate-800">数据安全</h2>
+          <section className="qp-panel p-5 md:p-6">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-[var(--qp-border-subtle)] mb-5">
+              <Database size={16} className="text-[var(--qp-danger)]" />
+              <h2 className="text-sm font-semibold text-[var(--qp-text-primary)]">数据安全</h2>
             </div>
 
             <div className="space-y-5">
-              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
-                <p className="text-sm font-bold text-slate-700">备份与恢复</p>
-                <p className="mt-1 text-sm text-slate-500">
+              <div className="rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] p-4">
+                <p className="text-sm font-semibold text-[var(--qp-text-primary)]">备份与恢复</p>
+                <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">
                   包含会话数据、设置项和图标缓存。恢复会覆盖当前数据。
                 </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-100/70 bg-emerald-50/40 p-3">
+                  <div className="flex items-center justify-between rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">导出</p>
-                      <p className="mt-0.5 text-xs text-slate-500">生成当前数据快照</p>
+                      <p className="text-sm font-semibold text-[var(--qp-text-primary)]">导出</p>
+                      <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">生成当前数据快照</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => void handleExportBackup()}
                       disabled={isExportingBackup || isRestoringBackup}
-                      className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100/70 disabled:opacity-50"
+                      className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold text-[var(--qp-text-secondary)] disabled:opacity-50"
                     >
                       {isExportingBackup ? "导出中..." : "导出"}
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-xl border border-amber-100/80 bg-amber-50/40 p-3">
+                  <div className="flex items-center justify-between rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">恢复</p>
-                      <p className="mt-0.5 text-xs text-slate-500">从备份文件回滚数据</p>
+                      <p className="text-sm font-semibold text-[var(--qp-text-primary)]">恢复</p>
+                      <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">从备份文件回滚数据</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => void handleRestoreBackup()}
                       disabled={isExportingBackup || isRestoringBackup}
-                      className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100/70 disabled:opacity-50"
+                      className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold text-[var(--qp-text-secondary)] disabled:opacity-50"
                     >
                       {isRestoringBackup ? "恢复中..." : "恢复"}
                     </button>
@@ -469,36 +469,36 @@ export default function Settings({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
-                <p className="text-sm font-bold text-slate-700">发布信息</p>
-                <p className="mt-1 text-sm text-slate-500">当前版本：v{appVersion}</p>
+              <div className="rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] p-4">
+                <p className="text-sm font-semibold text-[var(--qp-text-primary)]">发布信息</p>
+                <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">当前版本：v{appVersion}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => void handleOpenReleaseNotes()}
-                    className="rounded-xl border border-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                    className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
                   >
                     更新说明
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleOpenFeedback()}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
                   >
                     问题反馈
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
-                <p className="text-sm font-bold text-slate-700">{UI_TEXT.settings.cleanupTitle}</p>
-                <p className="mt-1 text-sm text-slate-500">{UI_TEXT.settings.cleanupHint}</p>
+              <div className="rounded-[12px] border border-[color:var(--qp-danger)]/28 bg-[var(--qp-bg-panel)] p-4">
+                <p className="text-sm font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.settings.cleanupTitle}</p>
+                <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">{UI_TEXT.settings.cleanupHint}</p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <select
                     value={cleanupRange}
                     onChange={(e) => setCleanupRange(Number(e.target.value) as CleanupRange)}
-                    className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-rose-200 outline-none cursor-pointer"
+                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     {CLEANUP_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -508,12 +508,11 @@ export default function Settings({
                   </select>
 
                   <motion.button
-                    whileHover={isCleaning ? undefined : { y: -1 }}
-                    whileTap={isCleaning ? undefined : { scale: 0.99 }}
-                    transition={{ duration: 0.14, ease: "easeOut" }}
+                    whileTap={isCleaning ? undefined : { scale: 0.995 }}
+                    transition={{ duration: 0.1, ease: "easeOut" }}
                     onClick={handleCleanup}
                     disabled={isCleaning}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-rose-100 text-rose-600 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-[8px] border border-[color:var(--qp-danger)]/35 text-[var(--qp-danger)] font-semibold text-sm transition-colors hover:bg-[color:var(--qp-danger)]/8 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     {isCleaning ? UI_TEXT.settings.cleanupRunning : UI_TEXT.settings.cleanupNow}

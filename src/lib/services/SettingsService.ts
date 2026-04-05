@@ -7,6 +7,7 @@ import {
   deleteObservedAppSessions,
   loadAppOverrides,
   loadCategoryColorOverrides,
+  loadCategoryDefaultColorAssignments,
   loadCustomCategories,
   loadDeletedCategories,
   loadObservedAppCandidates,
@@ -15,6 +16,7 @@ import {
   loadSettings,
   saveAppOverride,
   saveCategoryColorOverride,
+  saveCategoryDefaultColorAssignment,
   saveCustomCategory,
   saveDeletedCategory,
   deleteCustomCategory,
@@ -86,6 +88,14 @@ export class SettingsService {
 
   static async clearAllCategoryColorOverrides() {
     await clearAllCategoryColorOverrides();
+  }
+
+  static async loadCategoryDefaultColorAssignments() {
+    return loadCategoryDefaultColorAssignments();
+  }
+
+  static async saveCategoryDefaultColorAssignment(category: AppCategory, colorValue: string | null) {
+    await saveCategoryDefaultColorAssignment(category, colorValue);
   }
 
   static async loadCustomCategories() {

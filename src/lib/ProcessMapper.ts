@@ -3,6 +3,8 @@
   getCategoryToken,
   isAppCategory,
   isCustomCategory,
+  OTHER_CATEGORY_FIXED_COLOR,
+  QUIET_PRO_CATEGORY_PALETTE_37,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
   type UserAssignableAppCategory,
@@ -141,6 +143,27 @@ function normalizeCategoryColorOverrides(
   return normalized;
 }
 
+function normalizeDefaultColorAssignments(
+  assignments: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (!assignments) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [category, colorValue] of Object.entries(assignments)) {
+    if (!isAppCategory(category) || category === "system" || category === "other") {
+      continue;
+    }
+    const color = normalizeHexColor(colorValue);
+    if (!color || !QUIET_PRO_CATEGORY_PALETTE_37.includes(color as (typeof QUIET_PRO_CATEGORY_PALETTE_37)[number])) {
+      continue;
+    }
+    normalized[category] = color;
+  }
+  return normalized;
+}
+
 function buildSearchText(canonicalExe: string, hints: MappingHints) {
   return [
     canonicalExe,
@@ -231,6 +254,9 @@ function resolveCategoryColor(category: AppCategory) {
 export class ProcessMapper {
   private static userOverrides: Record<string, AppOverride> = {};
   private static categoryColorOverrides: Record<string, string> = {};
+  private static categoryDefaultColorAssignments: Record<string, string> = {};
+  private static persistCategoryDefaultColorAssignment:
+    ((category: AppCategory, colorValue: string | null) => Promise<void>) | null = null;
   private static deletedCategories = new Set<AppCategory>();
 
   static getUserAssignableCategories() {
@@ -238,7 +264,18 @@ export class ProcessMapper {
   }
 
   static setDeletedCategories(categories: AppCategory[]) {
-    this.deletedCategories = new Set(categories);
+    const nextDeleted = new Set(categories);
+    for (const category of Object.keys(this.categoryDefaultColorAssignments)) {
+      if (!isAppCategory(category) || category === "system" || category === "other") {
+        continue;
+      }
+      const wasDeleted = this.deletedCategories.has(category);
+      const isNowDeleted = nextDeleted.has(category);
+      if (!wasDeleted && isNowDeleted) {
+        void this.removeCategoryDefaultColorAssignment(category);
+      }
+    }
+    this.deletedCategories = nextDeleted;
   }
 
   static getDeletedCategories(): AppCategory[] {
@@ -258,7 +295,45 @@ export class ProcessMapper {
   }
 
   static getDefaultCategoryColor(category: AppCategory) {
-    return getCategoryToken(category).color;
+    if (category === "system") {
+      return getCategoryToken(category).color;
+    }
+
+    if (category === "other") {
+      return OTHER_CATEGORY_FIXED_COLOR;
+    }
+
+    const persisted = this.categoryDefaultColorAssignments[category];
+    if (persisted) {
+      return persisted;
+    }
+
+    const usedColors = new Set<string>();
+    for (const [assignedCategory, color] of Object.entries(this.categoryDefaultColorAssignments)) {
+      if (!isAppCategory(assignedCategory)) {
+        continue;
+      }
+      if (assignedCategory === "system" || assignedCategory === "other") {
+        continue;
+      }
+      if (this.deletedCategories.has(assignedCategory)) {
+        continue;
+      }
+      usedColors.add(color);
+    }
+
+    const availableColors = QUIET_PRO_CATEGORY_PALETTE_37.filter((color) => !usedColors.has(color));
+    const palette = availableColors.length > 0 ? availableColors : [...QUIET_PRO_CATEGORY_PALETTE_37];
+    const nextColor = palette[Math.floor(Math.random() * palette.length)];
+
+    this.categoryDefaultColorAssignments[category] = nextColor;
+    if (this.persistCategoryDefaultColorAssignment) {
+      void this.persistCategoryDefaultColorAssignment(category, nextColor).catch((error) => {
+        console.warn("Failed to persist category default color assignment", { category, error });
+      });
+    }
+
+    return nextColor;
   }
 
   static getCategoryColorOverride(category: AppCategory): string | null {
@@ -280,6 +355,26 @@ export class ProcessMapper {
 
   static clearCategoryColorOverrides() {
     this.categoryColorOverrides = {};
+  }
+
+  static setCategoryDefaultColorAssignments(assignments: Record<string, string>) {
+    this.categoryDefaultColorAssignments = normalizeDefaultColorAssignments(assignments);
+  }
+
+  static setCategoryDefaultColorAssignmentPersistence(
+    handler: ((category: AppCategory, colorValue: string | null) => Promise<void>) | null,
+  ) {
+    this.persistCategoryDefaultColorAssignment = handler;
+  }
+
+  static async removeCategoryDefaultColorAssignment(category: AppCategory) {
+    if (category === "system" || category === "other") {
+      return;
+    }
+    delete this.categoryDefaultColorAssignments[category];
+    if (this.persistCategoryDefaultColorAssignment) {
+      await this.persistCategoryDefaultColorAssignment(category, null);
+    }
   }
 
   static setUserOverrides(overrides: Record<string, AppOverride>) {

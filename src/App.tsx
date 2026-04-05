@@ -65,19 +65,19 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-screen p-6 flex gap-6 overflow-hidden">
+    <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
       <Sidebar currentView={currentView} onNavigate={setCurrentView} />
 
-      <main className="flex-1 min-h-0 flex flex-col gap-6 relative overflow-hidden">
+      <main className="qp-canvas flex-1 min-h-0 flex flex-col gap-4 md:gap-5 p-4 md:p-5 relative overflow-hidden">
         <Suspense
           fallback={
-            <div className="flex-1 min-h-0 flex items-center justify-center text-slate-400 text-sm">
+            <div className="flex-1 min-h-0 flex items-center justify-center text-[var(--qp-text-tertiary)] text-sm">
               {UI_TEXT.app.loadingView}
             </div>
           }
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             {currentView === "dashboard" && (
               <Dashboard
                 key="dashboard"

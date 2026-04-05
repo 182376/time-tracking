@@ -43,70 +43,68 @@ interface CategoryToken {
   color: string;
 }
 
-const BUILTIN_TOKENS: Record<BuiltinAppCategory, CategoryToken> = {
-  ai: { label: "AI", color: "#06B6D4" },
-  development: { label: "开发", color: "#4F46E5" },
-  office: { label: "办公", color: "#0EA5E9" },
-  browser: { label: "浏览", color: "#3B82F6" },
-  communication: { label: "通讯", color: "#10B981" },
-  meeting: { label: "会议", color: "#14B8A6" },
-  video: { label: "视频", color: "#EC4899" },
-  music: { label: "音乐", color: "#F59E0B" },
-  game: { label: "游戏", color: "#F97316" },
-  design: { label: "设计", color: "#8B5CF6" },
-  reading: { label: "阅读", color: "#6366F1" },
-  finance: { label: "金融", color: "#22C55E" },
-  utility: { label: "工具", color: "#64748B" },
-  other: { label: "未分类", color: "#94A3B8" },
-  system: { label: "系统", color: "#475569" },
+export const QUIET_PRO_CATEGORY_PALETTE_37 = [
+  "#4F5FD7",
+  "#5968DE",
+  "#6471E3",
+  "#6F7AE6",
+  "#4B78C8",
+  "#5380CD",
+  "#5D88D1",
+  "#3F86C9",
+  "#4790CF",
+  "#3293C8",
+  "#399CCB",
+  "#2E9FAE",
+  "#35A69E",
+  "#2FA58B",
+  "#36AC7E",
+  "#3D9C6B",
+  "#46956F",
+  "#4F987F",
+  "#5A9861",
+  "#66955C",
+  "#7C945C",
+  "#8A9058",
+  "#9A8C52",
+  "#AA8752",
+  "#B07E55",
+  "#B97A58",
+  "#C07158",
+  "#C56A73",
+  "#BE657D",
+  "#B6688B",
+  "#A06A7D",
+  "#976C90",
+  "#8C6FA1",
+  "#8572A5",
+  "#7E74A8",
+  "#6F7F92",
+  "#637D9F",
+] as const;
+
+export const OTHER_CATEGORY_FIXED_COLOR = "#8F98A8";
+
+const BUILTIN_LABELS: Record<BuiltinAppCategory, string> = {
+  ai: "AI",
+  development: "开发",
+  office: "办公",
+  browser: "浏览",
+  communication: "通讯",
+  meeting: "会议",
+  video: "视频",
+  music: "音乐",
+  game: "游戏",
+  design: "设计",
+  reading: "阅读",
+  finance: "金融",
+  utility: "工具",
+  other: "未分类",
+  system: "系统",
 };
 
-const BUILTIN_SET = new Set<string>(Object.keys(BUILTIN_TOKENS));
-
-function toHexByte(value: number): string {
-  const clamped = Math.max(0, Math.min(255, Math.round(value)));
-  return clamped.toString(16).padStart(2, "0");
-}
-
-function hslToHex(hue: number, saturation: number, lightness: number): string {
-  const h = ((hue % 360) + 360) % 360;
-  const s = Math.max(0, Math.min(1, saturation));
-  const l = Math.max(0, Math.min(1, lightness));
-  const c = (1 - Math.abs((2 * l) - 1)) * s;
-  const hp = h / 60;
-  const x = c * (1 - Math.abs((hp % 2) - 1));
-
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (hp >= 0 && hp < 1) [r, g, b] = [c, x, 0];
-  else if (hp < 2) [r, g, b] = [x, c, 0];
-  else if (hp < 3) [r, g, b] = [0, c, x];
-  else if (hp < 4) [r, g, b] = [0, x, c];
-  else if (hp < 5) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
-
-  const m = l - c / 2;
-  return `#${toHexByte((r + m) * 255)}${toHexByte((g + m) * 255)}${toHexByte((b + m) * 255)}`.toUpperCase();
-}
-
-function hashText(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function deriveCustomColor(category: CustomAppCategory): string {
-  const seed = resolveCustomCategoryLabel(category);
-  const hash = hashText(seed);
-  const hue = hash % 360;
-  const saturation = 0.7 + ((hash >> 8) % 12) / 100;
-  const lightness = 0.46 + ((hash >> 16) % 8) / 100;
-  return hslToHex(hue, saturation, lightness);
-}
+const SYSTEM_TOKEN: CategoryToken = { label: "系统", color: "#475569" };
+const BUILTIN_SET = new Set<string>(Object.keys(BUILTIN_LABELS));
 
 function normalizeCustomCategoryLabel(label: string): string {
   const trimmed = label.trim().replace(/\s+/g, " ");
@@ -147,11 +145,26 @@ export function isAppCategory(category: string): category is AppCategory {
 }
 
 export function getCategoryToken(category: AppCategory): CategoryToken {
+  if (category === "system") {
+    return SYSTEM_TOKEN;
+  }
+
+  if (category === "other") {
+    return {
+      label: BUILTIN_LABELS.other,
+      color: OTHER_CATEGORY_FIXED_COLOR,
+    };
+  }
+
   if (isCustomCategory(category)) {
     return {
       label: resolveCustomCategoryLabel(category),
-      color: deriveCustomColor(category),
+      color: QUIET_PRO_CATEGORY_PALETTE_37[0],
     };
   }
-  return BUILTIN_TOKENS[category];
+
+  return {
+    label: BUILTIN_LABELS[category],
+    color: QUIET_PRO_CATEGORY_PALETTE_37[0],
+  };
 }

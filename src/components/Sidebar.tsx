@@ -21,39 +21,38 @@ const NAV_ITEMS = [
 export default function Sidebar({ currentView, onNavigate }: Props) {
   return (
     <motion.aside
-      initial={{ x: -8, opacity: 0 }}
+      initial={{ x: -4, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      className="w-20 glass-effect flex flex-col items-center py-8 gap-8"
+      transition={{ duration: 0.16, ease: "easeOut" }}
+      className="qp-canvas w-[88px] md:w-[96px] shrink-0 flex flex-col items-center py-5 md:py-6 gap-5"
       style={NO_DRAG_STYLE}
     >
-      {/* Logo */}
-      <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
-        <Zap className="text-white fill-white" size={24} />
+      <div className="w-10 h-10 rounded-[10px] flex items-center justify-center border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] text-[var(--qp-accent-default)]">
+        <Zap size={18} strokeWidth={2.1} />
       </div>
 
-      {/* Nav */}
-      <nav className="flex flex-col gap-4 mt-4">
+      <nav className="flex flex-col gap-2.5 mt-1 w-full px-2">
         {NAV_ITEMS.map((item) => (
           <motion.button
             key={item.id}
-            whileHover={{ x: 1 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ duration: 0.14, ease: "easeOut" }}
+            whileHover={{ x: 0.5 }}
+            whileTap={{ scale: 0.995 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
             title={item.label}
             onClick={() => onNavigate(item.id)}
-            className={`p-4 rounded-2xl transition-colors relative ${
+            aria-label={item.label}
+            className={`qp-nav-item h-10 w-full rounded-[10px] transition-colors relative flex items-center justify-center ${
               currentView === item.id
-                ? "bg-indigo-50 text-indigo-600"
-                : "text-slate-400 hover:text-slate-600"
+                ? "qp-nav-item-active"
+                : "text-[var(--qp-text-tertiary)] hover:text-[var(--qp-text-secondary)]"
             }`}
           >
-            <item.icon size={22} />
+            <item.icon size={18} strokeWidth={2.15} />
             {currentView === item.id && (
               <motion.div
                 layoutId="nav-pill"
-                transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                className="absolute left-[-12px] top-4 w-1 h-6 bg-indigo-600 rounded-full"
+                transition={{ duration: 0.14, ease: "easeOut" }}
+                className="absolute left-[-1px] top-[9px] w-[2px] h-[22px] rounded-full bg-[var(--qp-accent-default)]"
               />
             )}
           </motion.button>
