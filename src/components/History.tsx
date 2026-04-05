@@ -29,6 +29,7 @@ interface Props {
   refreshIntervalSecs: number;
   mergeThresholdSecs: number;
   minSessionSecs: number;
+  onMinSessionSecsChange?: (value: number) => void;
   trackerHealth: TrackerHealthSnapshot;
   mappingVersion?: number;
 }
@@ -40,6 +41,13 @@ interface HistorySnapshotCacheItem {
 }
 
 const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshotCacheItem>();
+const TIMELINE_MIN_SESSION_OPTIONS = [
+  { value: 30, label: "30s" },
+  { value: 60, label: "1m" },
+  { value: 180, label: "3m" },
+  { value: 300, label: "5m" },
+  { value: 600, label: "10m" },
+] as const;
 
 function formatHistoryCacheKey(date: Date) {
   const localDate = new Date(date);
@@ -53,6 +61,7 @@ export default function History({
   refreshIntervalSecs,
   mergeThresholdSecs,
   minSessionSecs,
+  onMinSessionSecsChange,
   trackerHealth,
   mappingVersion = 0,
 }: Props) {
@@ -159,6 +168,15 @@ export default function History({
     chartData,
     chartAxis,
   } = historyView;
+
+  const handleMinSessionChange = (value: string) => {
+    const nextValue = Number(value);
+    if (!Number.isFinite(nextValue)) {
+      return;
+    }
+
+    onMinSessionSecsChange?.(nextValue);
+  };
 
   return (
     <motion.div
@@ -287,7 +305,21 @@ export default function History({
         </div>
 
         <div className="flex-1 glass-card p-5 bg-white/30 flex flex-col overflow-hidden min-h-0">
-          <h3 className="font-bold text-slate-800 text-sm mb-4">{UI_TEXT.history.timeline}</h3>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="font-bold text-slate-800 text-sm">{UI_TEXT.history.timeline}</h3>
+            <select
+              value={minSessionSecs}
+              onChange={(event) => handleMinSessionChange(event.target.value)}
+              className="h-6 min-w-[52px] rounded-md bg-white/55 px-2 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200/60 outline-none focus:ring-1 focus:ring-indigo-200"
+              aria-label="专注时间流最少时长"
+            >
+              {TIMELINE_MIN_SESSION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">{UI_TEXT.history.loading}</div>
           ) : timelineSessions.length === 0 ? (

@@ -515,6 +515,45 @@ runTest("system windows processes are excluded from tracking", () => {
   assert.equal(ProcessMapper.shouldTrack("Antigravity.exe"), true);
 });
 
+runTest("process mapper can exclude an app from tracking via override", () => {
+  ProcessMapper.clearUserOverrides();
+  assert.equal(ProcessMapper.shouldTrack("QQ.exe"), true);
+
+  ProcessMapper.setUserOverride("QQ.exe", {
+    track: false,
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  assert.equal(ProcessMapper.shouldTrack("QQ.exe"), false);
+  ProcessMapper.clearUserOverrides();
+});
+
+runTest("process mapper can disable title capture per app without affecting tracking", () => {
+  ProcessMapper.clearUserOverrides();
+  assert.equal(ProcessMapper.shouldTrack("QQ.exe"), true);
+
+  ProcessMapper.setUserOverride("QQ.exe", {
+    captureTitle: false,
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const override = ProcessMapper.getUserOverride("QQ.exe");
+  assert.equal(override?.captureTitle, false);
+  assert.equal(ProcessMapper.shouldTrack("QQ.exe"), true);
+
+  const persisted = ProcessMapper.toOverrideStorageValue({
+    captureTitle: false,
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+  const parsed = ProcessMapper.fromOverrideStorageValue(persisted);
+  assert.equal(parsed?.captureTitle, false);
+
+  ProcessMapper.clearUserOverrides();
+});
+
 runTest("process mapper resolves known alias executables to canonical app identity", () => {
   const mapped = ProcessMapper.map("DouYin_Tray.exe");
 
@@ -659,6 +698,49 @@ runTest("history read model applies display name overrides globally", () => {
   assert.equal(historyView.appSummary[0].appName, "CodeLab");
   assert.equal(historyView.timelineSessions.length, 1);
   assert.equal(historyView.timelineSessions[0].displayName, "CodeLab");
+  ProcessMapper.clearUserOverrides();
+});
+
+runTest("history read model excludes apps marked as not tracked", () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.setUserOverride("qq.exe", {
+    track: false,
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
+  const historyView = HistoryService.buildHistoryReadModel({
+    daySessions: [
+      makeSession({
+        id: 1,
+        exe_name: "QQ.exe",
+        app_name: "QQ",
+        start_time: 0,
+        end_time: 60_000,
+        duration: 60_000,
+      }),
+      makeSession({
+        id: 2,
+        exe_name: "chrome.exe",
+        app_name: "Google Chrome",
+        start_time: 65_000,
+        end_time: 125_000,
+        duration: 60_000,
+      }),
+    ],
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 120_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(historyView.appSummary.length, 1);
+  assert.equal(historyView.appSummary[0].exeName.toLowerCase(), "chrome.exe");
+  assert.equal(historyView.timelineSessions.length, 1);
+  assert.equal(historyView.timelineSessions[0].exe_name.toLowerCase(), "chrome.exe");
   ProcessMapper.clearUserOverrides();
 });
 
@@ -808,6 +890,56 @@ runTest("history timeline keeps latest live session visible below min threshold 
   });
 
   assert.equal(endedView.timelineSessions.length, 0);
+});
+
+runTest("history timeline merged duration does not change with min session threshold", () => {
+  const trackerHealth = resolveTrackerHealth(100_000, 100_000, 8_000);
+  const sessions = [
+    makeSession({
+      id: 1,
+      exe_name: "vscodium.exe",
+      app_name: "VSCodium",
+      start_time: 0,
+      end_time: 20_000,
+      duration: 20_000,
+    }),
+    makeSession({
+      id: 2,
+      exe_name: "vscodium.exe",
+      app_name: "VSCodium",
+      start_time: 22_000,
+      end_time: 42_000,
+      duration: 20_000,
+      window_title: "Code",
+    }),
+  ];
+
+  const baseView = HistoryService.buildHistoryReadModel({
+    daySessions: sessions,
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 100_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 180,
+  });
+
+  const thresholdView = HistoryService.buildHistoryReadModel({
+    daySessions: sessions,
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 100_000,
+    minSessionSecs: 30,
+    mergeThresholdSecs: 180,
+  });
+
+  assert.equal(baseView.timelineSessions.length, 1);
+  assert.equal(thresholdView.timelineSessions.length, 1);
+  assert.equal(baseView.timelineSessions[0].duration, 40_000);
+  assert.equal(thresholdView.timelineSessions[0].duration, 40_000);
+  assert.equal(baseView.timelineSessions[0].end_time, 42_000);
+  assert.equal(thresholdView.timelineSessions[0].end_time, 42_000);
 });
 
 console.log(`Passed ${passed} tracking lifecycle tests`);

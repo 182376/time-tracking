@@ -12,6 +12,7 @@ interface Props {
   icons: Record<string, string>;
   isAfk: boolean;
   activeAppName: string | null;
+  trackingPaused: boolean;
 }
 
 export default function Dashboard({
@@ -19,6 +20,7 @@ export default function Dashboard({
   icons,
   isAfk,
   activeAppName,
+  trackingPaused,
 }: Props) {
   const iconThemeColors = useIconThemeColors(icons);
   const {
@@ -46,11 +48,15 @@ export default function Dashboard({
             <h1 className="text-xl font-bold text-slate-800">{UI_TEXT.dashboard.title}</h1>
             <p className="text-slate-500 text-xs flex items-center gap-1.5 mt-0.5">
               <span className={`w-1.5 h-1.5 rounded-full ${
-                activeAppName
+                trackingPaused
+                  ? "bg-amber-400"
+                  : activeAppName
                   ? "bg-emerald-400"
                   : "bg-slate-300"
               } animate-pulse`} />
-              {activeAppName
+              {trackingPaused
+                ? "追踪已暂停"
+                : activeAppName
                 ? UI_TEXT.dashboard.tracking(activeAppName)
                 : UI_TEXT.dashboard.idle}
             </p>
@@ -59,10 +65,18 @@ export default function Dashboard({
 
         <div className="flex items-center gap-3 bg-white/60 px-4 py-2 rounded-2xl border border-white/60 shadow-sm">
           <div className={`w-2.5 h-2.5 rounded-full ${
-            isAfk ? "bg-amber-400" : "bg-emerald-400"
+            trackingPaused
+              ? "bg-amber-400"
+              : isAfk
+              ? "bg-amber-400"
+              : "bg-emerald-400"
           } animate-pulse`} />
           <span className="text-xs font-bold text-slate-600">
-            {isAfk ? UI_TEXT.dashboard.afk : UI_TEXT.dashboard.active}
+            {trackingPaused
+              ? "已暂停"
+              : isAfk
+              ? UI_TEXT.dashboard.afk
+              : UI_TEXT.dashboard.active}
           </span>
         </div>
       </header>

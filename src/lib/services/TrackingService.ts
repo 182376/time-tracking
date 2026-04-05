@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
+import type { CloseBehavior, MinimizeBehavior } from "../settings";
 import {
   type TrackingDataChangedPayload,
   type TrackingWindowSnapshot,
@@ -19,6 +20,20 @@ export class TrackingService {
 
   static async setAfkTimeout(timeoutSecs: number) {
     await invoke("cmd_set_afk_timeout", { timeoutSecs });
+  }
+
+  static async setDesktopBehavior(
+    closeBehavior: CloseBehavior,
+    minimizeBehavior: MinimizeBehavior,
+  ) {
+    await invoke("cmd_set_desktop_behavior", {
+      closeBehavior,
+      minimizeBehavior,
+    });
+  }
+
+  static async setLaunchBehavior(launchAtLogin: boolean, startMinimized: boolean) {
+    await invoke("cmd_set_launch_behavior", { launchAtLogin, startMinimized });
   }
 
   static async onActiveWindowChanged(

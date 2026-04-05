@@ -19,6 +19,8 @@ use windows::Win32::Storage::FileSystem::{
 const DB_NAME: &str = "sqlite:timetracker.db";
 const TRACKER_LAST_HEARTBEAT_KEY: &str = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY: &str = "__tracker_last_successful_sample_ms";
+const TRACKING_PAUSED_KEY: &str = "tracking_paused";
+const APP_OVERRIDE_KEY_PREFIX: &str = "__app_override::";
 const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 const TRACKER_WATCHDOG_POLL_MS: u64 = 1_000;
@@ -43,6 +45,12 @@ struct ActiveSessionSnapshot {
     start_time: i64,
     exe_name: String,
     window_title: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+struct StoredAppOverride {
+    #[serde(rename = "captureTitle")]
+    capture_title: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -116,12 +124,58 @@ pub async fn run<R: Runtime>(
             log_tracker_error(format!("failed to save tracker heartbeat: {error}"));
         }
 
+        let tracking_paused = match load_tracking_paused_setting(&pool).await {
+            Ok(value) => value,
+            Err(error) => {
+                log_tracker_error(format!("failed to load tracking pause setting: {error}"));
+                false
+            }
+        };
+
+        let capture_window_title = match load_capture_window_title_setting_for_app(
+            &pool,
+            &window_info.exe_name,
+        )
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                log_tracker_error(format!(
+                    "failed to load app capture title setting for {}: {error}",
+                    window_info.exe_name
+                ));
+                true
+            }
+        };
+
+        let mut tracked_window = window_info.clone();
+        if !capture_window_title {
+            tracked_window.title.clear();
+        }
+
+        if tracking_paused {
+            match end_active_sessions(&pool, now_ms).await {
+                Ok(did_seal) => {
+                    if did_seal {
+                        let _ = emit_tracking_data_changed(&app, "tracking-paused-sealed", now_ms as u64);
+                    }
+                }
+                Err(error) => {
+                    log_tracker_error(format!("failed to seal session while paused: {error}"));
+                }
+            }
+
+            last_window = Some(tracked_window);
+            sleep(Duration::from_secs(1)).await;
+            continue;
+        }
+
         if tracker::has_meaningful_change(last_emitted_window.as_ref(), &window_info) {
             let _ = app.emit("active-window-changed", &window_info);
             last_emitted_window = Some(window_info.clone());
         }
 
-        match apply_window_transition(&pool, last_window.as_ref(), &window_info, now_ms).await {
+        match apply_window_transition(&pool, last_window.as_ref(), &tracked_window, now_ms).await {
             Ok(Some(reason)) => {
                 let _ = emit_tracking_data_changed(&app, reason, now_ms as u64);
             }
@@ -131,7 +185,7 @@ pub async fn run<R: Runtime>(
             }
         }
 
-        last_window = Some(window_info);
+        last_window = Some(tracked_window);
         sleep(Duration::from_secs(1)).await;
     }
 }
@@ -519,6 +573,64 @@ fn should_watchdog_seal(
     }
 
     now_ms.saturating_sub(last_successful_sample_ms) > TRACKER_STALL_SEAL_AFTER_MS
+}
+
+fn parse_boolean_setting(raw: &str, fallback: bool) -> bool {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => true,
+        "0" | "false" | "no" | "off" => false,
+        _ => fallback,
+    }
+}
+
+async fn load_tracking_paused_setting(pool: &Pool<Sqlite>) -> Result<bool, sqlx::Error> {
+    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
+        .bind(TRACKING_PAUSED_KEY)
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(row
+        .and_then(|row| row.try_get::<String, _>("value").ok())
+        .map(|value| parse_boolean_setting(&value, false))
+        .unwrap_or(false))
+}
+
+fn normalize_exe_setting_key(exe_name: &str) -> Option<String> {
+    let trimmed = exe_name.trim().trim_matches('"');
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut key = trimmed.to_ascii_lowercase();
+    if !key.ends_with(".exe") {
+        key.push_str(".exe");
+    }
+
+    Some(key)
+}
+
+async fn load_capture_window_title_setting_for_app(
+    pool: &Pool<Sqlite>,
+    exe_name: &str,
+) -> Result<bool, sqlx::Error> {
+    let Some(canonical_exe_name) = normalize_exe_setting_key(exe_name) else {
+        return Ok(true);
+    };
+
+    let setting_key = format!("{APP_OVERRIDE_KEY_PREFIX}{canonical_exe_name}");
+    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
+        .bind(setting_key)
+        .fetch_optional(pool)
+        .await?;
+
+    let Some(raw_value) = row.and_then(|row| row.try_get::<String, _>("value").ok()) else {
+        return Ok(true);
+    };
+
+    let parsed_override = serde_json::from_str::<StoredAppOverride>(&raw_value).ok();
+    Ok(parsed_override
+        .and_then(|override_value| override_value.capture_title)
+        .unwrap_or(true))
 }
 
 async fn load_afk_timeout_secs(pool: &Pool<Sqlite>) -> Result<u64, sqlx::Error> {
@@ -1051,6 +1163,48 @@ mod tests {
         assert!(should_watchdog_seal(Some(10_000), None, 18_001));
         assert!(!should_watchdog_seal(Some(10_000), Some(10_000), 25_000));
         assert!(should_watchdog_seal(Some(12_000), Some(10_000), 21_000));
+    }
+
+    #[test]
+    fn app_title_capture_override_defaults_to_enabled() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            let enabled = load_capture_window_title_setting_for_app(&pool, "QQ.exe")
+                .await
+                .unwrap();
+
+            assert!(enabled);
+        });
+    }
+
+    #[test]
+    fn app_title_capture_override_can_disable_title_recording() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let key = format!("{APP_OVERRIDE_KEY_PREFIX}qq.exe");
+            let value = serde_json::to_string(&json!({
+                "captureTitle": false,
+                "enabled": true
+            }))
+            .unwrap();
+
+            sqlx::query(
+                "INSERT INTO settings (key, value) VALUES (?, ?)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            )
+            .bind(key)
+            .bind(value)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+            let enabled = load_capture_window_title_setting_for_app(&pool, "QQ.exe")
+                .await
+                .unwrap();
+
+            assert!(!enabled);
+        });
     }
 
     #[test]

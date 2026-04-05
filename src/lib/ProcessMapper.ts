@@ -20,6 +20,8 @@ export interface AppOverride {
   category?: UserAssignableAppCategory;
   displayName?: string;
   color?: string;
+  track?: boolean;
+  captureTitle?: boolean;
   enabled?: boolean;
   updatedAt?: number;
 }
@@ -156,12 +158,26 @@ function normalizeOverride(override: AppOverride | null | undefined): AppOverrid
   if (color) {
     normalized.color = color;
   }
+  if (override.track === false) {
+    normalized.track = false;
+  }
+  if (override.captureTitle === false) {
+    normalized.captureTitle = false;
+  }
   if (typeof override.updatedAt === "number" && Number.isFinite(override.updatedAt)) {
     normalized.updatedAt = override.updatedAt;
   }
   normalized.enabled = true;
 
-  return Object.keys(normalized).length > 1 ? normalized : null;
+  const hasMeaningfulOverride = Boolean(
+    normalized.category
+    || normalized.displayName
+    || normalized.color
+    || normalized.track === false
+    || normalized.captureTitle === false,
+  );
+
+  return hasMeaningfulOverride ? normalized : null;
 }
 
 function normalizeUserAssignableCategory(category: string | undefined): UserAssignableAppCategory | null {
@@ -244,7 +260,13 @@ export class ProcessMapper {
     const canonicalExe = resolveCanonicalExecutable(exeName);
     const defaultMapping = DEFAULT_APP_MAPPINGS[canonicalExe];
     const override = this.userOverrides[canonicalExe];
-    const hasOverride = Boolean(override?.category || override?.displayName || override?.color);
+    const hasOverride = Boolean(
+      override?.category
+      || override?.displayName
+      || override?.color
+      || override?.track === false
+      || override?.captureTitle === false,
+    );
 
     if (defaultMapping) {
       const category = override?.category ?? defaultMapping.category;
@@ -267,7 +289,11 @@ export class ProcessMapper {
       name: resolvedName,
       category: resolvedCategory,
       color: override?.color ?? resolveCategoryColor(resolvedCategory),
-      confidence: override?.category || override?.color ? "high" : categoryByRule ? "medium" : "low",
+      confidence: override?.category || override?.color || override?.track === false || override?.captureTitle === false
+        ? "high"
+        : categoryByRule
+          ? "medium"
+          : "low",
       source: hasOverride ? "override" : categoryByRule ? "heuristic" : "fallback",
     };
   }
@@ -275,6 +301,11 @@ export class ProcessMapper {
   static shouldTrack(exeName: string): boolean {
     const canonicalExe = resolveCanonicalExecutable(exeName);
     if (!shouldTrackProcess(canonicalExe)) {
+      return false;
+    }
+
+    const override = this.userOverrides[canonicalExe];
+    if (override?.track === false) {
       return false;
     }
 
@@ -286,6 +317,8 @@ export class ProcessMapper {
       category: override.category ?? null,
       displayName: override.displayName ?? null,
       color: normalizeHexColor(override.color) ?? null,
+      track: override.track !== false,
+      captureTitle: override.captureTitle !== false,
       enabled: override.enabled !== false,
       updatedAt: override.updatedAt ?? Date.now(),
     });

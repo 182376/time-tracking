@@ -58,6 +58,14 @@ export function useWindowTracking() {
 
         setAppSettings(settings);
         await TrackingService.setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
+        await TrackingService.setDesktopBehavior(
+          settings.close_behavior,
+          settings.minimize_behavior,
+        ).catch(console.warn);
+        await TrackingService.setLaunchBehavior(
+          settings.launch_at_login,
+          settings.start_minimized,
+        ).catch(console.warn);
         if (cancelled) return;
 
         const overrides = await SettingsService.loadAppOverrides();
@@ -92,8 +100,25 @@ export function useWindowTracking() {
       unlisteners.push(activeWindowUnlisten);
 
       const trackingDataUnlisten = await TrackingService.onTrackingDataChanged(
-        () => {
+        (payload) => {
           if (cancelled) return;
+
+          if (payload.reason === "tracking-paused" || payload.reason === "tracking-resumed") {
+            void SettingsService.load()
+              .then((latestSettings) => {
+                if (cancelled) return;
+                setAppSettings((current) => ({
+                  ...current,
+                  tracking_paused: latestSettings.tracking_paused,
+                }));
+              })
+              .catch((error) => {
+                if (!cancelled) {
+                  console.warn("Failed to sync tracking pause setting", error);
+                }
+              });
+          }
+
           setSyncTick((tick) => tick + 1);
         },
       );
@@ -120,6 +145,20 @@ export function useWindowTracking() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    void TrackingService.setDesktopBehavior(
+      appSettings.close_behavior,
+      appSettings.minimize_behavior,
+    ).catch(console.warn);
+  }, [appSettings.close_behavior, appSettings.minimize_behavior]);
+
+  useEffect(() => {
+    void TrackingService.setLaunchBehavior(
+      appSettings.launch_at_login,
+      appSettings.start_minimized,
+    ).catch(console.warn);
+  }, [appSettings.launch_at_login, appSettings.start_minimized]);
 
   return {
     activeWindow,

@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   clearAllAppOverrides,
+  clearAllWindowTitles,
   clearSessionsBefore,
   deleteObservedAppSessions,
   loadAppOverrides,
@@ -21,16 +23,20 @@ export class SettingsService {
     return loadSettings();
   }
 
-  static async updateSetting(key: keyof AppSettings, value: number) {
+  static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     await saveSetting(key, value);
 
     if (key === "afk_timeout_secs") {
-      await TrackingService.setAfkTimeout(value);
+      await TrackingService.setAfkTimeout(value as number);
     }
   }
 
   static async clearSessionsBefore(cutoffTime: number) {
     await clearSessionsBefore(cutoffTime);
+  }
+
+  static async clearAllWindowTitles() {
+    await clearAllWindowTitles();
   }
 
   static async loadTrackerHealthTimestamp() {
@@ -59,5 +65,13 @@ export class SettingsService {
 
   static async deleteObservedAppSessions(exeName: string, scope: "today" | "all" = "all") {
     return deleteObservedAppSessions(exeName, scope);
+  }
+
+  static async exportBackup(path?: string): Promise<string> {
+    return invoke<string>("cmd_export_backup", { backupPath: path ?? null });
+  }
+
+  static async restoreBackup(path: string): Promise<void> {
+    await invoke("cmd_restore_backup", { backupPath: path });
   }
 }

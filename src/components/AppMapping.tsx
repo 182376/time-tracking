@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Palette, RefreshCw, Sparkles, Trash2, RotateCcw } from "lucide-react";
 import { SettingsService } from "../lib/services/SettingsService";
 import { ProcessMapper, type AppOverride } from "../lib/ProcessMapper";
+import { buildDangerConfirmMessage } from "../lib/confirm";
 import type { ObservedAppCandidate } from "../lib/settings";
 import {
   buildCustomCategory,
@@ -68,12 +69,16 @@ function buildOverride(params: {
   category?: UserAssignableAppCategory;
   displayName?: string;
   color?: string;
+  track?: boolean;
+  captureTitle?: boolean;
 }): AppOverride | null {
   const category = params.category;
   const displayName = params.displayName?.trim();
   const color = normalizeHexColor(params.color);
+  const track = params.track;
+  const captureTitle = params.captureTitle;
 
-  if (!category && !displayName && !color) {
+  if (!category && !displayName && !color && track !== false && captureTitle !== false) {
     return null;
   }
 
@@ -85,6 +90,8 @@ function buildOverride(params: {
   if (category) next.category = category;
   if (displayName) next.displayName = displayName;
   if (color) next.color = color;
+  if (track === false) next.track = false;
+  if (captureTitle === false) next.captureTitle = false;
 
   return next;
 }
@@ -152,6 +159,14 @@ export default function AppMapping({
     const category = overrides[candidate.exeName]?.category ?? mapped.category;
     return category === "system" ? "other" : category;
   };
+
+  const resolveTrackingEnabled = (candidate: ObservedAppCandidate) => (
+    overrides[candidate.exeName]?.track !== false
+  );
+
+  const resolveTitleCaptureEnabled = (candidate: ObservedAppCandidate) => (
+    overrides[candidate.exeName]?.captureTitle !== false
+  );
 
   const filteredCandidates = useMemo(
     () => candidates.filter((candidate) => {
@@ -226,6 +241,8 @@ export default function AppMapping({
       category,
       color: current?.color,
       displayName: current?.displayName,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
     });
 
     setIsApplying(candidate.exeName);
@@ -242,6 +259,8 @@ export default function AppMapping({
       category: current?.category,
       displayName: current?.displayName,
       color: colorValue,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
     });
 
     setIsApplying(candidate.exeName);
@@ -261,6 +280,8 @@ export default function AppMapping({
       category: current?.category,
       color: current?.color,
       displayName,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
     });
 
     setIsApplying(candidate.exeName);
@@ -292,7 +313,9 @@ export default function AppMapping({
 
   const handleDeleteAllSessions = async (candidate: ObservedAppCandidate) => {
     const displayName = resolveEffectiveDisplayName(candidate);
-    const confirmed = window.confirm(`确认删除「${displayName}」的全部历史记录吗？此操作不可撤销。`);
+    const confirmed = window.confirm(
+      buildDangerConfirmMessage("删除应用全部历史记录", `目标应用：${displayName}`),
+    );
     if (!confirmed) return;
 
     setIsApplying(candidate.exeName);
@@ -300,6 +323,45 @@ export default function AppMapping({
       await SettingsService.deleteObservedAppSessions(candidate.exeName, "all");
       await refreshCandidates();
       onSessionsDeleted?.();
+    } finally {
+      setIsApplying(null);
+    }
+  };
+
+  const handleTrackingToggle = async (candidate: ObservedAppCandidate, nextTrack: boolean) => {
+    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const nextOverride = buildOverride({
+      category: current?.category,
+      color: current?.color,
+      displayName: current?.displayName,
+      track: nextTrack,
+      captureTitle: current?.captureTitle !== false,
+    });
+
+    setIsApplying(candidate.exeName);
+    try {
+      await applyOverride(candidate.exeName, nextOverride);
+    } finally {
+      setIsApplying(null);
+    }
+  };
+
+  const handleTitleCaptureToggle = async (
+    candidate: ObservedAppCandidate,
+    nextCaptureTitle: boolean,
+  ) => {
+    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const nextOverride = buildOverride({
+      category: current?.category,
+      color: current?.color,
+      displayName: current?.displayName,
+      track: current?.track !== false,
+      captureTitle: nextCaptureTitle,
+    });
+
+    setIsApplying(candidate.exeName);
+    try {
+      await applyOverride(candidate.exeName, nextOverride);
     } finally {
       setIsApplying(null);
     }
@@ -368,6 +430,8 @@ export default function AppMapping({
               const displayName = resolveEffectiveDisplayName(candidate);
               const displayColor = resolveCandidateColor(candidate);
               const assignedCategory = resolveAssignedCategory(candidate);
+              const trackingEnabled = resolveTrackingEnabled(candidate);
+              const titleCaptureEnabled = resolveTitleCaptureEnabled(candidate);
               const isBusy = isApplying === candidate.exeName;
               const inputValue = nameDrafts[candidate.exeName] ?? displayName;
 
@@ -410,6 +474,16 @@ export default function AppMapping({
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                             {candidate.exeName}
                           </span>
+                          {!trackingEnabled && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              不统计
+                            </span>
+                          )}
+                          {!titleCaptureEnabled && (
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              不记标题
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -466,6 +540,32 @@ export default function AppMapping({
 
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void handleTitleCaptureToggle(candidate, !titleCaptureEnabled)}
+                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            titleCaptureEnabled
+                              ? "text-slate-700 hover:bg-slate-100"
+                              : "text-indigo-700 hover:bg-indigo-50"
+                          }`}
+                          title={titleCaptureEnabled ? "不记录该应用窗口标题" : "恢复记录该应用窗口标题"}
+                        >
+                          {titleCaptureEnabled ? "记录标题" : "不记标题"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void handleTrackingToggle(candidate, !trackingEnabled)}
+                          className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            trackingEnabled
+                              ? "text-amber-700 hover:bg-amber-50"
+                              : "text-emerald-700 hover:bg-emerald-50"
+                          }`}
+                          title={trackingEnabled ? "将该应用排除出统计" : "恢复该应用进入统计"}
+                        >
+                          {trackingEnabled ? "统计中" : "不统计"}
+                        </button>
                         <button
                           type="button"
                           disabled={isBusy}

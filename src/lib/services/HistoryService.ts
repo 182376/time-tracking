@@ -144,6 +144,35 @@ function compileForRange(
   });
 }
 
+function filterTimelineSessionsForDisplay(
+  sessions: TimelineSession[],
+  minSessionSecs: number,
+) {
+  const minDurationMs = Math.max(0, minSessionSecs) * 1000;
+  if (minDurationMs <= 0) {
+    return sessions;
+  }
+
+  const latestLiveSession = sessions.reduce<TimelineSession | null>((latest, session) => {
+    if (!session.isLive) {
+      return latest;
+    }
+
+    if (!latest) {
+      return session;
+    }
+
+    const latestEnd = latest.end_time ?? latest.start_time;
+    const sessionEnd = session.end_time ?? session.start_time;
+    return sessionEnd >= latestEnd ? session : latest;
+  }, null);
+
+  return sessions.filter((session) => (
+    (session.duration ?? 0) >= minDurationMs
+    || (session.isLive && latestLiveSession === session)
+  ));
+}
+
 export class HistoryService {
   static async loadDashboardSnapshot(date: Date = new Date()): Promise<DashboardSnapshot> {
     const [sessions, icons] = await Promise.all([
@@ -234,13 +263,12 @@ export class HistoryService {
     const liveDaySessions = materializeLiveSessions(daySessions, trackerHealth, nowMs);
     const liveWeeklySessions = materializeLiveSessions(weeklySessions, trackerHealth, nowMs);
     const compiledSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
-    const timelineSourceSessions = compileForRange(
-      liveDaySessions,
-      selectedDayRange,
+    const timelineSourceSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
+    const mergedTimelineSessions = buildTimelineSessions(timelineSourceSessions, mergeThresholdSecs);
+    const timelineSessions = filterTimelineSessionsForDisplay(
+      mergedTimelineSessions,
       minSessionSecs,
-      { keepLatestLiveSession: true },
-    );
-    const timelineSessions = buildTimelineSessions(timelineSourceSessions, mergeThresholdSecs).slice().reverse();
+    ).slice().reverse();
     const appSummary = buildAppSummary(buildNormalizedAppStats(compiledSessions));
     const weekly = buildDailySummaries(
       liveWeeklySessions,
