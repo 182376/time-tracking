@@ -24,7 +24,7 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **History and analytics**: Includes daily app rankings, hourly activity, 7-day trends, and a session timeline view.
 - **Desktop behavior controls**: Close/minimize behavior, launch at login, and start-minimized behavior are configurable with tray behavior kept consistent.
 - **Backup & restore**: Export local backup (`sessions`, `settings`, `icon_cache`) and restore with overwrite confirmation and transactional rollback safety.
-- **Stale tracker soft hint + toasts**: Non-blocking stale warning and lightweight toasts for key actions.
+- **Lightweight action toasts**: Key actions (restore/export/mapping changes) use unobtrusive toast feedback.
 - **Data cleanup tools**: Old records can be cleared by retention range such as 7, 15, 30, 60, 90, or 180 days.
 - **Polished desktop UI**: Built with Tailwind CSS, Framer Motion, and Recharts.
 
@@ -57,15 +57,10 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **Database**: SQLite via `@tauri-apps/plugin-sql`
 - **Windows integration**: `windows` crate
 
-## Project Docs
+## Release Ops
 
-- [`docs/architecture-optimization-roadmap.md`](docs/architecture-optimization-roadmap.md): phased architecture optimization plan for future work
-- [`docs/timing-algorithm-optimization-plan.md`](docs/timing-algorithm-optimization-plan.md): timing / tracking algorithm optimization plan based on real failure cases
-- [`docs/tracking-governed-implementation-plan.md`](docs/tracking-governed-implementation-plan.md): governance checklist for tracking architecture and release safety
-- [`docs/session-data-contract.md`](docs/session-data-contract.md): raw session field semantics and read-model contract
-- [`docs/app-mapping-governance-plan.md`](docs/app-mapping-governance-plan.md): executable mapping, categorization, and color-governance execution plan
-- [`docs/usability-execution-plan.md`](docs/usability-execution-plan.md): end-to-end usability execution checklist (A/B/C/D phases)
-- [`docs/backup-restore-rollback.md`](docs/backup-restore-rollback.md): backup format, restore flow, rollback guarantees, and danger-confirm wording
+- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md): pre-release build, regression, data safety, and packaging checklist.
+- [`RELEASE_STRATEGY.md`](RELEASE_STRATEGY.md): staged gray-rollout strategy and go/no-go rules.
 
 ## Getting Started
 

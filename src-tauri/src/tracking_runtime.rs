@@ -19,6 +19,8 @@ use windows::Win32::Storage::FileSystem::{
 const DB_NAME: &str = "sqlite:timetracker.db";
 const TRACKER_LAST_HEARTBEAT_KEY: &str = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY: &str = "__tracker_last_successful_sample_ms";
+const TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY: &str = "__tracker_last_startup_self_heal_at_ms";
+const TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY: &str = "__tracker_last_startup_self_heal_summary";
 const TRACKING_PAUSED_KEY: &str = "tracking_paused";
 const APP_OVERRIDE_KEY_PREFIX: &str = "__app_override::";
 const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
@@ -298,6 +300,12 @@ async fn initialize_tracker<R: Runtime>(
 ) -> Result<(), sqlx::Error> {
     let afk_timeout_secs = load_afk_timeout_secs(pool).await?;
     tracker::cmd_set_afk_timeout(afk_timeout_secs);
+    let mut repair_notes: Vec<String> = Vec::new();
+
+    let normalized_rows = normalize_closed_session_durations(pool).await?;
+    if normalized_rows > 0 {
+        repair_notes.push(format!("normalized_closed_duration={normalized_rows}"));
+    }
 
     if let Some(existing_session) = load_active_session(pool).await? {
         let last_heartbeat_ms = load_tracker_heartbeat(pool).await?;
@@ -305,8 +313,17 @@ async fn initialize_tracker<R: Runtime>(
             resolve_startup_seal_time(existing_session.start_time, last_heartbeat_ms, now_ms());
 
         if end_active_sessions(pool, end_time).await? {
+            repair_notes.push("sealed_active_session".to_string());
             let _ = emit_tracking_data_changed(app, "startup-sealed", end_time as u64);
         }
+    }
+
+    if !repair_notes.is_empty() {
+        let now = now_ms();
+        let summary = repair_notes.join(",");
+        save_setting_value(pool, TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY, &now.to_string()).await?;
+        save_setting_value(pool, TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY, &summary).await?;
+        log_tracker_error(format!("startup self-heal applied: {summary}"));
     }
 
     Ok(())
@@ -673,6 +690,36 @@ async fn save_tracker_timestamp(
     .await?;
 
     Ok(())
+}
+
+async fn save_setting_value(
+    pool: &Pool<Sqlite>,
+    key: &str,
+    value: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO settings (key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+async fn normalize_closed_session_durations(pool: &Pool<Sqlite>) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE sessions
+         SET duration = MAX(0, end_time - start_time)
+         WHERE end_time IS NOT NULL
+           AND COALESCE(duration, -1) <> MAX(0, end_time - start_time)",
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
 }
 
 async fn load_active_session(
@@ -1422,6 +1469,29 @@ mod tests {
 
             assert_eq!(reason, None);
             assert_eq!(active_count, 0);
+        });
+    }
+
+    #[test]
+    fn startup_self_heal_normalizes_closed_session_duration() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            pool.execute(
+                "INSERT INTO sessions (app_name, exe_name, window_title, start_time, end_time, duration)
+                 VALUES ('QQ', 'QQ.exe', 'Chat', 1000, 5000, 99)",
+            )
+            .await
+            .unwrap();
+
+            let affected = normalize_closed_session_durations(&pool).await.unwrap();
+            let duration: i64 = sqlx::query_scalar("SELECT duration FROM sessions LIMIT 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+            assert_eq!(affected, 1);
+            assert_eq!(duration, 4000);
         });
     }
 }

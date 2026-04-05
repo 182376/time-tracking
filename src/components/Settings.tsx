@@ -1,5 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Trash2,
   Clock,
@@ -7,9 +9,7 @@ import {
   RefreshCw,
   Zap,
   Monitor,
-  Shield,
   Database,
-  Sparkles,
 } from "lucide-react";
 import { UI_TEXT } from "../lib/copy";
 import { buildDangerConfirmMessage } from "../lib/confirm";
@@ -19,7 +19,6 @@ import type { ToastTone } from "./ToastStack";
 
 interface Props {
   onSettingsChanged: (settings: AppSettings) => void;
-  onNavigateToMapping?: () => void;
   onToast?: (message: string, tone?: ToastTone) => void;
 }
 
@@ -42,7 +41,6 @@ function getCutoffTime(range: CleanupRange) {
 
 export default function Settings({
   onSettingsChanged,
-  onNavigateToMapping,
   onToast,
 }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -52,8 +50,11 @@ export default function Settings({
   const [isCleaning, setIsCleaning] = useState(false);
   const [exportPath, setExportPath] = useState("");
   const [restorePath, setRestorePath] = useState("");
+  const [diagnosticPath, setDiagnosticPath] = useState("");
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+  const [isExportingDiagnostic, setIsExportingDiagnostic] = useState(false);
+  const [appVersion, setAppVersion] = useState("-");
 
   const notify = (message: string, tone: ToastTone = "info") => {
     onToast?.(message, tone);
@@ -68,6 +69,15 @@ export default function Settings({
       setLoading(false);
     };
     void load();
+    const loadVersion = async () => {
+      try {
+        const version = await getVersion();
+        if (!cancelled) setAppVersion(version);
+      } catch {
+        if (!cancelled) setAppVersion("unknown");
+      }
+    };
+    void loadVersion();
     return () => {
       cancelled = true;
     };
@@ -154,10 +164,31 @@ export default function Settings({
       }
     }
 
+    let previewSummary = "";
+    try {
+      const preview = await SettingsService.previewBackup(normalizedPath);
+      if (preview.compatibility_level === "incompatible") {
+        notify(`备份不兼容：${preview.compatibility_message}`, "warning");
+        return;
+      }
+      const exportedAt = new Date(preview.exported_at_ms).toLocaleString();
+      previewSummary = [
+        `备份版本：v${preview.version}（Schema ${preview.schema_version}）`,
+        `导出时间：${exportedAt}`,
+        `应用版本：${preview.app_version}`,
+        `兼容提示：${preview.compatibility_message}`,
+        `会话数：${preview.session_count}，设置项：${preview.setting_count}，图标缓存：${preview.icon_cache_count}`,
+      ].join("\n");
+    } catch (error) {
+      console.error("preview backup failed", error);
+      notify("备份文件预览失败，无法确认覆盖范围。", "warning");
+      return;
+    }
+
     const confirmed = window.confirm(
       buildDangerConfirmMessage(
         "恢复备份",
-        `恢复会覆盖当前统计、应用映射和缓存图标。\n目标文件：${normalizedPath}`,
+        `恢复会覆盖当前统计、应用映射和缓存图标。\n目标文件：${normalizedPath}\n\n${previewSummary}`,
       ),
     );
     if (!confirmed) return;
@@ -172,6 +203,52 @@ export default function Settings({
       notify("备份恢复失败，已自动回滚，不会破坏当前数据。", "warning");
     } finally {
       setIsRestoringBackup(false);
+    }
+  };
+
+  const handleExportDiagnosticBundle = async () => {
+    if (isExportingDiagnostic || isExportingBackup || isRestoringBackup) return;
+
+    let targetPath = diagnosticPath.trim();
+    try {
+      const selected = await SettingsService.pickDiagnosticSaveFile(targetPath || undefined);
+      if (!selected) return;
+      targetPath = selected;
+      setDiagnosticPath(selected);
+    } catch (error) {
+      console.error("pick diagnostic save file failed", error);
+      notify("打开诊断包保存对话框失败。", "warning");
+      return;
+    }
+
+    setIsExportingDiagnostic(true);
+    try {
+      const exportedPath = await SettingsService.exportDiagnosticBundle(targetPath || undefined);
+      setDiagnosticPath(exportedPath);
+      notify(`诊断包导出成功：${exportedPath}`, "success");
+    } catch (error) {
+      console.error("export diagnostic bundle failed", error);
+      notify("诊断包导出失败，请稍后重试。", "warning");
+    } finally {
+      setIsExportingDiagnostic(false);
+    }
+  };
+
+  const handleOpenReleaseNotes = async () => {
+    try {
+      await openUrl("https://github.com/182376/time-tracking/releases");
+    } catch (error) {
+      console.error("open release notes failed", error);
+      notify("无法打开更新说明链接。", "warning");
+    }
+  };
+
+  const handleOpenFeedback = async () => {
+    try {
+      await openUrl("https://github.com/182376/time-tracking/issues/new/choose");
+    } catch (error) {
+      console.error("open feedback link failed", error);
+      notify("无法打开反馈链接。", "warning");
     }
   };
 
@@ -267,7 +344,7 @@ export default function Settings({
                 <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">暂停追踪</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
                   <p className="text-sm text-slate-500 leading-relaxed">
-                    暂停后将停止写入新的追踪记录，恢复后继续正常计时。
+                    暂停后不再写入新记录，恢复后继续计时。
                   </p>
                   <button
                     type="button"
@@ -299,7 +376,7 @@ export default function Settings({
                 <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">最小化按钮行为</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-slate-500 leading-relaxed">
-                    选择点击窗口右上角最小化按钮时，是保留在任务栏还是隐藏到系统托盘。
+                    点最小化后，选择去任务栏或托盘。
                   </p>
                   <select
                     value={settings.minimize_behavior}
@@ -316,7 +393,7 @@ export default function Settings({
                 <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">关闭按钮行为</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-slate-500 leading-relaxed">
-                    选择点击窗口右上角关闭按钮时，是退出应用还是隐藏到系统托盘。
+                    点关闭后，选择直接退出或隐藏到托盘。
                   </p>
                   <select
                     value={settings.close_behavior}
@@ -333,7 +410,7 @@ export default function Settings({
                 <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">开机自启动</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
                   <p className="text-sm text-slate-500 leading-relaxed">
-                    开启后，系统登录时自动启动 Time Tracker。
+                    开启后，系统登录时自动启动应用。
                   </p>
                   <button
                     type="button"
@@ -356,7 +433,7 @@ export default function Settings({
                 <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">启动时最小化</label>
                 <div className="mt-2 flex items-start justify-between gap-4">
                   <p className="text-sm text-slate-500 leading-relaxed">
-                    仅在开机自启动时生效，启动后直接隐藏到托盘，不弹主窗口。
+                    仅对自启动生效：启动后直接进托盘。
                   </p>
                   <button
                     type="button"
@@ -375,30 +452,6 @@ export default function Settings({
                   </button>
                 </div>
               </div>
-            </div>
-          </section>
-
-          <section className="glass-card min-h-[180px] bg-white/30 p-6">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-              <Shield size={16} className="text-indigo-500" />
-              <h2 className="text-sm font-bold text-slate-800">隐私</h2>
-            </div>
-
-            <div className="mt-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-700">窗口标题按应用管理</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  每个应用可独立设置“记录标题 / 不记标题”，避免全局一刀切。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onNavigateToMapping}
-                className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-              >
-                <Sparkles size={13} />
-                前往应用美化与隐私
-              </button>
             </div>
           </section>
 
@@ -442,6 +495,44 @@ export default function Settings({
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
+                <p className="text-sm font-bold text-slate-700">诊断包导出</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  导出排障所需的关键设置、运行状态和最近会话样本。
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleExportDiagnosticBundle()}
+                    disabled={isExportingDiagnostic || isExportingBackup || isRestoringBackup}
+                    className="rounded-xl border border-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                  >
+                    {isExportingDiagnostic ? "导出中..." : "导出诊断包"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
+                <p className="text-sm font-bold text-slate-700">发布信息</p>
+                <p className="mt-1 text-sm text-slate-500">当前版本：v{appVersion}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenReleaseNotes()}
+                    className="rounded-xl border border-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                  >
+                    更新说明
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenFeedback()}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    问题反馈
+                  </button>
                 </div>
               </div>
 

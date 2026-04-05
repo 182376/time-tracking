@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+﻿import { Suspense, lazy, useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ProcessMapper } from "./lib/ProcessMapper";
 import { UI_TEXT } from "./lib/copy";
@@ -21,7 +21,6 @@ export default function App() {
   const [mappingVersion, setMappingVersion] = useState(0);
   const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [staleTipDismissed, setStaleTipDismissed] = useState(false);
   const {
     activeWindow,
     appSettings,
@@ -65,32 +64,12 @@ export default function App() {
     }, 3200);
   }, []);
 
-  useEffect(() => {
-    if (trackerHealth.status === "healthy") {
-      setStaleTipDismissed(false);
-    }
-  }, [trackerHealth.status]);
-
-  const showTrackerStaleTip = trackerHealth.status === "stale" && !staleTipDismissed;
-
   return (
     <div className="h-screen p-6 flex gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
       <Sidebar currentView={currentView} onNavigate={setCurrentView} />
 
       <main className="flex-1 min-h-0 flex flex-col gap-6 relative overflow-hidden">
-        {showTrackerStaleTip && (
-          <div className="glass-card border-amber-100 bg-amber-50/80 px-4 py-3 text-xs text-amber-800 flex items-center justify-between">
-            <span>追踪引擎短暂中断，当前展示已自动冻结到最近有效采样点。</span>
-            <button
-              type="button"
-              onClick={() => setStaleTipDismissed(true)}
-              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
-            >
-              知道了
-            </button>
-          </div>
-        )}
         <Suspense
           fallback={
             <div className="flex-1 min-h-0 flex items-center justify-center text-slate-400 text-sm">
@@ -150,3 +129,5 @@ export default function App() {
     </div>
   );
 }
+
+

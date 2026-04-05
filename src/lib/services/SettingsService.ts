@@ -18,6 +18,18 @@ import {
 import type { AppOverride } from "../ProcessMapper.ts";
 import { TrackingService } from "./TrackingService";
 
+export interface BackupPreview {
+  version: number;
+  exported_at_ms: number;
+  schema_version: number;
+  app_version: string;
+  compatibility_level: string;
+  compatibility_message: string;
+  session_count: number;
+  setting_count: number;
+  icon_cache_count: number;
+}
+
 export class SettingsService {
   static async load() {
     return loadSettings();
@@ -73,6 +85,18 @@ export class SettingsService {
 
   static async restoreBackup(path: string): Promise<void> {
     await invoke("cmd_restore_backup", { backupPath: path });
+  }
+
+  static async previewBackup(path: string): Promise<BackupPreview> {
+    return invoke<BackupPreview>("cmd_preview_backup", { backupPath: path });
+  }
+
+  static async pickDiagnosticSaveFile(initialPath?: string): Promise<string | null> {
+    return invoke<string | null>("cmd_pick_diagnostic_save_file", { initialPath: initialPath ?? null });
+  }
+
+  static async exportDiagnosticBundle(path?: string): Promise<string> {
+    return invoke<string>("cmd_export_diagnostic_bundle", { diagnosticPath: path ?? null });
   }
 
   static async pickBackupSaveFile(initialPath?: string): Promise<string | null> {
