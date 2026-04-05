@@ -50,10 +50,8 @@ export default function Settings({
   const [isCleaning, setIsCleaning] = useState(false);
   const [exportPath, setExportPath] = useState("");
   const [restorePath, setRestorePath] = useState("");
-  const [diagnosticPath, setDiagnosticPath] = useState("");
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
-  const [isExportingDiagnostic, setIsExportingDiagnostic] = useState(false);
   const [appVersion, setAppVersion] = useState("-");
 
   const notify = (message: string, tone: ToastTone = "info") => {
@@ -150,18 +148,16 @@ export default function Settings({
   const handleRestoreBackup = async () => {
     if (isRestoringBackup) return;
 
-    let normalizedPath = restorePath.trim();
-    if (!normalizedPath) {
-      try {
-        const selected = await SettingsService.pickBackupFile(undefined);
-        if (!selected) return;
-        normalizedPath = selected;
-        setRestorePath(selected);
-      } catch (error) {
-        console.error("pick backup file failed", error);
-        notify("打开文件选择器失败。", "warning");
-        return;
-      }
+    let normalizedPath = "";
+    try {
+      const selected = await SettingsService.pickBackupFile(restorePath.trim() || undefined);
+      if (!selected) return;
+      normalizedPath = selected;
+      setRestorePath(selected);
+    } catch (error) {
+      console.error("pick backup file failed", error);
+      notify("打开文件选择器失败。", "warning");
+      return;
     }
 
     let previewSummary = "";
@@ -203,34 +199,6 @@ export default function Settings({
       notify("备份恢复失败，已自动回滚，不会破坏当前数据。", "warning");
     } finally {
       setIsRestoringBackup(false);
-    }
-  };
-
-  const handleExportDiagnosticBundle = async () => {
-    if (isExportingDiagnostic || isExportingBackup || isRestoringBackup) return;
-
-    let targetPath = diagnosticPath.trim();
-    try {
-      const selected = await SettingsService.pickDiagnosticSaveFile(targetPath || undefined);
-      if (!selected) return;
-      targetPath = selected;
-      setDiagnosticPath(selected);
-    } catch (error) {
-      console.error("pick diagnostic save file failed", error);
-      notify("打开诊断包保存对话框失败。", "warning");
-      return;
-    }
-
-    setIsExportingDiagnostic(true);
-    try {
-      const exportedPath = await SettingsService.exportDiagnosticBundle(targetPath || undefined);
-      setDiagnosticPath(exportedPath);
-      notify(`诊断包导出成功：${exportedPath}`, "success");
-    } catch (error) {
-      console.error("export diagnostic bundle failed", error);
-      notify("诊断包导出失败，请稍后重试。", "warning");
-    } finally {
-      setIsExportingDiagnostic(false);
     }
   };
 
@@ -463,55 +431,41 @@ export default function Settings({
 
             <div className="space-y-5">
               <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
-                <p className="text-sm font-bold text-slate-700">导出备份 / 恢复备份</p>
+                <p className="text-sm font-bold text-slate-700">备份与恢复</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  备份内容包含会话数据、设置项和图标缓存。恢复会覆盖当前数据。
+                  包含会话数据、设置项和图标缓存。恢复会覆盖当前数据。
                 </p>
-                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div className="rounded-xl border border-slate-100 bg-white/70 p-3">
-                    <p className="text-xs font-bold text-slate-600">导出备份</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleExportBackup()}
-                        disabled={isExportingBackup || isRestoringBackup}
-                        className="rounded-xl border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                      >
-                        {isExportingBackup ? "导出中..." : "导出备份"}
-                      </button>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-100/70 bg-emerald-50/40 p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">导出</p>
+                      <p className="mt-0.5 text-xs text-slate-500">生成当前数据快照</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleExportBackup()}
+                      disabled={isExportingBackup || isRestoringBackup}
+                      className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100/70 disabled:opacity-50"
+                    >
+                      {isExportingBackup ? "导出中..." : "导出"}
+                    </button>
                   </div>
 
-                  <div className="rounded-xl border border-slate-100 bg-white/70 p-3">
-                    <p className="text-xs font-bold text-slate-600">恢复备份</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleRestoreBackup()}
-                        disabled={isExportingBackup || isRestoringBackup}
-                        className="rounded-xl border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                      >
-                        {isRestoringBackup ? "恢复中..." : "从备份恢复"}
-                      </button>
+                  <div className="flex items-center justify-between rounded-xl border border-amber-100/80 bg-amber-50/40 p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">恢复</p>
+                      <p className="mt-0.5 text-xs text-slate-500">从备份文件回滚数据</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleRestoreBackup()}
+                      disabled={isExportingBackup || isRestoringBackup}
+                      className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100/70 disabled:opacity-50"
+                    >
+                      {isRestoringBackup ? "恢复中..." : "恢复"}
+                    </button>
                   </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-100 bg-white/60 p-4">
-                <p className="text-sm font-bold text-slate-700">诊断包导出</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  导出排障所需的关键设置、运行状态和最近会话样本。
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleExportDiagnosticBundle()}
-                    disabled={isExportingDiagnostic || isExportingBackup || isRestoringBackup}
-                    className="rounded-xl border border-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-                  >
-                    {isExportingDiagnostic ? "导出中..." : "导出诊断包"}
-                  </button>
                 </div>
               </div>
 

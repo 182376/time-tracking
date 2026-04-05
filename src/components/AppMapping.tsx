@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Palette, RefreshCw, Sparkles, Trash2, RotateCcw } from "lucide-react";
+import { Palette, RefreshCw, Sparkles, Trash2, RotateCcw, SlidersHorizontal, X, Pencil } from "lucide-react";
 import { SettingsService } from "../lib/services/SettingsService";
 import { ProcessMapper, type AppOverride } from "../lib/ProcessMapper";
 import { buildDangerConfirmMessage } from "../lib/confirm";
 import type { ObservedAppCandidate } from "../lib/settings";
+import type { AppCategory } from "../lib/config/categoryTokens";
 import {
   buildCustomCategory,
   isCustomCategory,
@@ -12,6 +13,7 @@ import {
   type UserAssignableAppCategory,
 } from "../lib/config/categoryTokens";
 import { useIconThemeColors } from "../hooks/useIconThemeColors";
+import CategoryColorControls from "./CategoryColorControls";
 
 interface Props {
   icons: Record<string, string>;
@@ -30,21 +32,6 @@ const FILTER_OPTIONS: Array<{ value: CandidateFilter; label: string }> = [
 
 const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
 const AUTO_CATEGORY_VALUE = "__auto__";
-const CREATE_CUSTOM_CATEGORY_VALUE = "__create_custom__";
-
-const APP_COLOR_SWATCHES = [
-  "#4F46E5",
-  "#2563EB",
-  "#0891B2",
-  "#10B981",
-  "#84CC16",
-  "#F59E0B",
-  "#F97316",
-  "#EF4444",
-  "#EC4899",
-  "#7C3AED",
-  "#64748B",
-];
 
 function normalizeHexColor(colorValue: string | undefined): string | undefined {
   const raw = (colorValue ?? "").trim();
@@ -105,9 +92,15 @@ export default function AppMapping({
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<ObservedAppCandidate[]>([]);
   const [overrides, setOverrides] = useState<Record<string, AppOverride>>({});
+  const [categoryColorOverrides, setCategoryColorOverrides] = useState<Record<string, string>>({});
+  const [customCategories, setCustomCategories] = useState<UserAssignableAppCategory[]>([]);
+  const [deletedCategories, setDeletedCategories] = useState<AppCategory[]>([]);
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
+  const [editingNameExe, setEditingNameExe] = useState<string | null>(null);
   const [filter, setFilter] = useState<CandidateFilter>("all");
   const [isApplying, setIsApplying] = useState<string | null>(null);
+  const [categoryApplying, setCategoryApplying] = useState<string | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const iconThemeColors = useIconThemeColors(icons);
 
   useEffect(() => {
@@ -116,12 +109,20 @@ export default function AppMapping({
     const load = async () => {
       setLoading(true);
       try {
-        const [observed, loadedOverrides] = await Promise.all([
+        const [observed, loadedOverrides, loadedCategoryColorOverrides, loadedCustomCategories, loadedDeletedCategories] = await Promise.all([
           SettingsService.loadObservedAppCandidates(),
           SettingsService.loadAppOverrides(),
+          SettingsService.loadCategoryColorOverrides(),
+          SettingsService.loadCustomCategories(),
+          SettingsService.loadDeletedCategories(),
         ]);
         if (cancelled) return;
+        ProcessMapper.setCategoryColorOverrides(loadedCategoryColorOverrides ?? {});
+        ProcessMapper.setDeletedCategories(loadedDeletedCategories ?? []);
         ProcessMapper.setUserOverrides(loadedOverrides);
+        setCategoryColorOverrides(loadedCategoryColorOverrides ?? {});
+        setCustomCategories(loadedCustomCategories);
+        setDeletedCategories(loadedDeletedCategories ?? []);
         setOverrides(loadedOverrides);
         setCandidates(observed);
       } finally {
@@ -156,7 +157,7 @@ export default function AppMapping({
 
   const resolveAssignedCategory = (candidate: ObservedAppCandidate): UserAssignableAppCategory => {
     const mapped = ProcessMapper.map(candidate.exeName, { appName: candidate.appName });
-    const category = overrides[candidate.exeName]?.category ?? mapped.category;
+    const category = mapped.category;
     return category === "system" ? "other" : category;
   };
 
@@ -186,16 +187,45 @@ export default function AppMapping({
   }, [candidates, overrides]);
 
   const customCategoryOptions = useMemo(() => {
+    const deletedSet = new Set(deletedCategories);
     const categories = new Set<UserAssignableAppCategory>();
+    for (const category of customCategories) {
+      if (isCustomCategory(category) && !deletedSet.has(category)) {
+        categories.add(category);
+      }
+    }
     for (const override of Object.values(overrides)) {
-      if (override.category && isCustomCategory(override.category)) {
+      if (override.category && isCustomCategory(override.category) && !deletedSet.has(override.category)) {
         categories.add(override.category);
+      }
+    }
+    for (const category of Object.keys(categoryColorOverrides)) {
+      if (isCustomCategory(category) && !deletedSet.has(category)) {
+        categories.add(category);
       }
     }
 
     return Array.from(categories)
       .sort((a, b) => ProcessMapper.getCategoryLabel(a).localeCompare(ProcessMapper.getCategoryLabel(b), "zh-CN"));
-  }, [overrides]);
+  }, [customCategories, overrides, categoryColorOverrides, deletedCategories]);
+
+  const activeBuiltinCategories = useMemo(
+    () => CATEGORY_OPTIONS.filter((category) => !deletedCategories.includes(category)),
+    [deletedCategories],
+  );
+
+  const orderedAssignableCategories = useMemo<UserAssignableAppCategory[]>(() => {
+    const base = activeBuiltinCategories.filter((category) => category !== "other");
+    const hasOther = activeBuiltinCategories.includes("other");
+    return hasOther
+      ? [...base, ...customCategoryOptions, "other"]
+      : [...base, ...customCategoryOptions];
+  }, [activeBuiltinCategories, customCategoryOptions]);
+
+  const colorControlCategories = useMemo<AppCategory[]>(
+    () => [...orderedAssignableCategories],
+    [orderedAssignableCategories],
+  );
 
   const refreshCandidates = async () => {
     const observed = await SettingsService.loadObservedAppCandidates();
@@ -216,23 +246,115 @@ export default function AppMapping({
     onOverridesChanged?.();
   };
 
+  const applyCategoryColor = async (category: AppCategory, colorValue: string | null) => {
+    setCategoryApplying(category);
+    try {
+      await SettingsService.saveCategoryColorOverride(category, colorValue);
+      ProcessMapper.setCategoryColorOverride(category, colorValue);
+      setCategoryColorOverrides((prev) => {
+        const next = { ...prev };
+        if (!colorValue) {
+          delete next[category];
+          return next;
+        }
+        next[category] = colorValue;
+        return next;
+      });
+      onOverridesChanged?.();
+    } finally {
+      setCategoryApplying(null);
+    }
+  };
+
+  const handleCreateCustomCategory = async () => {
+    const customCategoryName = window.prompt("请输入自定义分类名称（最多4个字）", "");
+    if (customCategoryName === null) return;
+    const normalized = customCategoryName.trim();
+    if (!normalized) return;
+
+    const category = buildCustomCategory(normalized);
+    await SettingsService.saveCustomCategory(category);
+    await SettingsService.saveDeletedCategory(category, false);
+    setCustomCategories((prev) => (
+      prev.includes(category) ? prev : [...prev, category]
+    ));
+    setDeletedCategories((prev) => prev.filter((item) => item !== category));
+  };
+
+  const handleDeleteCategory = async (category: AppCategory) => {
+    const categoryLabel = ProcessMapper.getCategoryLabel(category);
+    const confirmed = window.confirm(
+      buildDangerConfirmMessage("删除分类", `目标分类：${categoryLabel}`),
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setCategoryApplying(category);
+    try {
+      const nextOverrides: Record<string, AppOverride> = { ...overrides };
+      const saveTasks: Array<Promise<void>> = [];
+
+      for (const [exeName, current] of Object.entries(overrides)) {
+        if (current.category !== category) {
+          continue;
+        }
+
+        const nextOverride = buildOverride({
+          category: undefined,
+          color: current.color,
+          displayName: current.displayName,
+          track: current.track !== false,
+          captureTitle: current.captureTitle !== false,
+        });
+
+        saveTasks.push(SettingsService.saveAppOverride(exeName, nextOverride));
+        ProcessMapper.setUserOverride(exeName, nextOverride);
+        if (!nextOverride) {
+          delete nextOverrides[exeName];
+        } else {
+          nextOverrides[exeName] = nextOverride;
+        }
+      }
+
+      if (saveTasks.length > 0) {
+        await Promise.all(saveTasks);
+      }
+
+      if (isCustomCategory(category)) {
+        await SettingsService.deleteCustomCategory(category);
+        setCustomCategories((prev) => prev.filter((item) => item !== category));
+        await SettingsService.saveDeletedCategory(category, false);
+      } else {
+        await SettingsService.saveDeletedCategory(category, true);
+      }
+
+      await SettingsService.saveCategoryColorOverride(category, null);
+      ProcessMapper.setCategoryColorOverride(category, null);
+
+      const nextDeleted = isCustomCategory(category)
+        ? deletedCategories.filter((item) => item !== category)
+        : Array.from(new Set([...deletedCategories, category]));
+      ProcessMapper.setDeletedCategories(nextDeleted);
+
+      setDeletedCategories(nextDeleted);
+      setOverrides(nextOverrides);
+      setCategoryColorOverrides((prev) => {
+        const next = { ...prev };
+        delete next[category];
+        return next;
+      });
+      onOverridesChanged?.();
+    } finally {
+      setCategoryApplying(null);
+    }
+  };
+
   const handleCategoryAssign = async (candidate: ObservedAppCandidate, categoryValue: string) => {
     const current = ProcessMapper.getUserOverride(candidate.exeName);
     let category: UserAssignableAppCategory | undefined;
     if (categoryValue === AUTO_CATEGORY_VALUE) {
       category = undefined;
-    } else if (categoryValue === CREATE_CUSTOM_CATEGORY_VALUE) {
-      const customCategoryName = window.prompt("请输入自定义分类名称（最多4个字）", "");
-      if (customCategoryName === null) {
-        return;
-      }
-
-      const normalized = customCategoryName.trim();
-      if (!normalized) {
-        return;
-      }
-
-      category = buildCustomCategory(normalized);
     } else {
       category = categoryValue as UserAssignableAppCategory;
     }
@@ -253,12 +375,12 @@ export default function AppMapping({
     }
   };
 
-  const handleColorAssign = async (candidate: ObservedAppCandidate, colorValue: string) => {
+  const handleColorAssign = async (candidate: ObservedAppCandidate, colorValue?: string | null) => {
     const current = ProcessMapper.getUserOverride(candidate.exeName);
     const nextOverride = buildOverride({
       category: current?.category,
       displayName: current?.displayName,
-      color: colorValue,
+      color: colorValue ?? undefined,
       track: current?.track !== false,
       captureTitle: current?.captureTitle !== false,
     });
@@ -314,7 +436,7 @@ export default function AppMapping({
   const handleDeleteAllSessions = async (candidate: ObservedAppCandidate) => {
     const displayName = resolveEffectiveDisplayName(candidate);
     const confirmed = window.confirm(
-      buildDangerConfirmMessage("删除应用全部历史记录", `目标应用：${displayName}`),
+      buildDangerConfirmMessage("删除应用记录", `目标应用：${displayName}`),
     );
     if (!confirmed) return;
 
@@ -389,27 +511,37 @@ export default function AppMapping({
       </header>
 
       <section className="glass-card bg-white/25 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {FILTER_OPTIONS.map((item) => {
-            const count = item.value === "all"
-              ? counts.all
-              : item.value === "other"
-                ? counts.other
-                : counts.classified;
-            return (
-              <button
-                key={item.value}
-                onClick={() => setFilter(item.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                  filter === item.value
-                    ? "bg-indigo-100 text-indigo-700"
-                    : "bg-white text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {item.label} ({count})
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTER_OPTIONS.map((item) => {
+              const count = item.value === "all"
+                ? counts.all
+                : item.value === "other"
+                  ? counts.other
+                  : counts.classified;
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => setFilter(item.value)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    filter === item.value
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-white text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {item.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCategoryDialog(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white"
+          >
+            <SlidersHorizontal size={14} />
+            分类控制
+          </button>
         </div>
       </section>
 
@@ -433,7 +565,9 @@ export default function AppMapping({
               const trackingEnabled = resolveTrackingEnabled(candidate);
               const titleCaptureEnabled = resolveTitleCaptureEnabled(candidate);
               const isBusy = isApplying === candidate.exeName;
+              const isEditingName = editingNameExe === candidate.exeName;
               const inputValue = nameDrafts[candidate.exeName] ?? displayName;
+              const hasManualColor = Boolean(overrides[candidate.exeName]?.color);
 
               return (
                 <div
@@ -455,21 +589,57 @@ export default function AppMapping({
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <input
-                          value={inputValue}
-                          disabled={isBusy}
-                          onChange={(event) => {
-                            const nextValue = event.target.value;
-                            setNameDrafts((prev) => ({ ...prev, [candidate.exeName]: nextValue }));
-                          }}
-                          onBlur={() => void handleNameCommit(candidate)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.currentTarget.blur();
-                            }
-                          }}
-                          className="w-full truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-base font-semibold text-slate-800 outline-none focus:border-indigo-200 focus:bg-white/85 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed"
-                        />
+                        <div className="inline-flex max-w-full items-center gap-1">
+                          {isEditingName ? (
+                            <input
+                              id={`app-name-${candidate.exeName}`}
+                              value={inputValue}
+                              autoFocus
+                              disabled={isBusy}
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                setNameDrafts((prev) => ({ ...prev, [candidate.exeName]: nextValue }));
+                              }}
+                              onBlur={() => {
+                                void handleNameCommit(candidate);
+                                setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.currentTarget.blur();
+                                  return;
+                                }
+                                if (event.key === "Escape") {
+                                  setNameDrafts((prev) => ({
+                                    ...prev,
+                                    [candidate.exeName]: displayName,
+                                  }));
+                                  setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
+                                }
+                              }}
+                              className="max-w-[240px] truncate rounded-lg border border-indigo-200 bg-white/90 px-2 py-1 text-base font-semibold text-slate-800 outline-none ring-2 ring-indigo-100 disabled:cursor-not-allowed"
+                            />
+                          ) : (
+                            <span className="truncate rounded-lg px-2 py-1 text-base font-semibold text-slate-800">
+                              {displayName}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setEditingNameExe(candidate.exeName);
+                              setNameDrafts((prev) => ({
+                                ...prev,
+                                [candidate.exeName]: prev[candidate.exeName] ?? displayName,
+                              }));
+                            }}
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="修改应用名称"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 px-2">
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                             {candidate.exeName}
@@ -492,6 +662,9 @@ export default function AppMapping({
                       <div className="flex flex-nowrap items-center gap-2">
                       <div className="order-2 flex max-w-full flex-wrap items-center gap-2 rounded-xl bg-white px-2 py-1.5 ring-1 ring-slate-100">
                         <Palette size={14} className="text-slate-500" />
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                          {displayColor}
+                        </span>
                         <input
                           type="color"
                           value={displayColor}
@@ -500,22 +673,17 @@ export default function AppMapping({
                           className="h-7 w-7 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-0.5 disabled:cursor-not-allowed"
                           title="应用颜色"
                         />
-                        <div className="flex items-center gap-1">
-                          {APP_COLOR_SWATCHES.map((swatch) => (
-                            <button
-                              key={swatch}
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => void handleColorAssign(candidate, swatch)}
-                              className="h-3.5 w-3.5 rounded-full border border-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-                              style={{
-                                backgroundColor: swatch,
-                                outline: displayColor === swatch ? "2px solid #334155" : "none",
-                              }}
-                              title={swatch}
-                            />
-                          ))}
-                        </div>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void handleColorAssign(candidate, null)}
+                          className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            hasManualColor ? "text-slate-400 hover:text-slate-600" : "text-slate-300"
+                          }`}
+                          title="恢复默认颜色"
+                        >
+                          默认
+                        </button>
                       </div>
 
                       <select
@@ -525,17 +693,11 @@ export default function AppMapping({
                         onChange={(event) => void handleCategoryAssign(candidate, event.target.value)}
                       >
                         <option value={AUTO_CATEGORY_VALUE}>自动识别</option>
-                        {CATEGORY_OPTIONS.map((category) => (
+                        {orderedAssignableCategories.map((category) => (
                           <option key={category} value={category}>
                             {ProcessMapper.getCategoryLabel(category)}
                           </option>
                         ))}
-                        {customCategoryOptions.map((category) => (
-                          <option key={category} value={category}>
-                            {ProcessMapper.getCategoryLabel(category)}
-                          </option>
-                        ))}
-                        <option value={CREATE_CUSTOM_CATEGORY_VALUE}>+ 新建分类...</option>
                       </select>
 
                       </div>
@@ -581,10 +743,10 @@ export default function AppMapping({
                           disabled={isBusy}
                           onClick={() => void handleDeleteAllSessions(candidate)}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="删除该应用全部历史记录"
+                          title="删除应用记录"
                         >
                           <Trash2 size={12} />
-                          删除全部历史记录
+                          删除应用记录
                         </button>
                       </div>
                     </div>
@@ -596,6 +758,44 @@ export default function AppMapping({
           </div>
         )}
       </div>
+
+      {showCategoryDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="w-full max-w-5xl rounded-2xl border border-white/70 bg-white/95 p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">分类控制</h3>
+                <p className="text-xs text-slate-500">在这里新建分类并调整分类主色</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateCustomCategory()}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  + 新建分类
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryDialog(false)}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                  title="关闭"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto pr-1">
+              <CategoryColorControls
+                categories={colorControlCategories}
+                busyCategory={categoryApplying}
+                onApplyColor={applyCategoryColor}
+                onDeleteCategory={handleDeleteCategory}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

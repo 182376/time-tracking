@@ -1,6 +1,7 @@
-import {
+﻿import {
   buildCustomCategory,
   getCategoryToken,
+  isAppCategory,
   isCustomCategory,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
@@ -119,6 +120,27 @@ function normalizeHexColor(color: string | undefined): string | null {
   return normalized.toUpperCase();
 }
 
+function normalizeCategoryColorOverrides(
+  overrides: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (!overrides) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [category, colorValue] of Object.entries(overrides)) {
+    if (!isAppCategory(category)) {
+      continue;
+    }
+    const color = normalizeHexColor(colorValue);
+    if (!color) {
+      continue;
+    }
+    normalized[category] = color;
+  }
+  return normalized;
+}
+
 function buildSearchText(canonicalExe: string, hints: MappingHints) {
   return [
     canonicalExe,
@@ -136,6 +158,28 @@ function classifyByKeywords(canonicalExe: string, hints: MappingHints): AppCateg
     if (rule.keywords.some((keyword) => searchText.includes(keyword))) {
       return rule.category;
     }
+  }
+
+  return null;
+}
+
+function normalizeUserAssignableCategory(category: string | undefined): UserAssignableAppCategory | null {
+  const normalized = (category ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  // Backward compatibility for previously introduced fixed "custom" value.
+  if (normalized === "custom") {
+    return buildCustomCategory("自定义");
+  }
+
+  if (isCustomCategory(normalized)) {
+    return buildCustomCategory(normalized.slice("custom:".length));
+  }
+
+  if (USER_ASSIGNABLE_CATEGORY_SET.has(normalized)) {
+    return normalized as UserAssignableAppCategory;
   }
 
   return null;
@@ -180,37 +224,29 @@ function normalizeOverride(override: AppOverride | null | undefined): AppOverrid
   return hasMeaningfulOverride ? normalized : null;
 }
 
-function normalizeUserAssignableCategory(category: string | undefined): UserAssignableAppCategory | null {
-  const normalized = (category ?? "").trim();
-  if (!normalized) {
-    return null;
-  }
-
-  // Backward compatibility for previously introduced fixed "custom" value.
-  if (normalized === "custom") {
-    return buildCustomCategory("自定义");
-  }
-
-  if (isCustomCategory(normalized)) {
-    return buildCustomCategory(normalized.slice("custom:".length));
-  }
-
-  if (USER_ASSIGNABLE_CATEGORY_SET.has(normalized)) {
-    return normalized as UserAssignableAppCategory;
-  }
-
-  return null;
-}
-
 function resolveCategoryColor(category: AppCategory) {
-  return getCategoryToken(category).color;
+  return ProcessMapper.getCategoryColor(category);
 }
 
 export class ProcessMapper {
   private static userOverrides: Record<string, AppOverride> = {};
+  private static categoryColorOverrides: Record<string, string> = {};
+  private static deletedCategories = new Set<AppCategory>();
 
   static getUserAssignableCategories() {
     return [...USER_ASSIGNABLE_CATEGORIES];
+  }
+
+  static setDeletedCategories(categories: AppCategory[]) {
+    this.deletedCategories = new Set(categories);
+  }
+
+  static getDeletedCategories(): AppCategory[] {
+    return Array.from(this.deletedCategories);
+  }
+
+  static isCategoryDeleted(category: AppCategory): boolean {
+    return this.deletedCategories.has(category);
   }
 
   static getCategoryLabel(category: AppCategory) {
@@ -218,7 +254,32 @@ export class ProcessMapper {
   }
 
   static getCategoryColor(category: AppCategory) {
-    return resolveCategoryColor(category);
+    return this.categoryColorOverrides[category] ?? this.getDefaultCategoryColor(category);
+  }
+
+  static getDefaultCategoryColor(category: AppCategory) {
+    return getCategoryToken(category).color;
+  }
+
+  static getCategoryColorOverride(category: AppCategory): string | null {
+    return this.categoryColorOverrides[category] ?? null;
+  }
+
+  static setCategoryColorOverrides(overrides: Record<string, string>) {
+    this.categoryColorOverrides = normalizeCategoryColorOverrides(overrides);
+  }
+
+  static setCategoryColorOverride(category: AppCategory, colorValue?: string | null) {
+    const color = normalizeHexColor(colorValue ?? undefined);
+    if (!color) {
+      delete this.categoryColorOverrides[category];
+      return;
+    }
+    this.categoryColorOverrides[category] = color;
+  }
+
+  static clearCategoryColorOverrides() {
+    this.categoryColorOverrides = {};
   }
 
   static setUserOverrides(overrides: Record<string, AppOverride>) {
@@ -256,6 +317,19 @@ export class ProcessMapper {
     return this.userOverrides[canonicalExe] ?? null;
   }
 
+  private static resolveActiveCategory(category: AppCategory): AppCategory {
+    if (!this.deletedCategories.has(category)) {
+      return category;
+    }
+
+    if (category === "system") {
+      return "system";
+    }
+
+    const fallback = USER_ASSIGNABLE_CATEGORIES.find((item) => !this.deletedCategories.has(item));
+    return (fallback ?? "other") as AppCategory;
+  }
+
   static map(exeName: string, hints: MappingHints = {}): AppInfo {
     const canonicalExe = resolveCanonicalExecutable(exeName);
     const defaultMapping = DEFAULT_APP_MAPPINGS[canonicalExe];
@@ -269,7 +343,8 @@ export class ProcessMapper {
     );
 
     if (defaultMapping) {
-      const category = override?.category ?? defaultMapping.category;
+      const mappedCategory = override?.category ?? defaultMapping.category;
+      const category = this.resolveActiveCategory(mappedCategory);
       const name = override?.displayName || normalizeDisplayName(hints.appName) || defaultMapping.name;
       return {
         name,
@@ -283,7 +358,8 @@ export class ProcessMapper {
     const categoryByRule = classifyByKeywords(canonicalExe, hints);
     const fallbackName = formatFallbackName(canonicalExe) || canonicalExe;
     const resolvedName = override?.displayName || normalizeDisplayName(hints.appName) || fallbackName;
-    const resolvedCategory = override?.category ?? categoryByRule ?? "other";
+    const rawCategory = override?.category ?? categoryByRule ?? "other";
+    const resolvedCategory = this.resolveActiveCategory(rawCategory);
 
     return {
       name: resolvedName,

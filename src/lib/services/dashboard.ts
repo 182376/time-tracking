@@ -1,6 +1,6 @@
 import type { AppStat } from "../../types/app";
 import type { HistorySession } from "../db.ts";
-import { getCategoryToken, type AppCategory } from "../config/categoryTokens.ts";
+import type { AppCategory } from "../config/categoryTokens.ts";
 import { ProcessMapper } from "../ProcessMapper.ts";
 
 export interface HourlyActivityPoint {
@@ -100,9 +100,9 @@ export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] 
   return Array.from(categories.entries())
     .map(([cat, val]) => ({
       category: cat,
-      name: getCategoryToken(cat).label,
+      name: ProcessMapper.getCategoryLabel(cat),
       value: val,
-      color: getCategoryToken(cat).color,
+      color: ProcessMapper.getCategoryColor(cat),
     }))
     .sort((a, b) => b.value - a.value);
 }

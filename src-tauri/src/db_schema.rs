@@ -44,6 +44,22 @@ pub const MIGRATION_3_SQL: &str = "
     WHERE end_time IS NULL;
 ";
 
+// Compatibility no-op migration for environments that already recorded v4.
+// Keeping this version prevents startup failure when migration history exists.
+pub const MIGRATION_4_SQL: &str = "
+    SELECT 1;
+";
+
+// Compatibility no-op migration for environments that already recorded v5.
+pub const MIGRATION_5_SQL: &str = "
+    SELECT 1;
+";
+
+// Compatibility no-op migration for environments that already recorded v6.
+pub const MIGRATION_6_SQL: &str = "
+    SELECT 1;
+";
+
 pub fn tracker_migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -62,6 +78,24 @@ pub fn tracker_migrations() -> Vec<Migration> {
             version: 3,
             description: "dedupe_active_sessions_and_enforce_single_active",
             sql: MIGRATION_3_SQL,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "compatibility_noop_for_existing_v4_history",
+            sql: MIGRATION_4_SQL,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 5,
+            description: "compatibility_noop_for_existing_v5_history",
+            sql: MIGRATION_5_SQL,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "compatibility_noop_for_existing_v6_history",
+            sql: MIGRATION_6_SQL,
             kind: MigrationKind::Up,
         },
     ]

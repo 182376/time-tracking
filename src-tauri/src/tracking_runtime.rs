@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicI64, Ordering},
     Arc,
@@ -508,6 +509,8 @@ fn should_track(exe_name: &str) -> bool {
     if matches!(
         lower_name.as_str(),
         "time_tracker.exe"
+            | "time-tracker.exe"
+            | "un.exe"
             | "powershell.exe"
             | "pwsh.exe"
             | "cmd.exe"
@@ -521,6 +524,7 @@ fn should_track(exe_name: &str) -> bool {
             | "searchhost.exe"
             | "searchapp.exe"
             | "searchindexer.exe"
+            | "shellhost.exe"
             | "shellexperiencehost.exe"
             | "startmenuexperiencehost.exe"
             | "applicationframehost.exe"
@@ -853,10 +857,6 @@ async fn ensure_icon_cache(
     exe_name: &str,
     process_path: &str,
 ) -> Result<(), sqlx::Error> {
-    if process_path.is_empty() {
-        return Ok(());
-    }
-
     let already_cached = sqlx::query("SELECT exe_name FROM icon_cache WHERE exe_name = ? LIMIT 1")
         .bind(exe_name)
         .fetch_optional(pool)
@@ -867,7 +867,11 @@ async fn ensure_icon_cache(
         return Ok(());
     }
 
-    let Some(base64_icon) = icon_extractor::get_icon_base64(process_path) else {
+    let Some(icon_source_path) = resolve_icon_source_path(process_path, exe_name) else {
+        return Ok(());
+    };
+
+    let Some(base64_icon) = icon_extractor::get_icon_base64(&icon_source_path) else {
         return Ok(());
     };
 
@@ -885,6 +889,46 @@ async fn ensure_icon_cache(
     .await?;
 
     Ok(())
+}
+
+fn resolve_icon_source_path(process_path: &str, exe_name: &str) -> Option<String> {
+    let trimmed_path = process_path.trim();
+    if !trimmed_path.is_empty() {
+        return Some(trimmed_path.to_string());
+    }
+
+    let exe = exe_name.trim();
+    if exe.is_empty() {
+        return None;
+    }
+
+    // Fallback order when tracker cannot resolve process_path:
+    // 1) App execution aliases (WindowsApps, common for Photos and Store apps)
+    // 2) System paths
+    // 3) Raw exe name as last attempt
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        candidates.push(
+            Path::new(&local_app_data)
+                .join("Microsoft")
+                .join("WindowsApps")
+                .join(exe),
+        );
+    }
+
+    if let Ok(windows_dir) = std::env::var("WINDIR") {
+        candidates.push(Path::new(&windows_dir).join("System32").join(exe));
+        candidates.push(Path::new(&windows_dir).join(exe));
+    }
+
+    for path in candidates {
+        if path.is_file() {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+
+    Some(exe.to_string())
 }
 
 fn map_app_name(exe_name: &str, process_path: &str) -> String {
@@ -1194,7 +1238,10 @@ mod tests {
     fn lock_screen_processes_are_not_trackable() {
         assert!(!should_track("LockApp.exe"));
         assert!(!should_track("LogonUI.exe"));
+        assert!(!should_track("time-tracker.exe"));
+        assert!(!should_track("un.exe"));
         assert!(!should_track("SearchHost.exe"));
+        assert!(!should_track("ShellHost.exe"));
         assert!(!should_track("ShellExperienceHost.exe"));
         assert!(!should_track("Consent.exe"));
         assert!(!should_track("PickerHost.exe"));

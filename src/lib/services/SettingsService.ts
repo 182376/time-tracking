@@ -1,21 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   clearAllAppOverrides,
+  clearAllCategoryColorOverrides,
   clearAllWindowTitles,
   clearSessionsBefore,
   deleteObservedAppSessions,
   loadAppOverrides,
+  loadCategoryColorOverrides,
+  loadCustomCategories,
+  loadDeletedCategories,
   loadObservedAppCandidates,
   loadOtherCategoryCandidates,
   loadTrackerHealthTimestamp,
   loadSettings,
   saveAppOverride,
+  saveCategoryColorOverride,
+  saveCustomCategory,
+  saveDeletedCategory,
+  deleteCustomCategory,
   saveSetting,
   type AppSettings,
   type ObservedAppCandidate,
   type OtherCategoryCandidate,
 } from "../settings";
 import type { AppOverride } from "../ProcessMapper.ts";
+import type { AppCategory, CustomAppCategory } from "../config/categoryTokens.ts";
 import { TrackingService } from "./TrackingService";
 
 export interface BackupPreview {
@@ -67,6 +76,38 @@ export class SettingsService {
     await clearAllAppOverrides();
   }
 
+  static async loadCategoryColorOverrides() {
+    return loadCategoryColorOverrides();
+  }
+
+  static async saveCategoryColorOverride(category: AppCategory, colorValue: string | null) {
+    await saveCategoryColorOverride(category, colorValue);
+  }
+
+  static async clearAllCategoryColorOverrides() {
+    await clearAllCategoryColorOverrides();
+  }
+
+  static async loadCustomCategories() {
+    return loadCustomCategories();
+  }
+
+  static async saveCustomCategory(category: CustomAppCategory) {
+    await saveCustomCategory(category);
+  }
+
+  static async deleteCustomCategory(category: CustomAppCategory) {
+    await deleteCustomCategory(category);
+  }
+
+  static async loadDeletedCategories() {
+    return loadDeletedCategories();
+  }
+
+  static async saveDeletedCategory(category: AppCategory, deleted: boolean) {
+    await saveDeletedCategory(category, deleted);
+  }
+
   static async loadOtherCategoryCandidates(days: number = 30, limit: number = 30): Promise<OtherCategoryCandidate[]> {
     return loadOtherCategoryCandidates(days, limit);
   }
@@ -89,14 +130,6 @@ export class SettingsService {
 
   static async previewBackup(path: string): Promise<BackupPreview> {
     return invoke<BackupPreview>("cmd_preview_backup", { backupPath: path });
-  }
-
-  static async pickDiagnosticSaveFile(initialPath?: string): Promise<string | null> {
-    return invoke<string | null>("cmd_pick_diagnostic_save_file", { initialPath: initialPath ?? null });
-  }
-
-  static async exportDiagnosticBundle(path?: string): Promise<string> {
-    return invoke<string>("cmd_export_diagnostic_bundle", { diagnosticPath: path ?? null });
   }
 
   static async pickBackupSaveFile(initialPath?: string): Promise<string | null> {

@@ -1,5 +1,11 @@
 import { getDB } from './db';
 import { ProcessMapper, type AppOverride } from './ProcessMapper.ts';
+import {
+  isAppCategory,
+  isCustomCategory,
+  type AppCategory,
+  type CustomAppCategory,
+} from './config/categoryTokens.ts';
 import { resolveCanonicalExecutable, shouldTrackProcess } from './processNormalization.ts';
 
 export type CloseBehavior = "exit" | "tray";
@@ -32,6 +38,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
 const APP_OVERRIDE_KEY_PREFIX = "__app_override::";
+const CATEGORY_COLOR_OVERRIDE_KEY_PREFIX = "__category_color_override::";
+const CUSTOM_CATEGORY_KEY_PREFIX = "__custom_category::";
+const DELETED_CATEGORY_KEY_PREFIX = "__deleted_category::";
 const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
 const REFRESH_INTERVAL_OPTIONS = [1];
 const MIN_SESSION_OPTIONS = [30, 60, 180, 300, 600];
@@ -53,6 +62,18 @@ export interface ObservedAppCandidate {
 }
 
 type DeleteAppSessionScope = "today" | "all";
+
+function normalizeHexColor(colorValue: string | undefined): string | null {
+  const raw = (colorValue ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  const normalized = raw.startsWith("#") ? raw : `#${raw}`;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return null;
+  }
+  return normalized.toUpperCase();
+}
 
 function parseNumberSetting(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -210,6 +231,108 @@ export const clearAllAppOverrides = async (): Promise<void> => {
   await db.execute('DELETE FROM settings WHERE key LIKE ?', [`${APP_OVERRIDE_KEY_PREFIX}%`]);
 };
 
+export const loadCategoryColorOverrides = async (): Promise<Record<string, string>> => {
+  const db = await getDB();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    'SELECT key, value FROM settings WHERE key LIKE ?',
+    [`${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}%`],
+  );
+
+  const overrides: Record<string, string> = {};
+  for (const row of rows) {
+    const category = row.key.slice(CATEGORY_COLOR_OVERRIDE_KEY_PREFIX.length);
+    if (!isAppCategory(category)) {
+      continue;
+    }
+    const color = normalizeHexColor(row.value);
+    if (!color) {
+      continue;
+    }
+    overrides[category] = color;
+  }
+
+  return overrides;
+};
+
+export const saveCategoryColorOverride = async (
+  category: AppCategory,
+  colorValue: string | null,
+): Promise<void> => {
+  const key = `${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}${category}`;
+  const db = await getDB();
+  const normalizedColor = normalizeHexColor(colorValue ?? undefined);
+  if (!normalizedColor) {
+    await db.execute('DELETE FROM settings WHERE key = ?', [key]);
+    return;
+  }
+
+  await upsertSettingValue(key, normalizedColor);
+};
+
+export const clearAllCategoryColorOverrides = async (): Promise<void> => {
+  const db = await getDB();
+  await db.execute('DELETE FROM settings WHERE key LIKE ?', [`${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}%`]);
+};
+
+export const loadCustomCategories = async (): Promise<CustomAppCategory[]> => {
+  const db = await getDB();
+  const rows = await db.select<{ key: string }[]>(
+    'SELECT key FROM settings WHERE key LIKE ?',
+    [`${CUSTOM_CATEGORY_KEY_PREFIX}%`],
+  );
+
+  const categories = new Set<CustomAppCategory>();
+  for (const row of rows) {
+    const category = row.key.slice(CUSTOM_CATEGORY_KEY_PREFIX.length);
+    if (!isCustomCategory(category)) {
+      continue;
+    }
+    categories.add(category);
+  }
+
+  return Array.from(categories);
+};
+
+export const saveCustomCategory = async (category: CustomAppCategory): Promise<void> => {
+  const key = `${CUSTOM_CATEGORY_KEY_PREFIX}${category}`;
+  await upsertSettingValue(key, String(Date.now()));
+};
+
+export const deleteCustomCategory = async (category: CustomAppCategory): Promise<void> => {
+  const db = await getDB();
+  await db.execute("DELETE FROM settings WHERE key = ?", [`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`]);
+  await db.execute("DELETE FROM settings WHERE key = ?", [`${DELETED_CATEGORY_KEY_PREFIX}${category}`]);
+};
+
+export const loadDeletedCategories = async (): Promise<AppCategory[]> => {
+  const db = await getDB();
+  const rows = await db.select<{ key: string }[]>(
+    "SELECT key FROM settings WHERE key LIKE ?",
+    [`${DELETED_CATEGORY_KEY_PREFIX}%`],
+  );
+
+  const categories = new Set<AppCategory>();
+  for (const row of rows) {
+    const category = row.key.slice(DELETED_CATEGORY_KEY_PREFIX.length);
+    if (!isAppCategory(category)) {
+      continue;
+    }
+    categories.add(category);
+  }
+
+  return Array.from(categories);
+};
+
+export const saveDeletedCategory = async (category: AppCategory, deleted: boolean): Promise<void> => {
+  const key = `${DELETED_CATEGORY_KEY_PREFIX}${category}`;
+  const db = await getDB();
+  if (!deleted) {
+    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    return;
+  }
+  await upsertSettingValue(key, String(Date.now()));
+};
+
 export const loadOtherCategoryCandidates = async (
   days: number = 30,
   limit: number = 30,
@@ -253,6 +376,9 @@ export const loadObservedAppCandidates = async (
     }
 
     const mapped = ProcessMapper.map(canonicalExe, { appName: row.app_name });
+    if (mapped.category === "system") {
+      continue;
+    }
     const previous = merged.get(canonicalExe);
     const duration = Math.max(0, Number(row.total_duration ?? 0));
     const lastSeenMs = Math.max(0, Number(row.last_seen_ms ?? 0));

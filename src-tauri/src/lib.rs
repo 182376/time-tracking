@@ -31,7 +31,6 @@ const LAUNCH_AT_LOGIN_KEY: &str = "launch_at_login";
 const START_MINIMIZED_KEY: &str = "start_minimized";
 const AUTOSTART_ARG: &str = "--autostart";
 const BACKUP_FILE_EXT: &str = "ttbackup.json";
-const DIAGNOSTIC_FILE_EXT: &str = "diagnostic.json";
 const CURRENT_BACKUP_VERSION: u32 = 1;
 const CURRENT_BACKUP_SCHEMA_VERSION: u32 = 3;
 
@@ -188,29 +187,6 @@ struct BackupPreview {
     icon_cache_count: usize,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct DiagnosticRecentSession {
-    id: i64,
-    exe_name: String,
-    start_time: i64,
-    end_time: Option<i64>,
-    duration: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct DiagnosticBundle {
-    generated_at_ms: u64,
-    app_version: String,
-    os: String,
-    arch: String,
-    session_count: i64,
-    active_session_count: i64,
-    icon_cache_count: i64,
-    earliest_session_start_ms: Option<i64>,
-    latest_session_end_ms: Option<i64>,
-    key_settings: Vec<BackupSetting>,
-    recent_sessions: Vec<DiagnosticRecentSession>,
-}
 
 #[tauri::command]
 fn get_icon(exe_path: String) -> Option<String> {
@@ -261,10 +237,6 @@ fn backup_file_name() -> String {
     format!("time-tracker-backup-{timestamp}.{BACKUP_FILE_EXT}")
 }
 
-fn diagnostic_file_name() -> String {
-    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    format!("time-tracker-{timestamp}.{DIAGNOSTIC_FILE_EXT}")
-}
 
 fn resolve_backup_path<R: Runtime>(
     app: &AppHandle<R>,
@@ -296,46 +268,6 @@ fn resolve_backup_path<R: Runtime>(
     Ok(path)
 }
 
-fn default_diagnostic_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("failed to resolve app data dir: {error}"))?;
-    let diagnostic_dir = app_data_dir.join("diagnostics");
-    fs::create_dir_all(&diagnostic_dir)
-        .map_err(|error| format!("failed to create diagnostics dir: {error}"))?;
-    Ok(diagnostic_dir.join(diagnostic_file_name()))
-}
-
-fn resolve_diagnostic_path<R: Runtime>(
-    app: &AppHandle<R>,
-    raw_path: Option<String>,
-) -> Result<PathBuf, String> {
-    let Some(raw_path) = raw_path.map(|value| value.trim().to_string()) else {
-        return default_diagnostic_path(app);
-    };
-
-    if raw_path.is_empty() {
-        return default_diagnostic_path(app);
-    }
-
-    let mut path = PathBuf::from(&raw_path);
-    let ends_with_separator = raw_path.ends_with('\\') || raw_path.ends_with('/');
-    if path.is_dir() || ends_with_separator {
-        fs::create_dir_all(&path)
-            .map_err(|error| format!("failed to create diagnostics target dir: {error}"))?;
-        path = path.join(diagnostic_file_name());
-    }
-
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)
-                .map_err(|error| format!("failed to create diagnostics parent dir: {error}"))?;
-        }
-    }
-
-    Ok(path)
-}
 
 async fn load_backup_payload<R: Runtime>(
     app: &AppHandle<R>,
@@ -446,18 +378,6 @@ fn cmd_pick_backup_file(initial_path: Option<String>) -> Option<String> {
         .map(|path| path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
-fn cmd_pick_diagnostic_save_file(initial_path: Option<String>) -> Option<String> {
-    let mut dialog = rfd::FileDialog::new().add_filter("Diagnostic files", &["json"]);
-    if let Some(dir) = resolve_dialog_directory(initial_path) {
-        dialog = dialog.set_directory(dir);
-    }
-    dialog = dialog.set_file_name(&diagnostic_file_name());
-
-    dialog
-        .save_file()
-        .map(|path| path.to_string_lossy().to_string())
-}
 
 fn decode_backup_payload(raw_json: &str, source_path: &Path) -> Result<BackupPayload, String> {
     let payload = serde_json::from_str::<BackupPayload>(raw_json).map_err(|error| {
@@ -651,105 +571,6 @@ async fn cmd_preview_backup(backup_path: String) -> Result<BackupPreview, String
         setting_count: payload.settings.len(),
         icon_cache_count: payload.icon_cache.len(),
     })
-}
-
-async fn build_diagnostic_bundle<R: Runtime>(app: &AppHandle<R>) -> Result<DiagnosticBundle, String> {
-    let pool = wait_for_sqlite_pool(app).await?;
-    let session_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sessions")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("failed to count sessions: {error}"))?;
-    let active_session_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE end_time IS NULL")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("failed to count active sessions: {error}"))?;
-    let icon_cache_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM icon_cache")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("failed to count icon cache: {error}"))?;
-    let earliest_session_start_ms: Option<i64> = sqlx::query_scalar("SELECT MIN(start_time) FROM sessions")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("failed to query earliest session: {error}"))?;
-    let latest_session_end_ms: Option<i64> = sqlx::query_scalar("SELECT MAX(COALESCE(end_time, start_time)) FROM sessions")
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("failed to query latest session: {error}"))?;
-
-    let setting_rows = sqlx::query("SELECT key, value FROM settings ORDER BY key ASC")
-        .fetch_all(&pool)
-        .await
-        .map_err(|error| format!("failed to read settings for diagnostics: {error}"))?;
-    let key_whitelist = [
-        "afk_timeout_secs",
-        "refresh_interval_secs",
-        "min_session_secs",
-        "tracking_paused",
-        "close_behavior",
-        "minimize_behavior",
-        "launch_at_login",
-        "start_minimized",
-        "__tracker_last_heartbeat_ms",
-        "__tracker_last_successful_sample_ms",
-        "__tracker_last_startup_self_heal_at_ms",
-        "__tracker_last_startup_self_heal_summary",
-    ];
-    let key_settings = setting_rows
-        .into_iter()
-        .map(|row| BackupSetting {
-            key: row.get("key"),
-            value: row.get("value"),
-        })
-        .filter(|item| key_whitelist.contains(&item.key.as_str()))
-        .collect::<Vec<_>>();
-
-    let recent_rows = sqlx::query(
-        "SELECT id, exe_name, start_time, end_time, duration
-         FROM sessions
-         ORDER BY start_time DESC, id DESC
-         LIMIT 20",
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|error| format!("failed to read recent sessions for diagnostics: {error}"))?;
-    let recent_sessions = recent_rows
-        .into_iter()
-        .map(|row| DiagnosticRecentSession {
-            id: row.get("id"),
-            exe_name: row.get("exe_name"),
-            start_time: row.get("start_time"),
-            end_time: row.get("end_time"),
-            duration: row.get("duration"),
-        })
-        .collect::<Vec<_>>();
-
-    Ok(DiagnosticBundle {
-        generated_at_ms: now_ms(),
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
-        os: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        session_count,
-        active_session_count,
-        icon_cache_count,
-        earliest_session_start_ms,
-        latest_session_end_ms,
-        key_settings,
-        recent_sessions,
-    })
-}
-
-#[tauri::command]
-async fn cmd_export_diagnostic_bundle(
-    diagnostic_path: Option<String>,
-    app: AppHandle,
-) -> Result<String, String> {
-    let payload = build_diagnostic_bundle(&app).await?;
-    let target_path = resolve_diagnostic_path(&app, diagnostic_path)?;
-    let serialized = serde_json::to_string_pretty(&payload)
-        .map_err(|error| format!("failed to serialize diagnostic bundle: {error}"))?;
-    fs::write(&target_path, serialized)
-        .map_err(|error| format!("failed to write diagnostic file: {error}"))?;
-    Ok(target_path.to_string_lossy().to_string())
 }
 
 fn parse_close_behavior(raw: &str) -> CloseBehavior {
@@ -952,7 +773,7 @@ fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
-        .tooltip("时间追踪")
+        .tooltip("Time Tracker")
         .show_menu_on_left_click(true);
 
     if let Some(icon) = app.default_window_icon().cloned() {
@@ -1079,10 +900,8 @@ pub fn run() {
             cmd_set_launch_behavior,
             cmd_pick_backup_save_file,
             cmd_pick_backup_file,
-            cmd_pick_diagnostic_save_file,
             cmd_preview_backup,
             cmd_export_backup,
-            cmd_export_diagnostic_bundle,
             cmd_restore_backup
         ])
         .on_menu_event(handle_menu_event)

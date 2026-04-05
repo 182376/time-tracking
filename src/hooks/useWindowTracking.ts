@@ -58,19 +58,15 @@ export function useWindowTracking() {
 
         setAppSettings(settings);
         await TrackingService.setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
-        await TrackingService.setDesktopBehavior(
-          settings.close_behavior,
-          settings.minimize_behavior,
-        ).catch(console.warn);
-        await TrackingService.setLaunchBehavior(
-          settings.launch_at_login,
-          settings.start_minimized,
-        ).catch(console.warn);
         if (cancelled) return;
 
-        const overrides = await SettingsService.loadAppOverrides();
+        const [overrides, categoryColorOverrides] = await Promise.all([
+          SettingsService.loadAppOverrides(),
+          SettingsService.loadCategoryColorOverrides(),
+        ]);
         if (!cancelled) {
           ProcessMapper.setUserOverrides(overrides);
+          ProcessMapper.setCategoryColorOverrides(categoryColorOverrides);
         }
 
         const currentWin = await TrackingService.getCurrentWindow();

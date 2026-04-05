@@ -49,26 +49,12 @@ const LIFECYCLE_ALIAS_PATTERN = LIFECYCLE_ALIAS_MARKERS.join("|");
 const NON_TRACKABLE_EXE_NAMES = new Set([
   "",
   "time_tracker.exe",
-  "searchhost.exe",
-  "searchapp.exe",
-  "searchindexer.exe",
-  "shellexperiencehost.exe",
-  "startmenuexperiencehost.exe",
-  "applicationframehost.exe",
-  "textinputhost.exe",
-  "runtimebroker.exe",
-  "taskhostw.exe",
-  "consent.exe",
-  "lockapp.exe",
-  "logonui.exe",
-  "sihost.exe",
-  "dwm.exe",
-  "ctfmon.exe",
-  "fontdrvhost.exe",
-  "securityhealthsystray.exe",
-  "smartscreen.exe",
-  "winlogon.exe",
-  "userinit.exe",
+  "time_tracker",
+]);
+
+// Keep a tiny frontend read-model guard so historical rows containing known
+// Windows shell/system hosts do not reappear in user-facing stats.
+const READ_MODEL_BLOCKED_EXE_NAMES = new Set([
   "pickerhost.exe",
   "pickerhost",
 ]);
@@ -197,13 +183,19 @@ export function shouldTrackProcess(exeName: string) {
   const canonicalExe = resolveCanonicalExecutable(exeName);
   if (!canonicalExe) return false;
   if (NON_TRACKABLE_EXE_NAMES.has(canonicalExe)) return false;
+  if (READ_MODEL_BLOCKED_EXE_NAMES.has(canonicalExe)) return false;
 
   if (canonicalExe.endsWith(".exe")) {
     const withoutExe = canonicalExe.slice(0, -4);
     if (NON_TRACKABLE_EXE_NAMES.has(withoutExe)) {
       return false;
     }
+    if (READ_MODEL_BLOCKED_EXE_NAMES.has(withoutExe)) {
+      return false;
+    }
   }
 
+  // Runtime filtering in Rust remains the source of truth for live tracking.
+  // Frontend only keeps this minimal guard for historical data safety.
   return true;
 }
