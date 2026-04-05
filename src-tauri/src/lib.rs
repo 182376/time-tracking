@@ -216,6 +216,11 @@ fn default_backup_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String
     Ok(backup_dir.join(format!("time-tracker-backup-{timestamp}.{BACKUP_FILE_EXT}")))
 }
 
+fn backup_file_name() -> String {
+    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    format!("time-tracker-backup-{timestamp}.{BACKUP_FILE_EXT}")
+}
+
 fn resolve_backup_path<R: Runtime>(
     app: &AppHandle<R>,
     raw_path: Option<String>,
@@ -228,7 +233,14 @@ fn resolve_backup_path<R: Runtime>(
         return default_backup_path(app);
     }
 
-    let path = PathBuf::from(raw_path);
+    let mut path = PathBuf::from(&raw_path);
+    let ends_with_separator = raw_path.ends_with('\\') || raw_path.ends_with('/');
+    if path.is_dir() || ends_with_separator {
+        fs::create_dir_all(&path)
+            .map_err(|error| format!("failed to create backup target dir: {error}"))?;
+        path = path.join(backup_file_name());
+    }
+
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)
@@ -301,6 +313,51 @@ async fn load_backup_payload<R: Runtime>(
         settings,
         icon_cache,
     })
+}
+
+fn resolve_dialog_directory(initial_path: Option<String>) -> Option<PathBuf> {
+    let raw = initial_path?.trim().to_string();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let path = PathBuf::from(raw);
+    if path.is_dir() {
+        return Some(path);
+    }
+
+    path.parent().and_then(|parent| {
+        if parent.as_os_str().is_empty() {
+            None
+        } else {
+            Some(parent.to_path_buf())
+        }
+    })
+}
+
+#[tauri::command]
+fn cmd_pick_backup_save_file(initial_path: Option<String>) -> Option<String> {
+    let mut dialog = rfd::FileDialog::new().add_filter("Backup files", &["json", "ttbackup"]);
+    if let Some(dir) = resolve_dialog_directory(initial_path) {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog = dialog.set_file_name(&backup_file_name());
+
+    dialog
+        .save_file()
+        .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn cmd_pick_backup_file(initial_path: Option<String>) -> Option<String> {
+    let mut dialog = rfd::FileDialog::new().add_filter("Backup files", &["json", "ttbackup"]);
+    if let Some(dir) = resolve_dialog_directory(initial_path) {
+        dialog = dialog.set_directory(dir);
+    }
+
+    dialog
+        .pick_file()
+        .map(|path| path.to_string_lossy().to_string())
 }
 
 fn parse_backup_payload(raw_json: &str, source_path: &Path) -> Result<BackupPayload, String> {
@@ -753,6 +810,8 @@ pub fn run() {
             tracker::cmd_set_afk_timeout,
             cmd_set_desktop_behavior,
             cmd_set_launch_behavior,
+            cmd_pick_backup_save_file,
+            cmd_pick_backup_file,
             cmd_export_backup,
             cmd_restore_backup
         ])

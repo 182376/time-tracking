@@ -396,6 +396,7 @@ export function buildTimelineSessions(
           current.sourceIds = [...current.sourceIds, ...nextCandidate.sourceIds];
           current.diagnosticCodes = mergeDiagnosticCodes(current.diagnosticCodes, nextCandidate.diagnosticCodes);
           current.suspiciousDuration += nextCandidate.suspiciousDuration;
+          current.isLive = current.isLive || nextCandidate.isLive;
           current.displayTitle = summarizeTitleSamples(current.titleSamples);
           current.window_title = current.displayTitle;
           i = j;

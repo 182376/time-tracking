@@ -74,4 +74,12 @@ export class SettingsService {
   static async restoreBackup(path: string): Promise<void> {
     await invoke("cmd_restore_backup", { backupPath: path });
   }
+
+  static async pickBackupSaveFile(initialPath?: string): Promise<string | null> {
+    return invoke<string | null>("cmd_pick_backup_save_file", { initialPath: initialPath ?? null });
+  }
+
+  static async pickBackupFile(initialPath?: string): Promise<string | null> {
+    return invoke<string | null>("cmd_pick_backup_file", { initialPath: initialPath ?? null });
+  }
 }

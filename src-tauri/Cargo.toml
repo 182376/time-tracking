@@ -30,3 +30,4 @@ chrono = "0.4.44"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "time"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+rfd = "0.15.4"

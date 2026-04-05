@@ -24,7 +24,6 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **History and analytics**: Includes daily app rankings, hourly activity, 7-day trends, and a session timeline view.
 - **Desktop behavior controls**: Close/minimize behavior, launch at login, and start-minimized behavior are configurable with tray behavior kept consistent.
 - **Backup & restore**: Export local backup (`sessions`, `settings`, `icon_cache`) and restore with overwrite confirmation and transactional rollback safety.
-- **First-run onboarding**: A focused first-use modal guides close/minimize/autostart choices and persists `onboarding_completed`.
 - **Stale tracker soft hint + toasts**: Non-blocking stale warning and lightweight toasts for key actions.
 - **Data cleanup tools**: Old records can be cleared by retention range such as 7, 15, 30, 60, 90, or 180 days.
 - **Polished desktop UI**: Built with Tailwind CSS, Framer Motion, and Recharts.
@@ -37,7 +36,6 @@ It watches the active window on Windows, records app sessions locally, and turns
 - **History cleanup**: delete records older than `7 / 15 / 30 / 60 / 90 / 180` days
 - **App mapping controls**: per-app rename/category/color overrides, exclude from stats, title capture toggle, reset to auto-recognition, and per-app full-history deletion
 - **Backup controls**: export backup file and restore from backup file
-- **Onboarding flag**: `onboarding_completed`
 
 ## Current Timing Pipeline
 

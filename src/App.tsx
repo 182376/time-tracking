@@ -5,7 +5,6 @@ import { UI_TEXT } from "./lib/copy";
 import { resolveCanonicalExecutable, shouldTrackProcess } from "./lib/processNormalization";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
-import OnboardingModal from "./components/OnboardingModal";
 import ToastStack, { type ToastItem, type ToastTone } from "./components/ToastStack";
 import { useStats } from "./hooks/useStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
@@ -22,7 +21,6 @@ export default function App() {
   const [mappingVersion, setMappingVersion] = useState(0);
   const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [staleTipDismissed, setStaleTipDismissed] = useState(false);
   const {
     activeWindow,
@@ -68,55 +66,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setShowOnboarding(!appSettings.onboarding_completed);
-  }, [appSettings.onboarding_completed]);
-
-  useEffect(() => {
     if (trackerHealth.status === "healthy") {
       setStaleTipDismissed(false);
     }
   }, [trackerHealth.status]);
-
-  const handleOnboardingComplete = useCallback(async (nextSettings: {
-    close_behavior: "exit" | "tray";
-    minimize_behavior: "taskbar" | "tray";
-    launch_at_login: boolean;
-    start_minimized: boolean;
-  }) => {
-    const merged = {
-      ...appSettings,
-      ...nextSettings,
-      onboarding_completed: true,
-    };
-
-    try {
-      await Promise.all([
-        SettingsService.updateSetting("close_behavior", merged.close_behavior),
-        SettingsService.updateSetting("minimize_behavior", merged.minimize_behavior),
-        SettingsService.updateSetting("launch_at_login", merged.launch_at_login),
-        SettingsService.updateSetting("start_minimized", merged.start_minimized),
-        SettingsService.updateSetting("onboarding_completed", true),
-      ]);
-      setAppSettings(merged);
-      setShowOnboarding(false);
-      pushToast("首次引导已完成，设置已生效。", "success");
-    } catch (error) {
-      console.error("onboarding save failed", error);
-      pushToast("首次引导保存失败，请稍后重试。", "warning");
-    }
-  }, [appSettings, pushToast, setAppSettings]);
 
   const showTrackerStaleTip = trackerHealth.status === "stale" && !staleTipDismissed;
 
   return (
     <div className="h-screen p-6 flex gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
-      {showOnboarding && (
-        <OnboardingModal
-          initialSettings={appSettings}
-          onComplete={handleOnboardingComplete}
-        />
-      )}
       <Sidebar currentView={currentView} onNavigate={setCurrentView} />
 
       <main className="flex-1 min-h-0 flex flex-col gap-6 relative overflow-hidden">
@@ -167,7 +126,6 @@ export default function App() {
               <Settings
                 key="settings"
                 onSettingsChanged={setAppSettings}
-                onNavigateToMapping={() => setCurrentView("mapping")}
                 onToast={pushToast}
               />
             )}

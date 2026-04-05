@@ -382,8 +382,8 @@ export default function AppMapping({
             <Sparkles size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">应用分类与颜色</h1>
-            <p className="mt-0.5 text-sm text-slate-500">和概览并列的独立页面，已分类与未分类都可调整</p>
+            <h1 className="text-xl font-bold text-slate-800">应用美化与隐私</h1>
+            <p className="mt-0.5 text-xs text-slate-500">按应用设置分类、颜色与标题记录</p>
           </div>
         </div>
       </header>

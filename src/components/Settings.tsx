@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Trash2,
@@ -50,7 +50,8 @@ export default function Settings({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [cleanupRange, setCleanupRange] = useState<CleanupRange>(30);
   const [isCleaning, setIsCleaning] = useState(false);
-  const [backupPath, setBackupPath] = useState("");
+  const [exportPath, setExportPath] = useState("");
+  const [restorePath, setRestorePath] = useState("");
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
 
@@ -109,11 +110,24 @@ export default function Settings({
 
   const handleExportBackup = async () => {
     if (isExportingBackup) return;
+
+    let targetPath = exportPath.trim();
+    try {
+      const selected = await SettingsService.pickBackupSaveFile(targetPath || undefined);
+      if (!selected) return;
+      targetPath = selected;
+      setExportPath(selected);
+    } catch (error) {
+      console.error("pick backup save file failed", error);
+      notify("打开保存对话框失败。", "warning");
+      return;
+    }
+
     setIsExportingBackup(true);
 
     try {
-      const exportedPath = await SettingsService.exportBackup(backupPath.trim() || undefined);
-      setBackupPath(exportedPath);
+      const exportedPath = await SettingsService.exportBackup(targetPath || undefined);
+      setExportPath(exportedPath);
       notify(`备份导出成功：${exportedPath}`, "success");
     } catch (error) {
       console.error("export backup failed", error);
@@ -125,16 +139,25 @@ export default function Settings({
 
   const handleRestoreBackup = async () => {
     if (isRestoringBackup) return;
-    const normalizedPath = backupPath.trim();
+
+    let normalizedPath = restorePath.trim();
     if (!normalizedPath) {
-      notify("请先填写备份文件路径。", "warning");
-      return;
+      try {
+        const selected = await SettingsService.pickBackupFile(undefined);
+        if (!selected) return;
+        normalizedPath = selected;
+        setRestorePath(selected);
+      } catch (error) {
+        console.error("pick backup file failed", error);
+        notify("打开文件选择器失败。", "warning");
+        return;
+      }
     }
 
     const confirmed = window.confirm(
       buildDangerConfirmMessage(
         "恢复备份",
-        "恢复会覆盖当前统计、应用映射和缓存图标。",
+        `恢复会覆盖当前统计、应用映射和缓存图标。\n目标文件：${normalizedPath}`,
       ),
     );
     if (!confirmed) return;
@@ -374,7 +397,7 @@ export default function Settings({
                 className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
               >
                 <Sparkles size={13} />
-                前往应用分类
+                前往应用美化与隐私
               </button>
             </div>
           </section>
@@ -391,29 +414,34 @@ export default function Settings({
                 <p className="mt-1 text-sm text-slate-500">
                   备份内容包含会话数据、设置项和图标缓存。恢复会覆盖当前数据。
                 </p>
-                <input
-                  value={backupPath}
-                  onChange={(event) => setBackupPath(event.target.value)}
-                  placeholder="可选：输入备份文件路径（导出时留空将自动生成）"
-                  className="mt-3 w-full rounded-xl border-none bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200 outline-none focus:ring-indigo-200"
-                />
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleExportBackup()}
-                    disabled={isExportingBackup || isRestoringBackup}
-                    className="rounded-xl border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                  >
-                    {isExportingBackup ? "导出中..." : "导出备份"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRestoreBackup()}
-                    disabled={isExportingBackup || isRestoringBackup}
-                    className="rounded-xl border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                  >
-                    {isRestoringBackup ? "恢复中..." : "从备份恢复"}
-                  </button>
+                <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-100 bg-white/70 p-3">
+                    <p className="text-xs font-bold text-slate-600">导出备份</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleExportBackup()}
+                        disabled={isExportingBackup || isRestoringBackup}
+                        className="rounded-xl border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        {isExportingBackup ? "导出中..." : "导出备份"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-100 bg-white/70 p-3">
+                    <p className="text-xs font-bold text-slate-600">恢复备份</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleRestoreBackup()}
+                        disabled={isExportingBackup || isRestoringBackup}
+                        className="rounded-xl border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                      >
+                        {isRestoringBackup ? "恢复中..." : "从备份恢复"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
