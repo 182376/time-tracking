@@ -18,6 +18,7 @@ export const DEFAULT_APP_MAPPINGS: Record<string, DefaultAppMapping> = {
   "codex.exe": { name: "Codex", category: "development" },
   "vscodium.exe": { name: "VSCodium", category: "development" },
   "cursor.exe": { name: "Cursor", category: "development" },
+  "alma.exe": { name: "Alma", category: "ai" },
   "antigravity.exe": { name: "Antigravity", category: "development" },
   "idea64.exe": { name: "IntelliJ IDEA", category: "development" },
   "pycharm64.exe": { name: "PyCharm", category: "development" },

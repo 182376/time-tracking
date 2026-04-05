@@ -4,7 +4,12 @@ import { Palette, RefreshCw, Sparkles, Trash2, RotateCcw } from "lucide-react";
 import { SettingsService } from "../lib/services/SettingsService";
 import { ProcessMapper, type AppOverride } from "../lib/ProcessMapper";
 import type { ObservedAppCandidate } from "../lib/settings";
-import { USER_ASSIGNABLE_CATEGORIES, type UserAssignableAppCategory } from "../lib/config/categoryTokens";
+import {
+  buildCustomCategory,
+  isCustomCategory,
+  USER_ASSIGNABLE_CATEGORIES,
+  type UserAssignableAppCategory,
+} from "../lib/config/categoryTokens";
 import { useIconThemeColors } from "../hooks/useIconThemeColors";
 
 interface Props {
@@ -23,6 +28,8 @@ const FILTER_OPTIONS: Array<{ value: CandidateFilter; label: string }> = [
 ];
 
 const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
+const AUTO_CATEGORY_VALUE = "__auto__";
+const CREATE_CUSTOM_CATEGORY_VALUE = "__create_custom__";
 
 const APP_COLOR_SWATCHES = [
   "#4F46E5",
@@ -163,6 +170,18 @@ export default function AppMapping({
     return { all, other, classified };
   }, [candidates, overrides]);
 
+  const customCategoryOptions = useMemo(() => {
+    const categories = new Set<UserAssignableAppCategory>();
+    for (const override of Object.values(overrides)) {
+      if (override.category && isCustomCategory(override.category)) {
+        categories.add(override.category);
+      }
+    }
+
+    return Array.from(categories)
+      .sort((a, b) => ProcessMapper.getCategoryLabel(a).localeCompare(ProcessMapper.getCategoryLabel(b), "zh-CN"));
+  }, [overrides]);
+
   const refreshCandidates = async () => {
     const observed = await SettingsService.loadObservedAppCandidates();
     setCandidates(observed);
@@ -184,7 +203,25 @@ export default function AppMapping({
 
   const handleCategoryAssign = async (candidate: ObservedAppCandidate, categoryValue: string) => {
     const current = ProcessMapper.getUserOverride(candidate.exeName);
-    const category = categoryValue === "__auto__" ? undefined : categoryValue as UserAssignableAppCategory;
+    let category: UserAssignableAppCategory | undefined;
+    if (categoryValue === AUTO_CATEGORY_VALUE) {
+      category = undefined;
+    } else if (categoryValue === CREATE_CUSTOM_CATEGORY_VALUE) {
+      const customCategoryName = window.prompt("请输入自定义分类名称（最多4个字）", "");
+      if (customCategoryName === null) {
+        return;
+      }
+
+      const normalized = customCategoryName.trim();
+      if (!normalized) {
+        return;
+      }
+
+      category = buildCustomCategory(normalized);
+    } else {
+      category = categoryValue as UserAssignableAppCategory;
+    }
+
     const nextOverride = buildOverride({
       category,
       color: current?.color,
@@ -413,12 +450,18 @@ export default function AppMapping({
                         disabled={isBusy}
                         onChange={(event) => void handleCategoryAssign(candidate, event.target.value)}
                       >
-                        <option value="__auto__">自动识别</option>
+                        <option value={AUTO_CATEGORY_VALUE}>自动识别</option>
                         {CATEGORY_OPTIONS.map((category) => (
                           <option key={category} value={category}>
                             {ProcessMapper.getCategoryLabel(category)}
                           </option>
                         ))}
+                        {customCategoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {ProcessMapper.getCategoryLabel(category)}
+                          </option>
+                        ))}
+                        <option value={CREATE_CUSTOM_CATEGORY_VALUE}>+ 新建分类...</option>
                       </select>
 
                       </div>

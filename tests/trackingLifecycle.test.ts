@@ -256,6 +256,40 @@ runTest("alias-first sessions still use canonical display name", () => {
   assert.equal(stats[0].app_name, resolveCanonicalDisplayName("douyin.exe"));
 });
 
+runTest("installer and updater executables collapse into the owning app", () => {
+  const sessions: HistorySession[] = [
+    makeSession({
+      id: 1,
+      exe_name: "alma-0.0.750-win-x64.exe",
+      app_name: "AI Provider Management Desktop App",
+      window_title: "Alma 安装",
+      start_time: 0,
+      end_time: 20_000,
+      duration: 20_000,
+    }),
+    makeSession({
+      id: 2,
+      exe_name: "Alma.exe",
+      app_name: "Alma",
+      window_title: "Alma",
+      start_time: 25_000,
+      end_time: 85_000,
+      duration: 60_000,
+    }),
+  ];
+  const compiled = compileSessions(sessions, {
+    startMs: 0,
+    endMs: 120_000,
+    minSessionSecs: 0,
+  });
+  const stats = buildNormalizedAppStats(compiled);
+
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].exe_name.toLowerCase(), "alma.exe");
+  assert.equal(stats[0].app_name, "Alma");
+  assert.equal(stats[0].total_duration, 80_000);
+});
+
 runTest("non-aliased apps prefer session app_name for display", () => {
   const sessions: HistorySession[] = [
     makeSession({
@@ -506,10 +540,28 @@ runTest("process mapper user override can reclassify an unknown app", () => {
   ProcessMapper.clearUserOverrides();
 });
 
+runTest("process mapper allows assigning custom category", () => {
+  ProcessMapper.clearUserOverrides();
+
+  ProcessMapper.setUserOverride("atlas.exe", {
+    category: "custom:专注",
+    enabled: true,
+    updatedAt: Date.now(),
+  });
+
+  const mapped = ProcessMapper.map("atlas.exe");
+  assert.equal(mapped.category, "custom:专注");
+  assert.equal(mapped.source, "override");
+  assert.equal(ProcessMapper.getCategoryLabel("custom:专注"), "专注");
+
+  ProcessMapper.clearUserOverrides();
+});
+
 runTest("process mapper category snapshot remains stable for key desktop apps", () => {
   ProcessMapper.clearUserOverrides();
   const cases: Array<{ exeName: string; appName: string; expectedCategory: string }> = [
     { exeName: "vscodium.exe", appName: "VSCodium", expectedCategory: "development" },
+    { exeName: "alma.exe", appName: "Alma", expectedCategory: "ai" },
     { exeName: "zotero.exe", appName: "Zotero", expectedCategory: "reading" },
     { exeName: "ToDesk.exe", appName: "ToDesk", expectedCategory: "utility" },
     { exeName: "HoYoPlay.exe", appName: "HoYoPlay", expectedCategory: "game" },
@@ -621,6 +673,10 @@ runTest("canonical normalization resolves aliases and filters PickerHost", () =>
   assert.equal(resolveCanonicalExecutable("Douyin_tray.exe"), "douyin.exe");
   assert.equal(resolveCanonicalExecutable("Douyin_widget"), "douyin.exe");
   assert.equal(resolveCanonicalExecutable("steamwebhelper.exe"), "steam.exe");
+  assert.equal(resolveCanonicalExecutable("alma-0.0.750-win-x64.exe"), "alma.exe");
+  assert.equal(resolveCanonicalExecutable("cursor-updater.exe"), "cursor.exe");
+  assert.equal(resolveCanonicalExecutable("setup-notion.exe"), "notion.exe");
+  assert.equal(resolveCanonicalExecutable("obsidian-uninstall.exe"), "obsidian.exe");
   assert.equal(resolveCanonicalDisplayName("douyin.exe"), "抖音");
   assert.equal(shouldTrackProcess("PickerHost.exe"), false);
   assert.equal(shouldTrackProcess("pickerhost"), false);

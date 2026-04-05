@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Trash2, Clock, ShieldAlert, Save, RefreshCw, Smartphone, Zap } from "lucide-react";
+import { Trash2, Clock, Save, RefreshCw, Zap } from "lucide-react";
 import { UI_TEXT } from "../lib/copy";
 import type { AppSettings } from "../lib/settings";
 import { SettingsService } from "../lib/services/SettingsService";
@@ -121,7 +121,7 @@ export default function Settings({ onSettingsChanged }: Props) {
       </header>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6">
           <section className="glass-card min-h-[240px] bg-white/30 p-6">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
               <Clock size={16} className="text-indigo-500" />
@@ -165,38 +165,7 @@ export default function Settings({ onSettingsChanged }: Props) {
             </div>
           </section>
 
-          <section className="glass-card min-h-[240px] bg-white/30 p-6">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-              <Smartphone size={16} className="text-emerald-500" />
-              <h2 className="text-sm font-bold text-slate-800">{UI_TEXT.settings.performance}</h2>
-            </div>
-
-            <div className="mt-5">
-              <label className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">{UI_TEXT.settings.refreshLabel}</label>
-              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                <p className="text-sm text-slate-500 leading-relaxed">{UI_TEXT.settings.refreshHint}</p>
-                <select
-                  value={settings.refresh_interval_secs}
-                  onChange={(e) => handleChange("refresh_interval_secs", Number(e.target.value))}
-                  className="bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold border-none shadow-sm ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer"
-                >
-                  <option value={1}>{UI_TEXT.settings.refreshPresets[1]}</option>
-                  <option value={3}>{UI_TEXT.settings.refreshPresets[3]}</option>
-                  <option value={5}>{UI_TEXT.settings.refreshPresets[5]}</option>
-                  <option value={10}>{UI_TEXT.settings.refreshPresets[10]}</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 mt-5">
-              <div className="flex gap-2.5 items-start">
-                <ShieldAlert size={14} className="text-amber-600 mt-0.5" />
-                <p className="text-xs leading-relaxed text-amber-800/80 font-medium">{UI_TEXT.settings.refreshWarning}</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="xl:col-span-2 glass-card p-6 bg-white/30">
+          <section className="glass-card p-6 bg-white/30">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 mb-5">
               <Trash2 size={16} className="text-rose-500" />
               <h2 className="text-sm font-bold text-slate-800">{UI_TEXT.settings.cleanup}</h2>

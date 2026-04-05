@@ -14,7 +14,7 @@ import type {
 } from "../types/tracking";
 import { resolveTrackerHealth } from "../types/tracking";
 
-const TRACKER_HEARTBEAT_POLL_MS = 2_000;
+const TRACKER_HEARTBEAT_POLL_MS = 1_000;
 const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
 
 export function useWindowTracking() {

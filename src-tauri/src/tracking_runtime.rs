@@ -132,7 +132,7 @@ pub async fn run<R: Runtime>(
         }
 
         last_window = Some(window_info);
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(1)).await;
     }
 }
 

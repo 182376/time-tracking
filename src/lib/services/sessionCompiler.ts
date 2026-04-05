@@ -94,18 +94,21 @@ function resolveCompiledDisplayName(
     return overrideDisplayName;
   }
 
-  const mapped = ProcessMapper.map(appKey, { appName: session.app_name });
   const canonicalName = resolveCanonicalDisplayName(appKey);
   if (canonicalName) {
     return canonicalName;
   }
-  const appName = session.app_name.trim();
+
   const rawExeKey = normalizeExecutable(session.exe_name);
 
   if (appKey !== rawExeKey) {
-    return mapped.name;
+    // For alias executables (installer/updater/tray variants), prefer the
+    // canonical app identity over raw product metadata from the alias process.
+    return ProcessMapper.map(appKey).name;
   }
 
+  const mapped = ProcessMapper.map(appKey, { appName: session.app_name });
+  const appName = session.app_name.trim();
   if (appName) {
     return appName;
   }

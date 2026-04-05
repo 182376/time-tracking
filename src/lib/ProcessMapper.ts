@@ -1,5 +1,7 @@
 import {
+  buildCustomCategory,
   getCategoryToken,
+  isCustomCategory,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
   type UserAssignableAppCategory,
@@ -34,6 +36,10 @@ const CATEGORY_BY_KEYWORD: Array<{
   category: AppCategory;
   keywords: string[];
 }> = [
+  {
+    category: "ai",
+    keywords: ["alma", "chatgpt", "openai", "claude", "anthropic", "gemini", "copilot", "deepseek", "kimi", "qwen", "tongyi", "yuanbao", "ollama", "llm", "aistudio", "anythingllm"],
+  },
   {
     category: "development",
     keywords: ["vscode", "vscodium", "cursor", "idea", "goland", "pycharm", "webstorm", "clion", "rider", "dev", "code"],
@@ -84,7 +90,7 @@ const CATEGORY_BY_KEYWORD: Array<{
   },
 ];
 
-const USER_ASSIGNABLE_CATEGORY_SET = new Set<UserAssignableAppCategory>(USER_ASSIGNABLE_CATEGORIES);
+const USER_ASSIGNABLE_CATEGORY_SET = new Set<string>(USER_ASSIGNABLE_CATEGORIES);
 
 function formatFallbackName(exeName: string) {
   return exeName
@@ -139,8 +145,9 @@ function normalizeOverride(override: AppOverride | null | undefined): AppOverrid
 
   const normalized: AppOverride = {};
 
-  if (override.category && USER_ASSIGNABLE_CATEGORY_SET.has(override.category)) {
-    normalized.category = override.category;
+  const normalizedCategory = normalizeUserAssignableCategory(override.category);
+  if (normalizedCategory) {
+    normalized.category = normalizedCategory;
   }
   if (override.displayName?.trim()) {
     normalized.displayName = override.displayName.trim();
@@ -155,6 +162,28 @@ function normalizeOverride(override: AppOverride | null | undefined): AppOverrid
   normalized.enabled = true;
 
   return Object.keys(normalized).length > 1 ? normalized : null;
+}
+
+function normalizeUserAssignableCategory(category: string | undefined): UserAssignableAppCategory | null {
+  const normalized = (category ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  // Backward compatibility for previously introduced fixed "custom" value.
+  if (normalized === "custom") {
+    return buildCustomCategory("自定义");
+  }
+
+  if (isCustomCategory(normalized)) {
+    return buildCustomCategory(normalized.slice("custom:".length));
+  }
+
+  if (USER_ASSIGNABLE_CATEGORY_SET.has(normalized)) {
+    return normalized as UserAssignableAppCategory;
+  }
+
+  return null;
 }
 
 function resolveCategoryColor(category: AppCategory) {
@@ -268,8 +297,8 @@ export class ProcessMapper {
       const parsed = JSON.parse(rawValue) as AppOverride;
       return normalizeOverride(parsed);
     } catch {
-      const legacyCategory = rawValue.trim() as UserAssignableAppCategory;
-      if (USER_ASSIGNABLE_CATEGORY_SET.has(legacyCategory)) {
+      const legacyCategory = normalizeUserAssignableCategory(rawValue.trim());
+      if (legacyCategory) {
         return normalizeOverride({
           category: legacyCategory,
           enabled: true,
