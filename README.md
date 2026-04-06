@@ -136,10 +136,6 @@ Bundled installers are generated under `src-tauri/target/release/bundle/`.
 - **Database**: SQLite via `@tauri-apps/plugin-sql`
 - **Windows integration**: `windows` crate
 
-## Release And Project Docs
-
-- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md): pre-release build, regression, data safety, and packaging checklist
-- [`RELEASE_STRATEGY.md`](RELEASE_STRATEGY.md): staged gray-rollout strategy and go/no-go rules
 
 ## Feedback
 

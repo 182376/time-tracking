@@ -1,6 +1,8 @@
 export const UI_TEXT = {
   app: {
     loadingView: "正在加载界面...",
+    mappingUpdated: "应用映射已更新。",
+    historyDeleted: "应用历史已删除。",
   },
   date: {
     today: "今天",
@@ -9,9 +11,11 @@ export const UI_TEXT = {
   dashboard: {
     title: "概览",
     tracking: (activeAppName: string) => `正在追踪: ${activeAppName}`,
+    trackingPaused: "追踪已暂停",
     idle: "静候活动中",
     afk: "处于挂机状态",
     active: "当前活跃",
+    paused: "已暂停",
     focusShare: "专注分布",
     total: "总计",
     hourlyActivity: "今日能量脉冲",
