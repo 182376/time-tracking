@@ -1,6 +1,6 @@
-﻿use crate::app::state::{parse_close_behavior, parse_minimize_behavior, DesktopBehaviorState};
+use crate::app::state::{parse_close_behavior, parse_minimize_behavior, DesktopBehaviorState};
 use crate::app::tray::apply_tray_visibility;
-use crate::app::apply_autostart;
+use crate::app::runtime::apply_autostart;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
@@ -28,3 +28,4 @@ pub fn cmd_set_launch_behavior(
     apply_autostart(&app, next.launch_at_login)?;
     Ok(())
 }
+

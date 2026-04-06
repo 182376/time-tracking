@@ -46,7 +46,6 @@ pub fn has_meaningful_change(previous: Option<&WindowInfo>, next: &WindowInfo) -
         || previous.is_afk != next.is_afk
 }
 
-#[tauri::command]
 pub fn cmd_set_afk_timeout(timeout_secs: u64) {
     AFK_TIMEOUT_SECS.store(timeout_secs, Ordering::Relaxed);
 }
@@ -218,7 +217,6 @@ unsafe fn get_process_name_from_snapshot(process_id: u32) -> Option<String> {
     exe_name
 }
 
-#[tauri::command]
 pub fn get_current_active_window() -> WindowInfo {
     get_active_window()
 }

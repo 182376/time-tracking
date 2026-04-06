@@ -1,11 +1,11 @@
-﻿use crate::app::{now_ms, wait_for_sqlite_pool};
+﻿use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
 use crate::app::state::{parse_boolean_setting, CloseBehavior, DesktopBehaviorSettings, DesktopBehaviorState, MinimizeBehavior};
-use crate::tracking_runtime;
+use crate::engine::tracking_runtime;
 use sqlx::{Pool, Row, Sqlite};
 use tauri::{
     menu::{Menu, MenuEvent, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, Runtime, Window, WindowEvent,
+    AppHandle, Manager, Runtime, Window, WindowEvent,
 };
 
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
@@ -74,14 +74,8 @@ async fn toggle_tracking_paused<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
     } else {
         "tracking-resumed"
     };
-    app.emit(
-        "tracking-data-changed",
-        tracking_runtime::TrackingDataChangedPayload {
-            reason: reason.to_string(),
-            changed_at_ms: now_ms(),
-        },
-    )
-    .map_err(|error| format!("failed to emit tracking pause event: {error}"))?;
+    tracking_runtime::emit_tracking_data_changed(&app, reason, now_ms())
+        .map_err(|error| format!("failed to emit tracking pause event: {error}"))?;
 
     Ok(())
 }
@@ -173,3 +167,6 @@ pub(crate) fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     builder.build(app)?;
     Ok(())
 }
+
+
+

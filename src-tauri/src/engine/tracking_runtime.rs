@@ -1,4 +1,5 @@
-use crate::{icon_extractor, tracker};
+﻿use crate::app::runtime::wait_for_sqlite_pool;
+use crate::platform::windows::{foreground as tracker, icon as icon_extractor};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
 use std::ffi::OsStr;
@@ -8,8 +9,7 @@ use std::sync::{
     atomic::{AtomicI64, Ordering},
     Arc,
 };
-use tauri::{AppHandle, Emitter, Manager, Runtime};
-use tauri_plugin_sql::{DbInstances, DbPool};
+use tauri::{AppHandle, Emitter, Runtime};
 use tokio::task::spawn_blocking;
 use tokio::time::{sleep, timeout, Duration};
 use windows::core::PCWSTR;
@@ -17,7 +17,6 @@ use windows::Win32::Storage::FileSystem::{
     GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
 };
 
-const DB_NAME: &str = "sqlite:timetracker.db";
 const TRACKER_LAST_HEARTBEAT_KEY: &str = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY: &str = "__tracker_last_successful_sample_ms";
 const TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY: &str = "__tracker_last_startup_self_heal_at_ms";
@@ -266,32 +265,6 @@ async fn poll_active_window_with_timeout() -> Result<tracker::WindowInfo, String
             "active window poll timed out after {} seconds",
             WINDOW_POLL_TIMEOUT_SECS
         )),
-    }
-}
-
-async fn wait_for_sqlite_pool<R: Runtime>(app: &AppHandle<R>) -> Result<Pool<Sqlite>, String> {
-    let mut wait_cycles: u64 = 0;
-
-    loop {
-        if let Some(instances) = app.try_state::<DbInstances>() {
-            let instances = instances.0.read().await;
-            if let Some(DbPool::Sqlite(pool)) = instances.get(DB_NAME) {
-                if wait_cycles > 0 {
-                    eprintln!(
-                        "[tracker] sqlite pool became available after {} ms",
-                        wait_cycles * 100
-                    );
-                }
-                return Ok(pool.clone());
-            }
-        }
-
-        if wait_cycles == 0 || wait_cycles % 50 == 0 {
-            eprintln!("[tracker] waiting for sqlite pool `{DB_NAME}`...");
-        }
-
-        wait_cycles += 1;
-        sleep(Duration::from_millis(100)).await;
     }
 }
 
@@ -1121,7 +1094,7 @@ fn now_ms() -> i64 {
         .unwrap_or_default()
 }
 
-fn emit_tracking_data_changed<R: Runtime>(
+pub fn emit_tracking_data_changed<R: Runtime>(
     app: &AppHandle<R>,
     reason: &str,
     changed_at_ms: u64,
@@ -1142,7 +1115,7 @@ fn log_tracker_error(message: impl AsRef<str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_schema;
+    use crate::data::migrations as db_schema;
     use serde_json::json;
     use sqlx::{Executor, SqlitePool};
 
@@ -1542,3 +1515,5 @@ mod tests {
         });
     }
 }
+
+

@@ -59,3 +59,10 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 - One-off execution plans, temporary fix plans, and completed task documents should not stay in top-level `docs/`.
 - When a one-off document is no longer the current source of truth, move it to `docs/archive/`.
 - Do not update or rely on `docs/archive/*` as the default execution basis unless the user explicitly asks for historical context.
+
+## Encoding Rules
+
+- Markdown and documentation files must be saved as UTF-8.
+- When editing Chinese documentation on Windows, preserve readable UTF-8 text and do not introduce mojibake.
+- Do not rewrite `.md` files through shell output or redirection patterns that may change encoding implicitly.
+- If a documentation file appears garbled in terminal output, verify the file bytes before assuming the content is corrupted.
