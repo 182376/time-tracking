@@ -1,12 +1,9 @@
-﻿use crate::app::state::{
-    parse_boolean_setting, parse_close_behavior, parse_minimize_behavior, DesktopBehaviorSettings,
-    DesktopBehaviorState, CLOSE_BEHAVIOR_KEY, LAUNCH_AT_LOGIN_KEY, MINIMIZE_BEHAVIOR_KEY,
-    START_MINIMIZED_KEY,
-};
+use crate::app::state::DesktopBehaviorState;
 use crate::app::tray::{apply_tray_visibility, setup_tray, MAIN_WINDOW_LABEL};
+use crate::data::repositories::app_settings;
 use crate::engine::tracking_runtime;
 use crate::platform::windows::power;
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
@@ -68,51 +65,12 @@ pub(crate) async fn wait_for_sqlite_pool<R: Runtime>(
     }
 }
 
-pub(crate) async fn load_desktop_behavior_settings(
-    pool: &Pool<Sqlite>,
-) -> Result<DesktopBehaviorSettings, sqlx::Error> {
-    let rows = sqlx::query("SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)")
-        .bind(CLOSE_BEHAVIOR_KEY)
-        .bind(MINIMIZE_BEHAVIOR_KEY)
-        .bind(LAUNCH_AT_LOGIN_KEY)
-        .bind(START_MINIMIZED_KEY)
-        .fetch_all(pool)
-        .await?;
-
-    let mut close_behavior = None;
-    let mut minimize_behavior = None;
-    let mut launch_at_login = None;
-    let mut start_minimized = None;
-
-    for row in rows {
-        let key: String = row.get("key");
-        let value: String = row.get("value");
-
-        match key.as_str() {
-            CLOSE_BEHAVIOR_KEY => close_behavior = Some(parse_close_behavior(&value)),
-            MINIMIZE_BEHAVIOR_KEY => {
-                minimize_behavior = Some(parse_minimize_behavior(&value));
-            }
-            LAUNCH_AT_LOGIN_KEY => launch_at_login = Some(parse_boolean_setting(&value, false)),
-            START_MINIMIZED_KEY => start_minimized = Some(parse_boolean_setting(&value, true)),
-            _ => {}
-        }
-    }
-
-    Ok(DesktopBehaviorSettings {
-        close_behavior: close_behavior.unwrap_or_default(),
-        minimize_behavior: minimize_behavior.unwrap_or_default(),
-        launch_at_login: launch_at_login.unwrap_or(false),
-        start_minimized: start_minimized.unwrap_or(true),
-    })
-}
-
 pub(crate) async fn sync_desktop_behavior_from_storage<R: Runtime>(
     app: AppHandle<R>,
     launched_by_autostart: bool,
 ) -> Result<(), String> {
     let pool = wait_for_sqlite_pool(&app).await?;
-    let loaded = load_desktop_behavior_settings(&pool)
+    let loaded = app_settings::load_desktop_behavior_settings(&pool)
         .await
         .map_err(|error| format!("failed to load desktop behavior settings: {error}"))?;
 
@@ -197,4 +155,3 @@ pub fn setup(
 
     Ok(())
 }
-

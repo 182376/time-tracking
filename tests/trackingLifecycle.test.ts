@@ -3,8 +3,7 @@ import {
   isTrackableWindow,
   planWindowTransition,
   resolveStartupSealTime,
-  type TrackedWindow,
-} from "../src/lib/services/trackingLifecycle.ts";
+} from "../src/shared/lib/trackingWindowLifecycle.ts";
 import {
   buildDailySummaries,
   buildNormalizedAppStats,
@@ -12,13 +11,14 @@ import {
   compileSessions,
   getDayRange,
   getRollingDayRanges,
-} from "../src/lib/services/sessionCompiler.ts";
-import { HistoryService } from "../src/lib/services/HistoryService.ts";
-import type { HistorySession } from "../src/lib/db.ts";
+} from "../src/shared/lib/sessionReadCompiler.ts";
+import { HistoryReadModelService } from "../src/shared/lib/historyReadModelService.ts";
+import type { HistorySession } from "../src/shared/lib/sessionReadRepository.ts";
 import {
   isTrackingDataChangedPayload,
   resolveTrackerHealth,
   isTrackingWindowSnapshot,
+  type TrackedWindow,
 } from "../src/types/tracking.ts";
 import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
 import {
@@ -589,7 +589,7 @@ runTest("process mapper allows assigning custom category", () => {
   });
 
   const mapped = ProcessMapper.map("atlas.exe");
-  assert.equal(mapped.category, "custom:专注");
+  assert.equal(mapped.category, "custom:%E4%B8%93%E6%B3%A8");
   assert.equal(mapped.source, "override");
   assert.equal(ProcessMapper.getCategoryLabel("custom:专注"), "专注");
 
@@ -650,7 +650,7 @@ runTest("dashboard read model applies display name overrides globally", () => {
   });
 
   const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
-  const dashboard = HistoryService.buildDashboardReadModel([
+  const dashboard = HistoryReadModelService.buildDashboardReadModel([
     makeSession({
       id: 1,
       exe_name: "vscodium.exe",
@@ -675,7 +675,7 @@ runTest("history read model applies display name overrides globally", () => {
   });
 
   const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
-  const historyView = HistoryService.buildHistoryReadModel({
+  const historyView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({
         id: 1,
@@ -710,7 +710,7 @@ runTest("history read model excludes apps marked as not tracked", () => {
   });
 
   const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
-  const historyView = HistoryService.buildHistoryReadModel({
+  const historyView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({
         id: 1,
@@ -781,7 +781,7 @@ runTest("compiler removes PickerHost from read model", () => {
 
 runTest("dashboard read model caps live session growth at the last successful sample when tracker is stale", () => {
   const trackerHealth = resolveTrackerHealth(10_000, 19_000, 8_000);
-  const dashboard = HistoryService.buildDashboardReadModel([
+  const dashboard = HistoryReadModelService.buildDashboardReadModel([
     makeSession({
       id: 1,
       exe_name: "QQ.exe",
@@ -799,7 +799,7 @@ runTest("dashboard read model caps live session growth at the last successful sa
 
 runTest("history app summary stays on real active duration even when timeline merges interruptions for display", () => {
   const trackerHealth = resolveTrackerHealth(200_000, 200_000, 8_000);
-  const view = HistoryService.buildHistoryReadModel({
+  const view = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 60_000, duration: 60_000 }),
       makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 60_000, end_time: 90_000, duration: 30_000 }),
@@ -824,7 +824,7 @@ runTest("history app summary stays on real active duration even when timeline me
 
 runTest("min session threshold only affects timeline display, not real duration stats", () => {
   const trackerHealth = resolveTrackerHealth(100_000, 100_000, 8_000);
-  const view = HistoryService.buildHistoryReadModel({
+  const view = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 20_000, duration: 20_000 }),
       makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 25_000, end_time: 45_000, duration: 20_000 }),
@@ -848,7 +848,7 @@ runTest("min session threshold only affects timeline display, not real duration 
 runTest("history timeline keeps latest live session visible below min threshold and hides it once ended", () => {
   const trackerHealth = resolveTrackerHealth(200_000, 200_000, 8_000);
 
-  const liveView = HistoryService.buildHistoryReadModel({
+  const liveView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({
         id: 1,
@@ -870,7 +870,7 @@ runTest("history timeline keeps latest live session visible below min threshold 
   assert.equal(liveView.timelineSessions.length, 1);
   assert.equal(liveView.timelineSessions[0].duration, 5_000);
 
-  const endedView = HistoryService.buildHistoryReadModel({
+  const endedView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: [
       makeSession({
         id: 1,
@@ -914,7 +914,7 @@ runTest("history timeline merged duration does not change with min session thres
     }),
   ];
 
-  const baseView = HistoryService.buildHistoryReadModel({
+  const baseView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: [],
     selectedDate: new Date(0),
@@ -924,7 +924,7 @@ runTest("history timeline merged duration does not change with min session thres
     mergeThresholdSecs: 180,
   });
 
-  const thresholdView = HistoryService.buildHistoryReadModel({
+  const thresholdView = HistoryReadModelService.buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: [],
     selectedDate: new Date(0),

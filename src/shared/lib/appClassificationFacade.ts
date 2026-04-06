@@ -1,5 +1,5 @@
-import { ProcessMapper, type AppInfo, type AppOverride, type MappingHints } from "../../lib/ProcessMapper";
-import type { AppCategory } from "../../lib/config/categoryTokens";
+import { ProcessMapper, type AppInfo, type AppOverride, type MappingHints } from "../../lib/ProcessMapper.ts";
+import type { AppCategory } from "../../lib/config/categoryTokens.ts";
 
 export class AppClassificationFacade {
   static mapApp(exeName: string, hints: MappingHints = {}): AppInfo {

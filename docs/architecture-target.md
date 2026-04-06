@@ -272,9 +272,7 @@ Rust `commands/*` 只做：
 
 仍可继续优化但不影响阶段判断的遗留项：
 
-- `src/lib/db.ts`
-- `src/lib/settings.ts`
-- `src/lib/services/sessionCompiler.ts`
+- `src/lib/settings.ts`（已降级为兼容导出层，后续可视窗口继续缩减使用面）
 
 这些属于“根层基础设施继续分层”的后续问题，不代表页面边界仍未完成。
 
@@ -297,13 +295,13 @@ Rust `commands/*` 只做：
 
 ### 阶段 4：数据与领域边界深化
 
-状态：`进行中（Rust data/domain 备份基础骨架已完成第一轮收口）`
+状态：`进行中（Rust data/domain 与前端 legacy lib/runtime adapter/core store 已完成多轮基础收口）`
 
 这是接下来最值得做的长期方向之一，重点包括：
 
-- Rust `data/` 中继续扩充仓储与数据职责（已完成 `backup` 的 `sessions/settings/icon_cache` 首批仓储边界）
-- Rust `domain/` 中继续补齐核心模型与 DTO 落点（已新增 `domain/backup.rs` 并承接备份 DTO）
-- 前端根层基础设施继续去耦
+- Rust `data/` 中继续扩充仓储与数据职责（已完成 `backup` 首批仓储边界，并新增 `app_settings` 读取边界）
+- Rust `domain/` 中继续补齐核心模型与 DTO 落点（已新增 `domain/backup.rs` 与 `domain/settings.rs`）
+- 前端根层基础设施继续去耦（已完成 `classification` 持久化边界、`history/dashboard` session read/compiler 主路径迁移、`runtime/adapter` 细粒度拆分、`settings-store/classification-store` 拆分与 `db.ts` adapter 化、legacy service 退场与 low-level helper 归位）
 - 减少遗留 `src/lib/*` 的边界模糊性
 
 ## 8. 禁止事项

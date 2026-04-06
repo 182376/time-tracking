@@ -1,6 +1,12 @@
-import type { AppStat } from "../types/app";
-import type { TrackerHealthSnapshot, TrackerHealthStatus } from "../../types/tracking";
-import { getHistoryByDate, getIconMap, getSessionsInRange, type DailySummary, type HistorySession } from "../../lib/db";
+import type { AppStat } from "../types/app.ts";
+import type { TrackerHealthSnapshot, TrackerHealthStatus } from "../../types/tracking.ts";
+import {
+  getHistoryByDate,
+  getIconMap,
+  getSessionsInRange,
+  type DailySummary,
+  type HistorySession,
+} from "./sessionReadRepository.ts";
 import {
   buildCategoryDistribution,
   buildHourlyActivity,
@@ -9,8 +15,8 @@ import {
   type CategoryDistItem,
   type HourlyActivityPoint,
   type TopApplicationItem,
-} from "../../features/dashboard/services/dashboardFormatting";
-import { buildChartAxis, buildChartData, type HistoryChartPoint } from "../../features/history/services/historyFormatting";
+} from "../../features/dashboard/services/dashboardFormatting.ts";
+import { buildChartAxis, buildChartData, type HistoryChartPoint } from "../../features/history/services/historyFormatting.ts";
 import {
   buildAppSummary,
   buildDailySummaries,
@@ -23,7 +29,7 @@ import {
   type DiagnosableHistorySession,
   type NormalizedAppSummaryItem,
   type TimelineSession,
-} from "../../lib/services/sessionCompiler";
+} from "./sessionReadCompiler.ts";
 
 export interface DashboardSnapshot {
   fetchedAtMs: number;

@@ -1,5 +1,8 @@
-﻿use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
-use crate::app::state::{parse_boolean_setting, CloseBehavior, DesktopBehaviorSettings, DesktopBehaviorState, MinimizeBehavior};
+use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
+use crate::app::state::DesktopBehaviorState;
+use crate::domain::settings::{
+    parse_boolean_setting, CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior,
+};
 use crate::engine::tracking_runtime;
 use sqlx::{Pool, Row, Sqlite};
 use tauri::{
@@ -167,6 +170,3 @@ pub(crate) fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     builder.build(app)?;
     Ok(())
 }
-
-
-

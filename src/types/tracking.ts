@@ -1,4 +1,14 @@
-import type { TrackedWindow } from "../lib/services/trackingLifecycle";
+export interface TrackedWindow {
+  hwnd: string;
+  root_owner_hwnd: string;
+  process_id: number;
+  window_class: string;
+  title: string;
+  exe_name: string;
+  process_path: string;
+  is_afk: boolean;
+  idle_time_ms: number;
+}
 
 export type TrackingWindowSnapshot = TrackedWindow;
 

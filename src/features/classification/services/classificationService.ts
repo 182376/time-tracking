@@ -1,8 +1,8 @@
-﻿import { ProcessMapper } from "../../../lib/ProcessMapper";
+import { ProcessMapper } from "../../../lib/ProcessMapper";
 import type { AppOverride } from "../../../lib/ProcessMapper";
 import type { AppCategory, CustomAppCategory } from "../../../lib/config/categoryTokens";
-import type { ObservedAppCandidate } from "../../../lib/settings";
-import { SettingsService } from "../../../lib/services/SettingsService";
+import * as classificationPersistence from "../../../shared/lib/classificationPersistence";
+import type { ObservedAppCandidate } from "../../../shared/lib/classificationPersistence";
 
 export type { AppOverride } from "../../../lib/ProcessMapper";
 
@@ -16,7 +16,7 @@ export interface ClassificationBootstrapData {
 
 export class ClassificationService {
   static async loadObservedAppCandidates(days: number = 30, limit: number = 120): Promise<ObservedAppCandidate[]> {
-    return SettingsService.loadObservedAppCandidates(days, limit);
+    return classificationPersistence.loadObservedAppCandidates(days, limit);
   }
 
   static async loadClassificationBootstrap(): Promise<ClassificationBootstrapData> {
@@ -28,10 +28,10 @@ export class ClassificationService {
       loadedDeletedCategories,
     ] = await Promise.all([
       this.loadObservedAppCandidates(),
-      SettingsService.loadAppOverrides(),
-      SettingsService.loadCategoryColorOverrides(),
-      SettingsService.loadCustomCategories(),
-      SettingsService.loadDeletedCategories(),
+      classificationPersistence.loadAppOverrides(),
+      classificationPersistence.loadCategoryColorOverrides(),
+      classificationPersistence.loadCustomCategories(),
+      classificationPersistence.loadDeletedCategories(),
     ]);
 
     return {
@@ -44,12 +44,12 @@ export class ClassificationService {
   }
 
   static async saveAppOverride(exeName: string, override: AppOverride | null) {
-    await SettingsService.saveAppOverride(exeName, override);
+    await classificationPersistence.saveAppOverride(exeName, override);
     ProcessMapper.setUserOverride(exeName, override);
   }
 
   static async saveCategoryColorOverride(category: AppCategory, colorValue: string | null) {
-    await SettingsService.saveCategoryColorOverride(category, colorValue);
+    await classificationPersistence.saveCategoryColorOverride(category, colorValue);
     ProcessMapper.setCategoryColorOverride(category, colorValue);
   }
 
@@ -62,18 +62,18 @@ export class ClassificationService {
   }
 
   static async saveCustomCategory(category: CustomAppCategory) {
-    await SettingsService.saveCustomCategory(category);
+    await classificationPersistence.saveCustomCategory(category);
   }
 
   static async deleteCustomCategory(category: CustomAppCategory) {
-    await SettingsService.deleteCustomCategory(category);
+    await classificationPersistence.deleteCustomCategory(category);
   }
 
   static async saveDeletedCategory(category: AppCategory, deleted: boolean) {
-    await SettingsService.saveDeletedCategory(category, deleted);
+    await classificationPersistence.saveDeletedCategory(category, deleted);
   }
 
   static async deleteObservedAppSessions(exeName: string, scope: "today" | "all" = "all") {
-    await SettingsService.deleteObservedAppSessions(exeName, scope);
+    await classificationPersistence.deleteObservedAppSessions(exeName, scope);
   }
 }

@@ -1,17 +1,16 @@
 /**
- * A standalone heuristics-based title cleaner that removes common
- * browser/IDE suffixes and statuses without relying on external dictionaries.
+ * Heuristics-based title cleaner that removes common browser/IDE suffixes
+ * and noisy status decorations without external dictionaries.
  */
-
 export function cleanWindowTitle(title: string, exeName: string): string {
   if (!title) return "";
 
   let cleaned = title.trim();
 
   cleaned = cleaned
-    .replace(/\s*-\s*未跟踪/u, "")
-    .replace(/\s*-\s*已修改/u, "")
-    .replace(/\s*[●•]/u, "")
+    .replace(/\s*-\s*未跟踪$/u, "")
+    .replace(/\s*-\s*已修改$/u, "")
+    .replace(/\s*[●•]\s*$/u, "")
     .replace(/\s*-\s*Visual\s+Studio\s+Code$/ui, "");
 
   const browserSuffixes = [
@@ -30,12 +29,12 @@ export function cleanWindowTitle(title: string, exeName: string): string {
   const lowerExe = exeName.toLowerCase();
 
   if (
-    lowerExe === "antigravity.exe" ||
-    lowerExe === "code.exe" ||
-    lowerExe === "webstorm.exe" ||
-    lowerExe === "cursor.exe"
+    lowerExe === "antigravity.exe"
+    || lowerExe === "code.exe"
+    || lowerExe === "webstorm.exe"
+    || lowerExe === "cursor.exe"
   ) {
-    const parts = cleaned.split(" - ").map((p) => p.trim()).filter(Boolean);
+    const parts = cleaned.split(" - ").map((part) => part.trim()).filter(Boolean);
     if (parts.length > 1) {
       return parts[parts.length - 1];
     }

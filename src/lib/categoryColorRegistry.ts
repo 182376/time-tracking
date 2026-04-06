@@ -5,7 +5,7 @@ import {
   QUIET_PRO_CATEGORY_PALETTE_37,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
-} from "./config/categoryTokens";
+} from "./config/categoryTokens.ts";
 
 function normalizeHexColor(color: string | undefined): string | null {
   const raw = (color ?? "").trim();

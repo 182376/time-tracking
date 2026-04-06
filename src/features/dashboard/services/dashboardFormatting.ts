@@ -1,7 +1,7 @@
-import type { AppStat } from "../../../shared/types/app";
-import type { HistorySession } from "../../../lib/db";
-import type { AppCategory } from "../../../lib/config/categoryTokens";
-import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import type { AppStat } from "../../../shared/types/app.ts";
+import type { HistorySession } from "../../../shared/lib/sessionReadRepository.ts";
+import type { AppCategory } from "../../../lib/config/categoryTokens.ts";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade.ts";
 
 export interface HourlyActivityPoint {
   hour: string;

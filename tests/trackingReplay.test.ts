@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { HistoryService } from "../src/lib/services/HistoryService.ts";
-import type { HistorySession } from "../src/lib/db.ts";
+import { HistoryReadModelService } from "../src/shared/lib/historyReadModelService.ts";
+import type { HistorySession } from "../src/shared/lib/sessionReadRepository.ts";
 import { resolveTrackerHealth } from "../src/types/tracking.ts";
 
 function makeSession(overrides: Partial<HistorySession>): HistorySession {
@@ -61,7 +61,7 @@ const daySessions: HistorySession[] = [
   }),
 ];
 
-const readModel = HistoryService.buildHistoryReadModel({
+const readModel = HistoryReadModelService.buildHistoryReadModel({
   daySessions,
   weeklySessions: daySessions,
   selectedDate: new Date(0),
@@ -84,7 +84,7 @@ assert.equal(
   120_000,
 );
 
-const dashboard = HistoryService.buildDashboardReadModel(daySessions, trackerHealth, 400_000);
+const dashboard = HistoryReadModelService.buildDashboardReadModel(daySessions, trackerHealth, 400_000);
 assert.equal(
   dashboard.topApplications.some((item) => item.exeName.toLowerCase().includes("pickerhost")),
   false,

@@ -1,14 +1,4 @@
-export interface TrackedWindow {
-  hwnd: string;
-  root_owner_hwnd: string;
-  process_id: number;
-  window_class: string;
-  title: string;
-  exe_name: string;
-  process_path: string;
-  is_afk: boolean;
-  idle_time_ms: number;
-}
+import type { TrackedWindow } from "../../types/tracking";
 
 export interface WindowTransitionDecision {
   didChange: boolean;
@@ -47,14 +37,13 @@ export function resolveWindowSessionIdentity(
     return null;
   }
 
-  const trackedWindow = win;
-  const appKey = trackedWindow.exe_name.toLowerCase();
-  const rootOwnerKey = trackedWindow.root_owner_hwnd || trackedWindow.hwnd;
-  const classKey = trackedWindow.window_class.toLowerCase();
+  const appKey = win.exe_name.toLowerCase();
+  const rootOwnerKey = win.root_owner_hwnd || win.hwnd;
+  const classKey = win.window_class.toLowerCase();
 
   return {
     appKey,
-    instanceKey: `${appKey}|pid:${trackedWindow.process_id}|root:${rootOwnerKey}|class:${classKey}`,
+    instanceKey: `${appKey}|pid:${win.process_id}|root:${rootOwnerKey}|class:${classKey}`,
   };
 }
 

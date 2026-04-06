@@ -1,6 +1,7 @@
-use crate::app::state::{parse_close_behavior, parse_minimize_behavior, DesktopBehaviorState};
+use crate::app::state::DesktopBehaviorState;
 use crate::app::tray::apply_tray_visibility;
 use crate::app::runtime::apply_autostart;
+use crate::domain::settings::{parse_close_behavior, parse_minimize_behavior};
 use tauri::{AppHandle, State};
 
 #[tauri::command]

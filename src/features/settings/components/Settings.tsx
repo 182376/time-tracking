@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
 import { buildDangerConfirmMessage } from "../../../lib/confirm";
-import type { AppSettings, CloseBehavior, MinimizeBehavior } from "../../../lib/settings";
-import { SettingsPageService } from "../services/settingsPageService";
+import type { AppSettings, CloseBehavior, MinimizeBehavior } from "../../../lib/settings-store";
+import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
 import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";
 
@@ -49,7 +49,7 @@ export default function Settings({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const bootstrap = await SettingsPageService.loadBootstrap();
+      const bootstrap = await SettingsRuntimeAdapterService.loadBootstrap();
       if (cancelled) return;
       setSettings(bootstrap.settings);
       setAppVersion(bootstrap.appVersion);
@@ -67,7 +67,7 @@ export default function Settings({
 
     const newSettings = { ...settings, [key]: value } as AppSettings;
     setSettings(newSettings);
-    await SettingsPageService.updateSetting(key, value);
+    await SettingsRuntimeAdapterService.updateSetting(key, value);
 
     onSettingsChanged(newSettings);
     setSaveStatus("saved");
@@ -85,7 +85,7 @@ export default function Settings({
 
     setIsCleaning(true);
     try {
-      await SettingsPageService.clearSessionsByRange(cleanupRange);
+      await SettingsRuntimeAdapterService.clearSessionsByRange(cleanupRange);
       notify("历史数据已清理。", "success");
       window.location.reload();
     } catch (error) {
@@ -102,7 +102,7 @@ export default function Settings({
     setIsExportingBackup(true);
 
     try {
-      const exportedPath = await SettingsPageService.exportBackupWithPicker(exportPath.trim() || undefined);
+      const exportedPath = await SettingsRuntimeAdapterService.exportBackupWithPicker(exportPath.trim() || undefined);
       if (!exportedPath) return;
       setExportPath(exportedPath);
       notify(`备份导出成功：${exportedPath}`, "success");
@@ -117,9 +117,9 @@ export default function Settings({
   const handleRestoreBackup = async () => {
     if (isRestoringBackup) return;
 
-    let preparation: Awaited<ReturnType<typeof SettingsPageService.prepareBackupRestore>> = null;
+    let preparation: Awaited<ReturnType<typeof SettingsRuntimeAdapterService.prepareBackupRestore>> = null;
     try {
-      preparation = await SettingsPageService.prepareBackupRestore(restorePath.trim() || undefined);
+      preparation = await SettingsRuntimeAdapterService.prepareBackupRestore(restorePath.trim() || undefined);
       if (!preparation) return;
       setRestorePath(preparation.path);
       if (!preparation.compatible) {
@@ -143,7 +143,7 @@ export default function Settings({
 
     setIsRestoringBackup(true);
     try {
-      await SettingsPageService.restoreBackup(preparation.path);
+      await SettingsRuntimeAdapterService.restoreBackup(preparation.path);
       notify("备份恢复成功，正在刷新界面。", "success");
       window.location.reload();
     } catch (error) {

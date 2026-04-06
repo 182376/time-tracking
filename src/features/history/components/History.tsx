@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { type HistorySession } from "../../../lib/db";
+import { type HistorySession } from "../../../shared/lib/sessionReadRepository";
 import { UI_TEXT } from "../../../lib/copy";
 import {
   formatDuration,

@@ -1,4 +1,4 @@
-﻿import type { AppSettings } from "../../lib/settings";
+import type { AppSettings } from "../../lib/settings-store";
 import type { ToastTone } from "../../shared/components/ToastStack";
 
 export interface SettingsPageProps {

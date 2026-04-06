@@ -1,7 +1,6 @@
-﻿import { useEffect, useState } from "react";
-import { DEFAULT_SETTINGS } from "../../lib/settings";
-import type { AppSettings } from "../../lib/settings";
-import { TrackingService } from "../../lib/services/TrackingService";
+import { useEffect, useState } from "react";
+import { DEFAULT_SETTINGS } from "../../lib/settings-store";
+import type { AppSettings } from "../../lib/settings-store";
 import type {
   TrackerHealthSnapshot,
   TrackingWindowSnapshot,
@@ -12,6 +11,14 @@ import {
   loadTrackerHealthSnapshot,
   TRACKER_HEARTBEAT_STALE_AFTER_MS,
 } from "../services/appRuntimeBootstrapService";
+import {
+  onActiveWindowChanged,
+  onTrackingDataChanged,
+} from "../services/trackingRuntimeGateway";
+import {
+  setDesktopBehavior,
+  setLaunchBehavior,
+} from "../services/desktopBehaviorRuntimeAdapter";
 import { AppSettingsRuntimeService } from "../services/appSettingsRuntimeService";
 
 const TRACKER_HEARTBEAT_POLL_MS = 1_000;
@@ -51,7 +58,7 @@ export function useWindowTracking() {
 
       if (cancelled) return;
 
-      const activeWindowUnlisten = await TrackingService.onActiveWindowChanged((window) => {
+      const activeWindowUnlisten = await onActiveWindowChanged((window) => {
         if (cancelled) return;
         setActiveWindow(window);
       });
@@ -61,7 +68,7 @@ export function useWindowTracking() {
       }
       unlisteners.push(activeWindowUnlisten);
 
-      const trackingDataUnlisten = await TrackingService.onTrackingDataChanged(
+      const trackingDataUnlisten = await onTrackingDataChanged(
         (payload) => {
           if (cancelled) return;
 
@@ -109,14 +116,14 @@ export function useWindowTracking() {
   }, []);
 
   useEffect(() => {
-    void TrackingService.setDesktopBehavior(
+    void setDesktopBehavior(
       appSettings.close_behavior,
       appSettings.minimize_behavior,
     ).catch(console.warn);
   }, [appSettings.close_behavior, appSettings.minimize_behavior]);
 
   useEffect(() => {
-    void TrackingService.setLaunchBehavior(
+    void setLaunchBehavior(
       appSettings.launch_at_login,
       appSettings.start_minimized,
     ).catch(console.warn);

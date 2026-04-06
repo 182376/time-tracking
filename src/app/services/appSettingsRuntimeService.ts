@@ -1,17 +1,24 @@
-﻿import type { AppSettings } from "../../lib/settings";
-import { SettingsService } from "../../lib/services/SettingsService";
-import { TrackingService } from "../../lib/services/TrackingService";
+import {
+  loadSettings,
+  saveSetting,
+  type AppSettings,
+} from "../../shared/lib/settingsPersistenceAdapter";
+import { setAfkTimeout } from "./trackingRuntimeGateway";
 
 export class AppSettingsRuntimeService {
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    await SettingsService.updateSetting(key, value);
+    await saveSetting(key, value);
+
+    if (key === "afk_timeout_secs") {
+      await setAfkTimeout(value as number);
+    }
   }
 
   static async loadLatestSettings() {
-    return SettingsService.load();
+    return loadSettings();
   }
 
   static async applyAfkTimeout(timeoutSecs: number) {
-    await TrackingService.setAfkTimeout(timeoutSecs);
+    await setAfkTimeout(timeoutSecs);
   }
 }

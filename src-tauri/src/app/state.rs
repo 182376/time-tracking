@@ -1,55 +1,5 @@
-﻿use serde::{Deserialize, Serialize};
+use crate::domain::settings::{CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior};
 use std::sync::Mutex;
-
-pub(crate) const CLOSE_BEHAVIOR_KEY: &str = "close_behavior";
-pub(crate) const MINIMIZE_BEHAVIOR_KEY: &str = "minimize_behavior";
-pub(crate) const LAUNCH_AT_LOGIN_KEY: &str = "launch_at_login";
-pub(crate) const START_MINIMIZED_KEY: &str = "start_minimized";
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum CloseBehavior {
-    Exit,
-    #[default]
-    Tray,
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum MinimizeBehavior {
-    #[default]
-    Taskbar,
-    Tray,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct DesktopBehaviorSettings {
-    pub(crate) close_behavior: CloseBehavior,
-    pub(crate) minimize_behavior: MinimizeBehavior,
-    pub(crate) launch_at_login: bool,
-    pub(crate) start_minimized: bool,
-}
-
-impl Default for DesktopBehaviorSettings {
-    fn default() -> Self {
-        Self {
-            close_behavior: CloseBehavior::Tray,
-            minimize_behavior: MinimizeBehavior::Taskbar,
-            launch_at_login: false,
-            start_minimized: true,
-        }
-    }
-}
-
-impl DesktopBehaviorSettings {
-    pub(crate) fn should_keep_tray_visible(self) -> bool {
-        self.close_behavior == CloseBehavior::Tray || self.minimize_behavior == MinimizeBehavior::Tray
-    }
-
-    pub(crate) fn should_start_minimized_on_autostart(self) -> bool {
-        self.launch_at_login && self.start_minimized
-    }
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct DesktopBehaviorState {
@@ -102,29 +52,5 @@ impl DesktopBehaviorState {
                 *guard
             }
         }
-    }
-}
-
-pub(crate) fn parse_close_behavior(raw: &str) -> CloseBehavior {
-    if raw.trim().eq_ignore_ascii_case("exit") {
-        CloseBehavior::Exit
-    } else {
-        CloseBehavior::Tray
-    }
-}
-
-pub(crate) fn parse_minimize_behavior(raw: &str) -> MinimizeBehavior {
-    if raw.trim().eq_ignore_ascii_case("tray") {
-        MinimizeBehavior::Tray
-    } else {
-        MinimizeBehavior::Taskbar
-    }
-}
-
-pub(crate) fn parse_boolean_setting(raw: &str, fallback: bool) -> bool {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => true,
-        "0" | "false" | "no" | "off" => false,
-        _ => fallback,
     }
 }

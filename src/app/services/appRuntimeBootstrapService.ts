@@ -1,8 +1,14 @@
-﻿import type { AppSettings } from "../../lib/settings";
-import { SettingsService } from "../../lib/services/SettingsService";
-import { TrackingService } from "../../lib/services/TrackingService";
 import type { TrackerHealthSnapshot, TrackingWindowSnapshot } from "../../types/tracking";
 import { resolveTrackerHealth } from "../../types/tracking";
+import {
+  loadSettings,
+  loadTrackerHealthTimestamp,
+  type AppSettings,
+} from "../../shared/lib/settingsPersistenceAdapter";
+import {
+  getCurrentWindow,
+  setAfkTimeout,
+} from "./trackingRuntimeGateway";
 import { initializeProcessMapperRuntime } from "./processMapperRuntimeService";
 
 export const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
@@ -15,7 +21,7 @@ export interface AppRuntimeBootstrapSnapshot {
 
 export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Promise<TrackerHealthSnapshot> {
   try {
-    const lastHeartbeatMs = await SettingsService.loadTrackerHealthTimestamp();
+    const lastHeartbeatMs = await loadTrackerHealthTimestamp();
     return resolveTrackerHealth(lastHeartbeatMs, nowMs, TRACKER_HEARTBEAT_STALE_AFTER_MS);
   } catch (error) {
     console.warn("Failed to load tracker heartbeat", error);
@@ -24,13 +30,13 @@ export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Pro
 }
 
 export async function loadAppRuntimeBootstrapSnapshot(): Promise<AppRuntimeBootstrapSnapshot> {
-  const settings = await SettingsService.load();
-  await TrackingService.setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
+  const settings = await loadSettings();
+  await setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
 
   await initializeProcessMapperRuntime();
 
   const [activeWindow, trackerHealth] = await Promise.all([
-    TrackingService.getCurrentWindow(),
+    getCurrentWindow(),
     loadTrackerHealthSnapshot(),
   ]);
 
