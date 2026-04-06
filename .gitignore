@@ -27,8 +27,6 @@ dist-ssr
 .agents/
 skills-lock.json
 src-tauri/err.txt
-.vscode/
 timetracker.db
 timetracker.db-shm
 timetracker.db-wal
-docs/
