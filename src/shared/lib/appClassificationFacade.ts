@@ -1,0 +1,24 @@
+import { ProcessMapper, type AppInfo, type AppOverride, type MappingHints } from "../../lib/ProcessMapper";
+import type { AppCategory } from "../../lib/config/categoryTokens";
+
+export class AppClassificationFacade {
+  static mapApp(exeName: string, hints: MappingHints = {}): AppInfo {
+    return ProcessMapper.map(exeName, hints);
+  }
+
+  static getCategoryLabel(category: AppCategory): string {
+    return ProcessMapper.getCategoryLabel(category);
+  }
+
+  static getCategoryColor(category: AppCategory): string {
+    return ProcessMapper.getCategoryColor(category);
+  }
+
+  static getUserOverride(exeName: string): AppOverride | null {
+    return ProcessMapper.getUserOverride(exeName);
+  }
+
+  static shouldTrackApp(exeName: string): boolean {
+    return ProcessMapper.shouldTrack(exeName);
+  }
+}

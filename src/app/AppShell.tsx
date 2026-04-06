@@ -1,8 +1,6 @@
 import { Suspense, lazy, useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { ProcessMapper } from "../lib/ProcessMapper";
 import { UI_TEXT } from "../lib/copy";
-import { resolveCanonicalExecutable, shouldTrackProcess } from "../lib/processNormalization";
 import Sidebar from "../shared/components/Sidebar";
 import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack, { type ToastItem, type ToastTone } from "../shared/components/ToastStack";
@@ -10,6 +8,7 @@ import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats
 import { useWindowTracking } from "./hooks/useWindowTracking";
 import { AppSettingsRuntimeService } from "./services/appSettingsRuntimeService";
 import type { View } from "../shared/types/app";
+import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
 
 const History = lazy(() => import("../features/history/components/History"));
 const Settings = lazy(() => import("../features/settings/components/Settings"));
@@ -35,16 +34,13 @@ export default function AppShell() {
     mappingVersion,
   );
 
-  const activeCanonicalExe = activeWindow?.exe_name
-    ? resolveCanonicalExecutable(activeWindow.exe_name)
-    : null;
+  const activeExeName = activeWindow?.exe_name ?? null;
   const activeApp = trackerHealth.status === "healthy"
     && !appSettings.tracking_paused
-    && activeCanonicalExe
+    && activeExeName
     && !activeWindow?.is_afk
-    && shouldTrackProcess(activeCanonicalExe)
-    && ProcessMapper.shouldTrack(activeCanonicalExe)
-    ? ProcessMapper.map(activeCanonicalExe)
+    && AppClassificationFacade.shouldTrackApp(activeExeName)
+    ? AppClassificationFacade.mapApp(activeExeName)
     : null;
 
   const handleMinSessionSecsChange = useCallback((nextValue: number) => {

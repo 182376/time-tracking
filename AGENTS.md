@@ -8,6 +8,7 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 
 - UI work must follow `docs/quiet-pro-component-guidelines.md`.
 - Architecture refactors and new modules should align with `docs/architecture-target.md`.
+- Treat `docs/architecture-target.md` and `docs/quiet-pro-component-guidelines.md` as the current authoritative long-lived documents, even if older/generated variants once existed.
 
 ## Quiet Pro Baseline
 
@@ -59,6 +60,7 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 - One-off execution plans, temporary fix plans, and completed task documents should not stay in top-level `docs/`.
 - When a one-off document is no longer the current source of truth, move it to `docs/archive/`.
 - Do not update or rely on `docs/archive/*` as the default execution basis unless the user explicitly asks for historical context.
+- Do not try to reconstruct long-lived docs from old mojibake terminal output or archived one-off plans when a current top-level source-of-truth document already exists.
 
 ## Encoding Rules
 

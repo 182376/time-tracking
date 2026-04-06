@@ -1,7 +1,10 @@
-﻿import { ProcessMapper, type AppOverride } from "../../../lib/ProcessMapper";
+﻿import { ProcessMapper } from "../../../lib/ProcessMapper";
+import type { AppOverride } from "../../../lib/ProcessMapper";
 import type { AppCategory, CustomAppCategory } from "../../../lib/config/categoryTokens";
 import type { ObservedAppCandidate } from "../../../lib/settings";
 import { SettingsService } from "../../../lib/services/SettingsService";
+
+export type { AppOverride } from "../../../lib/ProcessMapper";
 
 export interface ClassificationBootstrapData {
   observed: ObservedAppCandidate[];

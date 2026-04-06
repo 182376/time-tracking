@@ -1,6 +1,6 @@
 ﻿import { Trash2 } from "lucide-react";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
-import { ProcessMapper } from "../../../lib/ProcessMapper";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 interface Props {
   categories: AppCategory[];
@@ -22,8 +22,8 @@ export default function CategoryColorControls({
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
       {categories.map((category) => {
-        const label = ProcessMapper.getCategoryLabel(category);
-        const color = ProcessMapper.getCategoryColor(category);
+        const label = AppClassificationFacade.getCategoryLabel(category);
+        const color = AppClassificationFacade.getCategoryColor(category);
         const isBusy = busyCategory === category;
 
         return (
@@ -81,4 +81,5 @@ export default function CategoryColorControls({
     </div>
   );
 }
+
 

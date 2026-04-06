@@ -20,8 +20,8 @@ import {
 } from "../services/historyFormatting";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { HistoryReadModelService } from "../../../shared/lib/historyReadModelService";
-import { ProcessMapper } from "../../../lib/ProcessMapper";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 interface Props {
   icons: Record<string, string>;
@@ -283,8 +283,8 @@ export default function History({
               ) : (
                 <div className="space-y-4">
                   {appSummary.slice(0, 15).map((app) => {
-                    const mapped = ProcessMapper.map(app.exeName, { appName: app.appName });
-                    const overrideColor = ProcessMapper.getUserOverride(app.exeName)?.color;
+                    const mapped = AppClassificationFacade.mapApp(app.exeName, { appName: app.appName });
+                    const overrideColor = AppClassificationFacade.getUserOverride(app.exeName)?.color;
                     const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? mapped.color;
                     const appName = app.appName.trim() || mapped.name;
                     return (
@@ -338,8 +338,8 @@ export default function History({
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
                 {timelineSessions.map((session) => {
-                  const mapped = ProcessMapper.map(session.exe_name, { appName: session.displayName });
-                  const overrideColor = ProcessMapper.getUserOverride(session.exe_name)?.color;
+                  const mapped = AppClassificationFacade.mapApp(session.exe_name, { appName: session.displayName });
+                  const overrideColor = AppClassificationFacade.getUserOverride(session.exe_name)?.color;
                   const accentColor = overrideColor ?? iconThemeColors[session.exe_name] ?? mapped.color;
 
                   return (

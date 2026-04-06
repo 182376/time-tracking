@@ -3,9 +3,9 @@ import { Monitor, BarChart3, Activity } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../../../lib/copy";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
-import { ProcessMapper } from "../../../lib/ProcessMapper";
 import { formatDashboardDuration } from "../services/dashboardFormatting";
 import type { DashboardReadModel } from "../../../shared/lib/historyReadModelService";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 interface Props {
   dashboard: DashboardReadModel;
@@ -180,7 +180,7 @@ export default function Dashboard({
             )}
             {topApplications.map((app) => (
               (() => {
-                const overrideColor = ProcessMapper.getUserOverride(app.exeName)?.color;
+                const overrideColor = AppClassificationFacade.getUserOverride(app.exeName)?.color;
                 const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? app.color;
 
                 return (

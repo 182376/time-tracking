@@ -1,7 +1,7 @@
 import type { AppStat } from "../../../shared/types/app";
 import type { HistorySession } from "../../../lib/db";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
-import { ProcessMapper } from "../../../lib/ProcessMapper";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 export interface HourlyActivityPoint {
   hour: string;
@@ -43,7 +43,7 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
   const totalTrackedTime = getTotalTrackedTime(stats);
 
   return stats.map((item) => {
-    const mapped = ProcessMapper.map(item.exe_name, { appName: item.app_name });
+    const mapped = AppClassificationFacade.mapApp(item.exe_name, { appName: item.app_name });
     const name = item.app_name.trim() || mapped.name;
     return {
       exeName: item.exe_name,
@@ -93,16 +93,16 @@ export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] 
   const categories = new Map<AppCategory, number>();
 
   for (const stat of stats) {
-    const mapped = ProcessMapper.map(stat.exe_name, { appName: stat.app_name });
+    const mapped = AppClassificationFacade.mapApp(stat.exe_name, { appName: stat.app_name });
     categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.total_duration));
   }
 
   return Array.from(categories.entries())
     .map(([cat, val]) => ({
       category: cat,
-      name: ProcessMapper.getCategoryLabel(cat),
+      name: AppClassificationFacade.getCategoryLabel(cat),
       value: val,
-      color: ProcessMapper.getCategoryColor(cat),
+      color: AppClassificationFacade.getCategoryColor(cat),
     }))
     .sort((a, b) => b.value - a.value);
 }

@@ -1,8 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Palette, RefreshCw, Sparkles, Trash2, RotateCcw, SlidersHorizontal, X, Pencil } from "lucide-react";
-import { ClassificationService } from "../services/classificationService";
-import { ProcessMapper, type AppOverride } from "../../../lib/ProcessMapper";
+import { ClassificationService, type AppOverride } from "../services/classificationService";
 import { buildDangerConfirmMessage } from "../../../lib/confirm";
 import type { CandidateFilter, ObservedAppCandidate } from "../types";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
@@ -13,6 +12,7 @@ import {
   type UserAssignableAppCategory,
 } from "../../../lib/config/categoryTokens";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
+import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import CategoryColorControls from "./CategoryColorControls";
 
 interface Props {
@@ -122,14 +122,14 @@ export default function AppMapping({
     return overrides[candidate.exeName]?.displayName?.trim() || resolveAutoDisplayName(candidate);
   };
   const resolveCandidateColor = (candidate: ObservedAppCandidate) => {
-    const mapped = ProcessMapper.map(candidate.exeName, { appName: candidate.appName });
+    const mapped = AppClassificationFacade.mapApp(candidate.exeName, { appName: candidate.appName });
     return overrides[candidate.exeName]?.color
       ?? iconThemeColors[candidate.exeName]
       ?? mapped.color
       ?? "#64748B";
   };
   const resolveAssignedCategory = (candidate: ObservedAppCandidate): UserAssignableAppCategory => {
-    const mapped = ProcessMapper.map(candidate.exeName, { appName: candidate.appName });
+    const mapped = AppClassificationFacade.mapApp(candidate.exeName, { appName: candidate.appName });
     const category = mapped.category;
     return category === "system" ? "other" : category;
   };
@@ -173,7 +173,7 @@ export default function AppMapping({
       }
     }
     return Array.from(categories)
-      .sort((a, b) => ProcessMapper.getCategoryLabel(a).localeCompare(ProcessMapper.getCategoryLabel(b), "zh-CN"));
+      .sort((a, b) => AppClassificationFacade.getCategoryLabel(a).localeCompare(AppClassificationFacade.getCategoryLabel(b), "zh-CN"));
   }, [customCategories, overrides, categoryColorOverrides, deletedCategories]);
 
   const activeBuiltinCategories = useMemo(
@@ -242,7 +242,7 @@ export default function AppMapping({
   };
 
   const handleDeleteCategory = async (category: AppCategory) => {
-    const categoryLabel = ProcessMapper.getCategoryLabel(category);
+    const categoryLabel = AppClassificationFacade.getCategoryLabel(category);
     const confirmed = window.confirm(
       buildDangerConfirmMessage("删除分类", `目标分类：${categoryLabel}`),
     );
@@ -310,7 +310,7 @@ export default function AppMapping({
     }
   };
   const handleCategoryAssign = async (candidate: ObservedAppCandidate, categoryValue: string) => {
-    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const current = AppClassificationFacade.getUserOverride(candidate.exeName);
     let category: UserAssignableAppCategory | undefined;
     if (categoryValue === AUTO_CATEGORY_VALUE) {
       category = undefined;
@@ -332,7 +332,7 @@ export default function AppMapping({
     }
   };
   const handleColorAssign = async (candidate: ObservedAppCandidate, colorValue?: string | null) => {
-    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const current = AppClassificationFacade.getUserOverride(candidate.exeName);
     const nextOverride = buildOverride({
       category: current?.category,
       displayName: current?.displayName,
@@ -351,7 +351,7 @@ export default function AppMapping({
     const draftRaw = (nameDrafts[candidate.exeName] ?? resolveEffectiveDisplayName(candidate)).trim();
     const autoName = resolveAutoDisplayName(candidate);
     const displayName = draftRaw && draftRaw !== autoName ? draftRaw : undefined;
-    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const current = AppClassificationFacade.getUserOverride(candidate.exeName);
     const nextOverride = buildOverride({
       category: current?.category,
       color: current?.color,
@@ -400,7 +400,7 @@ export default function AppMapping({
     }
   };
   const handleTrackingToggle = async (candidate: ObservedAppCandidate, nextTrack: boolean) => {
-    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const current = AppClassificationFacade.getUserOverride(candidate.exeName);
     const nextOverride = buildOverride({
       category: current?.category,
       color: current?.color,
@@ -419,7 +419,7 @@ export default function AppMapping({
     candidate: ObservedAppCandidate,
     nextCaptureTitle: boolean,
   ) => {
-    const current = ProcessMapper.getUserOverride(candidate.exeName);
+    const current = AppClassificationFacade.getUserOverride(candidate.exeName);
     const nextOverride = buildOverride({
       category: current?.category,
       color: current?.color,
@@ -636,7 +636,7 @@ export default function AppMapping({
                         <option value={AUTO_CATEGORY_VALUE}>自动识别</option>
                         {orderedAssignableCategories.map((category) => (
                           <option key={category} value={category}>
-                            {ProcessMapper.getCategoryLabel(category)}
+                            {AppClassificationFacade.getCategoryLabel(category)}
                           </option>
                         ))}
                       </select>
@@ -739,6 +739,9 @@ export default function AppMapping({
     </motion.div>
   );
 }
+
+
+
 
 
 
