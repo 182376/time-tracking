@@ -297,12 +297,12 @@ Rust `commands/*` 只做：
 
 ### 阶段 4：数据与领域边界深化
 
-状态：`未完成`
+状态：`进行中（Rust data/domain 备份基础骨架已完成第一轮收口）`
 
 这是接下来最值得做的长期方向之一，重点包括：
 
-- Rust `data/` 中补齐仓储与数据职责
-- Rust `domain/` 中补齐核心模型与 DTO 落点
+- Rust `data/` 中继续扩充仓储与数据职责（已完成 `backup` 的 `sessions/settings/icon_cache` 首批仓储边界）
+- Rust `domain/` 中继续补齐核心模型与 DTO 落点（已新增 `domain/backup.rs` 并承接备份 DTO）
 - 前端根层基础设施继续去耦
 - 减少遗留 `src/lib/*` 的边界模糊性
 

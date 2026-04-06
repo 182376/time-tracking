@@ -1,5 +1,6 @@
-﻿use crate::app::runtime::{now_ms, sync_desktop_behavior_from_storage};
-use crate::data::backup::{self, BackupPreview};
+use crate::app::runtime::{now_ms, sync_desktop_behavior_from_storage};
+use crate::data::backup;
+use crate::domain::backup::BackupPreview;
 use crate::engine::tracking_runtime;
 use tauri::AppHandle;
 
@@ -31,3 +32,4 @@ pub async fn cmd_restore_backup(backup_path: String, app: AppHandle) -> Result<(
 pub async fn cmd_preview_backup(backup_path: String) -> Result<BackupPreview, String> {
     backup::preview_backup(backup_path).await
 }
+

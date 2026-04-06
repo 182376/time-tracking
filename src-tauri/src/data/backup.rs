@@ -1,6 +1,7 @@
-﻿use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
-use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Row, Sqlite};
+use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
+use crate::data::repositories;
+use crate::domain::backup::{BackupMeta, BackupPayload, BackupPreview};
+use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
@@ -8,59 +9,6 @@ use tauri::{AppHandle, Manager, Runtime};
 const BACKUP_FILE_EXT: &str = "ttbackup.json";
 const CURRENT_BACKUP_VERSION: u32 = 1;
 const CURRENT_BACKUP_SCHEMA_VERSION: u32 = 3;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BackupMeta {
-    exported_at_ms: u64,
-    schema_version: u32,
-    app_version: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BackupSession {
-    id: i64,
-    app_name: String,
-    exe_name: String,
-    window_title: Option<String>,
-    start_time: i64,
-    end_time: Option<i64>,
-    duration: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BackupSetting {
-    key: String,
-    value: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BackupIconCache {
-    exe_name: String,
-    icon_base64: String,
-    last_updated: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct BackupPayload {
-    version: u32,
-    meta: BackupMeta,
-    sessions: Vec<BackupSession>,
-    settings: Vec<BackupSetting>,
-    icon_cache: Vec<BackupIconCache>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct BackupPreview {
-    version: u32,
-    exported_at_ms: u64,
-    schema_version: u32,
-    app_version: String,
-    compatibility_level: String,
-    compatibility_message: String,
-    session_count: usize,
-    setting_count: usize,
-    icon_cache_count: usize,
-}
 
 fn default_backup_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let app_data_dir = app
@@ -111,50 +59,9 @@ fn resolve_backup_path<R: Runtime>(
 
 async fn load_backup_payload<R: Runtime>(app: &AppHandle<R>) -> Result<BackupPayload, String> {
     let pool = wait_for_sqlite_pool(app).await?;
-
-    let session_rows = sqlx::query(
-        "SELECT id, app_name, exe_name, window_title, start_time, end_time, duration\n         FROM sessions\n         ORDER BY id ASC",
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|error| format!("failed to read sessions for backup: {error}"))?;
-    let sessions = session_rows
-        .into_iter()
-        .map(|row: sqlx::sqlite::SqliteRow| BackupSession {
-            id: row.get("id"),
-            app_name: row.get("app_name"),
-            exe_name: row.get("exe_name"),
-            window_title: row.get("window_title"),
-            start_time: row.get("start_time"),
-            end_time: row.get("end_time"),
-            duration: row.get("duration"),
-        })
-        .collect::<Vec<_>>();
-
-    let setting_rows = sqlx::query("SELECT key, value FROM settings ORDER BY key ASC")
-        .fetch_all(&pool)
-        .await
-        .map_err(|error| format!("failed to read settings for backup: {error}"))?;
-    let settings = setting_rows
-        .into_iter()
-        .map(|row: sqlx::sqlite::SqliteRow| BackupSetting {
-            key: row.get("key"),
-            value: row.get("value"),
-        })
-        .collect::<Vec<_>>();
-
-    let icon_rows = sqlx::query("SELECT exe_name, icon_base64, last_updated FROM icon_cache")
-        .fetch_all(&pool)
-        .await
-        .map_err(|error| format!("failed to read icon cache for backup: {error}"))?;
-    let icon_cache = icon_rows
-        .into_iter()
-        .map(|row: sqlx::sqlite::SqliteRow| BackupIconCache {
-            exe_name: row.get("exe_name"),
-            icon_base64: row.get("icon_base64"),
-            last_updated: row.get("last_updated"),
-        })
-        .collect::<Vec<_>>();
+    let sessions = repositories::sessions::fetch_all_for_backup(&pool).await?;
+    let settings = repositories::settings::fetch_all_for_backup(&pool).await?;
+    let icon_cache = repositories::icon_cache::fetch_all_for_backup(&pool).await?;
 
     Ok(BackupPayload {
         version: 1,
@@ -296,54 +203,13 @@ async fn restore_backup_payload(pool: &Pool<Sqlite>, payload: &BackupPayload) ->
         .begin()
         .await
         .map_err(|error| format!("failed to start restore transaction: {error}"))?;
+    repositories::sessions::clear_for_restore(&mut tx).await?;
+    repositories::settings::clear_for_restore(&mut tx).await?;
+    repositories::icon_cache::clear_for_restore(&mut tx).await?;
 
-    sqlx::query("DELETE FROM sessions")
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| format!("failed to clear sessions before restore: {error}"))?;
-    sqlx::query("DELETE FROM settings")
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| format!("failed to clear settings before restore: {error}"))?;
-    sqlx::query("DELETE FROM icon_cache")
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| format!("failed to clear icon cache before restore: {error}"))?;
-
-    for session in &payload.sessions {
-        sqlx::query(
-            "INSERT INTO sessions (\n               id, app_name, exe_name, window_title, start_time, end_time, duration\n             ) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(session.id)
-        .bind(&session.app_name)
-        .bind(&session.exe_name)
-        .bind(&session.window_title)
-        .bind(session.start_time)
-        .bind(session.end_time)
-        .bind(session.duration)
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| format!("failed to restore sessions: {error}"))?;
-    }
-
-    for setting in &payload.settings {
-        sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)")
-            .bind(&setting.key)
-            .bind(&setting.value)
-            .execute(&mut *tx)
-            .await
-            .map_err(|error| format!("failed to restore settings: {error}"))?;
-    }
-
-    for icon in &payload.icon_cache {
-        sqlx::query("INSERT INTO icon_cache (exe_name, icon_base64, last_updated) VALUES (?, ?, ?)")
-            .bind(&icon.exe_name)
-            .bind(&icon.icon_base64)
-            .bind(icon.last_updated)
-            .execute(&mut *tx)
-            .await
-            .map_err(|error| format!("failed to restore icon cache: {error}"))?;
-    }
+    repositories::sessions::insert_for_restore(&mut tx, &payload.sessions).await?;
+    repositories::settings::insert_for_restore(&mut tx, &payload.settings).await?;
+    repositories::icon_cache::insert_for_restore(&mut tx, &payload.icon_cache).await?;
 
     tx.commit()
         .await
@@ -379,6 +245,7 @@ pub async fn preview_backup(backup_path: String) -> Result<BackupPreview, String
 mod tests {
     use super::*;
     use crate::data::migrations as db_schema;
+    use crate::domain::backup::{BackupIconCache, BackupSession, BackupSetting};
     use sqlx::{Executor, SqlitePool};
 
     async fn setup_test_db() -> SqlitePool {
@@ -478,10 +345,3 @@ mod tests {
         });
     }
 }
-
-
-
-
-
-
-

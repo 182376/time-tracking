@@ -67,4 +67,6 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 - Markdown and documentation files must be saved as UTF-8.
 - When editing Chinese documentation on Windows, preserve readable UTF-8 text and do not introduce mojibake.
 - Do not rewrite `.md` files through shell output or redirection patterns that may change encoding implicitly.
+- Do not rewrite source files or documentation through PowerShell text-output commands or redirection, including `>`, `>>`, `Set-Content`, and `Out-File`.
+- When a task touches Chinese text in `.md`, `.ts`, `.tsx`, or `.rs` files, prefer normal code edits only; if encoding damage is detected, stop and repair encoding first before continuing the task.
 - If a documentation file appears garbled in terminal output, verify the file bytes before assuming the content is corrupted.
