@@ -1,17 +1,17 @@
-﻿import { Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 interface Props {
   categories: AppCategory[];
-  busyCategory: string | null;
-  onApplyColor: (category: AppCategory, color: string | null) => Promise<void>;
-  onDeleteCategory: (category: AppCategory) => Promise<void>;
+  getCategoryColor: (category: AppCategory) => string;
+  onApplyColor: (category: AppCategory, color: string | null) => void;
+  onDeleteCategory: (category: AppCategory) => void;
 }
 
 export default function CategoryColorControls({
   categories,
-  busyCategory,
+  getCategoryColor,
   onApplyColor,
   onDeleteCategory,
 }: Props) {
@@ -23,8 +23,7 @@ export default function CategoryColorControls({
     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
       {categories.map((category) => {
         const label = AppClassificationFacade.getCategoryLabel(category);
-        const color = AppClassificationFacade.getCategoryColor(category);
-        const isBusy = busyCategory === category;
+        const color = getCategoryColor(category);
 
         return (
           <div
@@ -48,17 +47,15 @@ export default function CategoryColorControls({
                 <input
                   type="color"
                   value={color}
-                  disabled={isBusy}
-                  onChange={(event) => void onApplyColor(category, event.target.value)}
-                  className="h-7 w-7 cursor-pointer rounded-[6px] border border-[var(--qp-border-subtle)] bg-transparent p-0.5 disabled:cursor-not-allowed"
+                  onChange={(event) => onApplyColor(category, event.target.value)}
+                  className="h-7 w-7 cursor-pointer rounded-[6px] border border-[var(--qp-border-subtle)] bg-transparent p-0.5"
                   title={`${label} 颜色`}
                 />
 
                 <button
                   type="button"
-                  disabled={isBusy}
-                  onClick={() => void onApplyColor(category, null)}
-                  className="rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium text-[var(--qp-text-tertiary)] transition hover:text-[var(--qp-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={() => onApplyColor(category, null)}
+                  className="rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium text-[var(--qp-text-tertiary)] transition hover:text-[var(--qp-text-secondary)]"
                   title="恢复默认颜色"
                 >
                   默认
@@ -66,9 +63,8 @@ export default function CategoryColorControls({
 
                 <button
                   type="button"
-                  disabled={isBusy}
-                  onClick={() => void onDeleteCategory(category)}
-                  className="rounded-[6px] p-1 text-[var(--qp-danger)] transition hover:bg-[color:var(--qp-danger)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={() => onDeleteCategory(category)}
+                  className="rounded-[6px] p-1 text-[var(--qp-danger)] transition hover:bg-[color:var(--qp-danger)]/10"
                   title={`删除分类：${label}`}
                 >
                   <Trash2 size={12} />
@@ -81,5 +77,3 @@ export default function CategoryColorControls({
     </div>
   );
 }
-
-

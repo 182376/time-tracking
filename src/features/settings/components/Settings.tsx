@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -17,7 +17,6 @@ import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapte
 import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";
 
-
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
   { value: 90, label: UI_TEXT.settings.cleanupRangeLabels[90] },
@@ -29,9 +28,11 @@ const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
 
 export default function Settings({
   onSettingsChanged,
+  onDirtyChange,
   onToast,
 }: SettingsPageProps) {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
+  const [draftSettings, setDraftSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [cleanupRange, setCleanupRange] = useState<CleanupRange>(30);
@@ -51,7 +52,8 @@ export default function Settings({
     const load = async () => {
       const bootstrap = await SettingsRuntimeAdapterService.loadBootstrap();
       if (cancelled) return;
-      setSettings(bootstrap.settings);
+      setSavedSettings(bootstrap.settings);
+      setDraftSettings(bootstrap.settings);
       setAppVersion(bootstrap.appVersion);
       setLoading(false);
     };
@@ -61,17 +63,56 @@ export default function Settings({
     };
   }, []);
 
-  const handleChange = async <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    if (!settings) return;
+  const hasUnsavedChanges = (() => {
+    if (!savedSettings || !draftSettings) {
+      return false;
+    }
+    const keys = Object.keys(savedSettings) as Array<keyof AppSettings>;
+    return keys.some((key) => savedSettings[key] !== draftSettings[key]);
+  })();
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => () => {
+    onDirtyChange?.(false);
+  }, [onDirtyChange]);
+
+  const handleChange = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    setDraftSettings((current) => {
+      if (!current) return current;
+      const nextDraft = { ...current, [key]: value } as AppSettings;
+      if (key === "launch_at_login" && value === false) {
+        nextDraft.start_minimized = false;
+      }
+      return nextDraft;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!savedSettings || !draftSettings || !hasUnsavedChanges) return;
     setSaveStatus("saving");
+    try {
+      const patch = SettingsRuntimeAdapterService.buildSettingsPatch(savedSettings, draftSettings);
+      await SettingsRuntimeAdapterService.commitSettingsPatch(patch);
+      setSavedSettings(draftSettings);
+      onSettingsChanged(draftSettings);
+      setSaveStatus("saved");
+      window.setTimeout(() => setSaveStatus("idle"), 1800);
+      notify(UI_TEXT.settings.saved, "success");
+    } catch (error) {
+      console.error("save settings failed", error);
+      setSaveStatus("idle");
+      notify(UI_TEXT.settings.saveFailed, "warning");
+    }
+  };
 
-    const newSettings = { ...settings, [key]: value } as AppSettings;
-    setSettings(newSettings);
-    await SettingsRuntimeAdapterService.updateSetting(key, value);
-
-    onSettingsChanged(newSettings);
-    setSaveStatus("saved");
-    setTimeout(() => setSaveStatus("idle"), 2000);
+  const handleCancel = () => {
+    if (!savedSettings || !hasUnsavedChanges) return;
+    setDraftSettings(savedSettings);
+    setSaveStatus("idle");
+    notify(UI_TEXT.settings.cancelled, "info");
   };
 
   const handleCleanup = async () => {
@@ -172,7 +213,7 @@ export default function Settings({
     }
   };
 
-  if (loading || !settings) {
+  if (loading || !savedSettings || !draftSettings) {
     return (
       <div className="flex-1 flex items-center justify-center text-[var(--qp-text-tertiary)] gap-3">
         <RefreshCw className="animate-spin" size={20} />
@@ -200,20 +241,43 @@ export default function Settings({
             <p className="text-[11px] text-[var(--qp-text-tertiary)] mt-1">{UI_TEXT.settings.subtitle}</p>
           </div>
         </div>
-        <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
-          {saveStatus === "saving" && (
-            <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
-              <RefreshCw size={12} className="animate-spin" />
-              {UI_TEXT.settings.saving}
-            </span>
-          )}
-          {saveStatus === "saved" && (
-            <span className="text-[var(--qp-success)] flex items-center gap-1.5">
-              <Save size={14} />
-              {UI_TEXT.settings.saved}
-            </span>
-          )}
-          {saveStatus === "idle" && <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.settings.idle}</span>}
+        <div className="flex items-center gap-2.5">
+          <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
+            {saveStatus === "saving" && (
+              <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
+                <RefreshCw size={12} className="animate-spin" />
+                {UI_TEXT.settings.saving}
+              </span>
+            )}
+            {saveStatus === "saved" && !hasUnsavedChanges && (
+              <span className="text-[var(--qp-success)] flex items-center gap-1.5">
+                <Save size={14} />
+                {UI_TEXT.settings.saved}
+              </span>
+            )}
+            {saveStatus !== "saving" && hasUnsavedChanges && (
+              <span className="text-[var(--qp-warning)]">{UI_TEXT.settings.unsaved}</span>
+            )}
+            {saveStatus === "idle" && !hasUnsavedChanges && (
+              <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.settings.idle}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={!hasUnsavedChanges || saveStatus === "saving"}
+            className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {UI_TEXT.settings.cancel}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!hasUnsavedChanges || saveStatus === "saving"}
+            className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saveStatus === "saving" ? UI_TEXT.settings.saving : UI_TEXT.settings.save}
+          </button>
         </div>
       </header>
 
@@ -231,8 +295,8 @@ export default function Settings({
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.afkHint}</p>
                   <select
-                    value={settings.afk_timeout_secs}
-                    onChange={(e) => void handleChange("afk_timeout_secs", Number(e.target.value))}
+                    value={draftSettings.afk_timeout_secs}
+                    onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
                     className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
@@ -247,8 +311,8 @@ export default function Settings({
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
                   <select
-                    value={settings.min_session_secs}
-                    onChange={(e) => void handleChange("min_session_secs", Number(e.target.value))}
+                    value={draftSettings.min_session_secs}
+                    onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
                     className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value={30}>30 s</option>
@@ -268,15 +332,15 @@ export default function Settings({
                   </p>
                   <button
                     type="button"
-                    onClick={() => void handleChange("tracking_paused", !settings.tracking_paused)}
+                    onClick={() => handleChange("tracking_paused", !draftSettings.tracking_paused)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.tracking_paused ? "bg-[var(--qp-warning)]" : "bg-[var(--qp-control-off)]"
+                      draftSettings.tracking_paused ? "bg-[var(--qp-warning)]" : "bg-[var(--qp-control-off)]"
                     }`}
                     aria-label="切换暂停追踪"
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        settings.tracking_paused ? "translate-x-6" : "translate-x-1"
+                        draftSettings.tracking_paused ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
@@ -299,8 +363,8 @@ export default function Settings({
                     点最小化后，选择去任务栏或托盘。
                   </p>
                   <select
-                    value={settings.minimize_behavior}
-                    onChange={(e) => void handleChange("minimize_behavior", e.target.value as MinimizeBehavior)}
+                    value={draftSettings.minimize_behavior}
+                    onChange={(e) => handleChange("minimize_behavior", e.target.value as MinimizeBehavior)}
                     className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value="taskbar">最小化到任务栏</option>
@@ -316,8 +380,8 @@ export default function Settings({
                     点关闭后，选择直接退出或隐藏到托盘。
                   </p>
                   <select
-                    value={settings.close_behavior}
-                    onChange={(e) => void handleChange("close_behavior", e.target.value as CloseBehavior)}
+                    value={draftSettings.close_behavior}
+                    onChange={(e) => handleChange("close_behavior", e.target.value as CloseBehavior)}
                     className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
                   >
                     <option value="tray">最小化到托盘</option>
@@ -334,15 +398,15 @@ export default function Settings({
                   </p>
                   <button
                     type="button"
-                    onClick={() => void handleChange("launch_at_login", !settings.launch_at_login)}
+                    onClick={() => handleChange("launch_at_login", !draftSettings.launch_at_login)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.launch_at_login ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
+                      draftSettings.launch_at_login ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
                     }`}
                     aria-label="切换开机自启动"
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        settings.launch_at_login ? "translate-x-6" : "translate-x-1"
+                        draftSettings.launch_at_login ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
@@ -357,16 +421,16 @@ export default function Settings({
                   </p>
                   <button
                     type="button"
-                    disabled={!settings.launch_at_login}
-                    onClick={() => void handleChange("start_minimized", !settings.start_minimized)}
+                    disabled={!draftSettings.launch_at_login}
+                    onClick={() => handleChange("start_minimized", !draftSettings.start_minimized)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      settings.start_minimized ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
-                    } ${!settings.launch_at_login ? "cursor-not-allowed opacity-60" : ""}`}
+                      draftSettings.start_minimized ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
+                    } ${!draftSettings.launch_at_login ? "cursor-not-allowed opacity-60" : ""}`}
                     aria-label="切换启动时最小化"
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        settings.start_minimized ? "translate-x-6" : "translate-x-1"
+                        draftSettings.start_minimized ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
@@ -478,7 +542,3 @@ export default function Settings({
     </motion.div>
   );
 }
-
-
-
-

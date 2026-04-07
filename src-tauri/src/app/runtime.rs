@@ -1,16 +1,14 @@
 use crate::app::state::DesktopBehaviorState;
 use crate::app::tray::{apply_tray_visibility, setup_tray, MAIN_WINDOW_LABEL};
+use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::data::repositories::app_settings;
 use crate::engine::tracking_runtime;
 use crate::platform::windows::power;
-use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
-use tauri_plugin_sql::{DbInstances, DbPool};
 use tokio::time::{sleep, Duration};
 
-const DB_NAME: &str = "sqlite:timetracker.db";
 pub const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn was_launched_by_autostart() -> bool {
@@ -41,28 +39,6 @@ pub(crate) fn apply_autostart<R: Runtime>(
     }
 
     Ok(())
-}
-
-pub(crate) async fn wait_for_sqlite_pool<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<Pool<Sqlite>, String> {
-    let mut wait_cycles: u64 = 0;
-
-    loop {
-        if let Some(instances) = app.try_state::<DbInstances>() {
-            let instances = instances.0.read().await;
-            if let Some(DbPool::Sqlite(pool)) = instances.get(DB_NAME) {
-                return Ok(pool.clone());
-            }
-        }
-
-        wait_cycles += 1;
-        if wait_cycles > 300 {
-            return Err("sqlite pool not available in time".to_string());
-        }
-
-        sleep(Duration::from_millis(100)).await;
-    }
 }
 
 pub(crate) async fn sync_desktop_behavior_from_storage<R: Runtime>(

@@ -1,10 +1,11 @@
-use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
+use crate::app::runtime::now_ms;
+use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::app::state::DesktopBehaviorState;
+use crate::data::repositories::tracker_settings;
 use crate::domain::settings::{
-    parse_boolean_setting, CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior,
+    CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior,
 };
 use crate::engine::tracking_runtime;
-use sqlx::{Pool, Row, Sqlite};
 use tauri::{
     menu::{Menu, MenuEvent, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -16,7 +17,6 @@ const TRAY_ID: &str = "main";
 const TRAY_MENU_SHOW_ID: &str = "tray-show-main";
 const TRAY_MENU_TOGGLE_PAUSE_ID: &str = "tray-toggle-pause";
 const TRAY_MENU_QUIT_ID: &str = "tray-quit";
-const TRACKING_PAUSED_KEY: &str = "tracking_paused";
 
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
@@ -34,41 +34,14 @@ pub(crate) fn apply_tray_visibility<R: Runtime>(app: &AppHandle<R>, settings: De
     }
 }
 
-async fn load_tracking_paused_setting(pool: &Pool<Sqlite>) -> Result<bool, sqlx::Error> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind(TRACKING_PAUSED_KEY)
-        .fetch_optional(pool)
-        .await?;
-
-    Ok(row
-        .and_then(|row| row.try_get::<String, _>("value").ok())
-        .map(|value| parse_boolean_setting(&value, false))
-        .unwrap_or(false))
-}
-
-async fn save_tracking_paused_setting(
-    pool: &Pool<Sqlite>,
-    tracking_paused: bool,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO settings (key, value) VALUES (?, ?)\n         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    )
-    .bind(TRACKING_PAUSED_KEY)
-    .bind(if tracking_paused { "1" } else { "0" })
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 async fn toggle_tracking_paused<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let pool = wait_for_sqlite_pool(&app).await?;
-    let current = load_tracking_paused_setting(&pool)
+    let current = tracker_settings::load_tracking_paused_setting(&pool)
         .await
         .map_err(|error| format!("failed to load tracking pause setting: {error}"))?;
     let next = !current;
 
-    save_tracking_paused_setting(&pool, next)
+    tracker_settings::save_tracking_paused_setting(&pool, next)
         .await
         .map_err(|error| format!("failed to save tracking pause setting: {error}"))?;
 
@@ -147,15 +120,27 @@ pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &Window
 }
 
 pub(crate) fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let open_item = MenuItem::with_id(app, TRAY_MENU_SHOW_ID, "打开主界面", true, None::<&str>)?;
-    let toggle_pause_item = MenuItem::with_id(
+    let open_item = MenuItem::with_id(
         app,
-        TRAY_MENU_TOGGLE_PAUSE_ID,
-        "暂停/恢复追踪",
+        TRAY_MENU_SHOW_ID,
+        "\u{6253}\u{5f00}\u{4e3b}\u{754c}\u{9762}",
         true,
         None::<&str>,
     )?;
-    let quit_item = MenuItem::with_id(app, TRAY_MENU_QUIT_ID, "退出应用", true, None::<&str>)?;
+    let toggle_pause_item = MenuItem::with_id(
+        app,
+        TRAY_MENU_TOGGLE_PAUSE_ID,
+        "\u{6682}\u{505c}/\u{6062}\u{590d}\u{8ffd}\u{8e2a}",
+        true,
+        None::<&str>,
+    )?;
+    let quit_item = MenuItem::with_id(
+        app,
+        TRAY_MENU_QUIT_ID,
+        "\u{9000}\u{51fa}\u{5e94}\u{7528}",
+        true,
+        None::<&str>,
+    )?;
     let menu = Menu::with_items(app, &[&open_item, &toggle_pause_item, &quit_item])?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)

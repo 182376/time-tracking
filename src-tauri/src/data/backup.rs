@@ -1,5 +1,5 @@
-use crate::app::runtime::{now_ms, wait_for_sqlite_pool};
 use crate::data::repositories;
+use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::backup::{BackupMeta, BackupPayload, BackupPreview};
 use sqlx::{Pool, Sqlite};
 use std::fs;
@@ -74,6 +74,13 @@ async fn load_backup_payload<R: Runtime>(app: &AppHandle<R>) -> Result<BackupPay
         settings,
         icon_cache,
     })
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
 }
 
 fn resolve_dialog_directory(initial_path: Option<String>) -> Option<PathBuf> {

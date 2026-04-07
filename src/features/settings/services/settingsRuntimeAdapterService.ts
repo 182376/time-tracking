@@ -31,6 +31,8 @@ export interface BackupRestorePreparation {
   incompatibilityMessage?: string;
 }
 
+type SettingsPatch = Partial<AppSettings>;
+
 function resolveCleanupCutoffTime(range: CleanupRange, nowMs: number): number {
   const date = new Date(nowMs);
   date.setDate(date.getDate() - range);
@@ -110,5 +112,30 @@ export class SettingsRuntimeAdapterService {
 
   static async restoreBackup(path: string): Promise<void> {
     await restoreBackup(path);
+  }
+
+  static buildSettingsPatch(
+    saved: AppSettings,
+    draft: AppSettings,
+  ): SettingsPatch {
+    const patch: SettingsPatch = {};
+    const patchRecord = patch as Record<keyof AppSettings, AppSettings[keyof AppSettings]>;
+    const keys = Object.keys(saved) as Array<keyof AppSettings>;
+    for (const key of keys) {
+      if (saved[key] !== draft[key]) {
+        patchRecord[key] = draft[key];
+      }
+    }
+    return patch;
+  }
+
+  static async commitSettingsPatch(patch: SettingsPatch): Promise<void> {
+    const entries = Object.entries(patch) as Array<[keyof AppSettings, AppSettings[keyof AppSettings]]>;
+    for (const [key, value] of entries) {
+      await saveSetting(key, value);
+      if (key === "afk_timeout_secs") {
+        await setAfkTimeout(value as number);
+      }
+    }
   }
 }

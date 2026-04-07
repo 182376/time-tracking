@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../lib/copy";
+import { buildDangerConfirmMessage } from "../lib/confirm";
 import Sidebar from "../shared/components/Sidebar";
 import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack, { type ToastItem, type ToastTone } from "../shared/components/ToastStack";
@@ -16,6 +17,10 @@ const AppMapping = lazy(() => import("../features/classification/components/AppM
 
 export default function AppShell() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [viewDirtyState, setViewDirtyState] = useState<{ settings: boolean; mapping: boolean }>({
+    settings: false,
+    mapping: false,
+  });
   const [mappingVersion, setMappingVersion] = useState(0);
   const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -59,10 +64,43 @@ export default function AppShell() {
     }, 3200);
   }, []);
 
+  const handleNavigate = useCallback((nextView: View) => {
+    if (nextView === currentView) {
+      return;
+    }
+
+    const hasUnsavedChanges = viewDirtyState.settings || viewDirtyState.mapping;
+    if (!hasUnsavedChanges) {
+      setCurrentView(nextView);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      buildDangerConfirmMessage(
+        UI_TEXT.app.unsavedConfirmTitle,
+        UI_TEXT.app.unsavedConfirmBody,
+      ),
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setViewDirtyState((current) => {
+      if (currentView === "settings") {
+        return { ...current, settings: false };
+      }
+      if (currentView === "mapping") {
+        return { ...current, mapping: false };
+      }
+      return current;
+    });
+    setCurrentView(nextView);
+  }, [currentView, viewDirtyState]);
+
   return (
     <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
-      <Sidebar currentView={currentView} onNavigate={setCurrentView} />
+      <Sidebar currentView={currentView} onNavigate={handleNavigate} />
 
       <main className="qp-canvas flex-1 min-h-0 flex flex-col gap-4 md:gap-5 p-4 md:p-5 relative overflow-hidden">
         <Suspense
@@ -100,6 +138,9 @@ export default function AppShell() {
               <Settings
                 key="settings"
                 onSettingsChanged={setAppSettings}
+                onDirtyChange={(dirty) => {
+                  setViewDirtyState((current) => ({ ...current, settings: dirty }));
+                }}
                 onToast={pushToast}
               />
             )}
@@ -108,6 +149,9 @@ export default function AppShell() {
                 key="mapping"
                 icons={icons}
                 refreshKey={refreshSignal}
+                onDirtyChange={(dirty) => {
+                  setViewDirtyState((current) => ({ ...current, mapping: dirty }));
+                }}
                 onOverridesChanged={() => {
                   setMappingVersion((version) => version + 1);
                   pushToast(UI_TEXT.app.mappingUpdated, "success");

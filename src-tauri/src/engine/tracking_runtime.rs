@@ -1,7 +1,10 @@
-﻿use crate::app::runtime::wait_for_sqlite_pool;
+﻿use crate::data::sqlite_pool::wait_for_sqlite_pool;
+use crate::data::repositories::{icon_cache, sessions, tracker_settings};
+use crate::domain::tracking::{
+    TrackingDataChangedPayload, WindowSessionIdentity, WindowTransitionDecision,
+};
 use crate::platform::windows::{foreground as tracker, icon as icon_extractor};
-use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{Pool, Sqlite};
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -17,12 +20,6 @@ use windows::Win32::Storage::FileSystem::{
     GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
 };
 
-const TRACKER_LAST_HEARTBEAT_KEY: &str = "__tracker_last_heartbeat_ms";
-const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY: &str = "__tracker_last_successful_sample_ms";
-const TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY: &str = "__tracker_last_startup_self_heal_at_ms";
-const TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY: &str = "__tracker_last_startup_self_heal_summary";
-const TRACKING_PAUSED_KEY: &str = "tracking_paused";
-const APP_OVERRIDE_KEY_PREFIX: &str = "__app_override::";
 const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 const TRACKER_WATCHDOG_POLL_MS: u64 = 1_000;
@@ -34,40 +31,6 @@ const VERSION_INFO_NAME_KEYS: [&str; 3] = ["FileDescription", "ProductName", "Co
 struct LangAndCodePage {
     language: u16,
     code_page: u16,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TrackingDataChangedPayload {
-    pub reason: String,
-    pub changed_at_ms: u64,
-}
-
-#[derive(Clone, Debug)]
-struct ActiveSessionSnapshot {
-    start_time: i64,
-    exe_name: String,
-    window_title: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Default)]
-struct StoredAppOverride {
-    #[serde(rename = "captureTitle")]
-    capture_title: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct WindowTransitionDecision {
-    reason: &'static str,
-    should_end_previous: bool,
-    should_start_next: bool,
-    should_refresh_metadata: bool,
-    end_time_override: Option<i64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct WindowSessionIdentity {
-    app_key: String,
-    instance_key: String,
 }
 
 #[derive(Debug, Default)]
@@ -115,18 +78,27 @@ pub async fn run<R: Runtime>(
         let now_ms = now_ms();
         health_state.note_successful_sample(now_ms);
 
-        if let Err(error) =
-            save_tracker_timestamp(&pool, TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY, now_ms).await
+        if let Err(error) = tracker_settings::save_tracker_timestamp(
+            &pool,
+            tracker_settings::TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY,
+            now_ms,
+        )
+        .await
         {
             log_tracker_error(format!("failed to save tracker sample timestamp: {error}"));
         }
 
-        if let Err(error) = save_tracker_timestamp(&pool, TRACKER_LAST_HEARTBEAT_KEY, now_ms).await
+        if let Err(error) = tracker_settings::save_tracker_timestamp(
+            &pool,
+            tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+            now_ms,
+        )
+        .await
         {
             log_tracker_error(format!("failed to save tracker heartbeat: {error}"));
         }
 
-        let tracking_paused = match load_tracking_paused_setting(&pool).await {
+        let tracking_paused = match tracker_settings::load_tracking_paused_setting(&pool).await {
             Ok(value) => value,
             Err(error) => {
                 log_tracker_error(format!("failed to load tracking pause setting: {error}"));
@@ -134,7 +106,7 @@ pub async fn run<R: Runtime>(
             }
         };
 
-        let capture_window_title = match load_capture_window_title_setting_for_app(
+        let capture_window_title = match tracker_settings::load_capture_window_title_setting_for_app(
             &pool,
             &window_info.exe_name,
         )
@@ -156,7 +128,7 @@ pub async fn run<R: Runtime>(
         }
 
         if tracking_paused {
-            match end_active_sessions(&pool, now_ms).await {
+            match sessions::end_active_sessions(&pool, now_ms).await {
                 Ok(did_seal) => {
                     if did_seal {
                         let _ = emit_tracking_data_changed(&app, "tracking-paused-sealed", now_ms as u64);
@@ -209,7 +181,7 @@ pub async fn watch<R: Runtime>(
             now_ms,
         ) {
             let sample_time_ms = last_successful_sample_ms.unwrap_or_default();
-            match end_active_sessions(&pool, sample_time_ms).await {
+            match sessions::end_active_sessions(&pool, sample_time_ms).await {
                 Ok(did_seal) => {
                     health_state.note_watchdog_seal(sample_time_ms);
 
@@ -272,21 +244,24 @@ async fn initialize_tracker<R: Runtime>(
     app: &AppHandle<R>,
     pool: &Pool<Sqlite>,
 ) -> Result<(), sqlx::Error> {
-    let afk_timeout_secs = load_afk_timeout_secs(pool).await?;
+    let afk_timeout_secs =
+        tracker_settings::load_afk_timeout_secs(pool, DEFAULT_AFK_TIMEOUT_SECS).await?;
     tracker::cmd_set_afk_timeout(afk_timeout_secs);
     let mut repair_notes: Vec<String> = Vec::new();
 
-    let normalized_rows = normalize_closed_session_durations(pool).await?;
+    let normalized_rows = sessions::normalize_closed_session_durations(pool).await?;
     if normalized_rows > 0 {
         repair_notes.push(format!("normalized_closed_duration={normalized_rows}"));
     }
 
-    if let Some(existing_session) = load_active_session(pool).await? {
-        let last_heartbeat_ms = load_tracker_heartbeat(pool).await?;
+    if let Some(existing_session) = sessions::load_active_session(pool).await? {
+        let last_heartbeat_ms =
+            tracker_settings::load_tracker_timestamp(pool, tracker_settings::TRACKER_LAST_HEARTBEAT_KEY)
+                .await?;
         let end_time =
             resolve_startup_seal_time(existing_session.start_time, last_heartbeat_ms, now_ms());
 
-        if end_active_sessions(pool, end_time).await? {
+        if sessions::end_active_sessions(pool, end_time).await? {
             repair_notes.push("sealed_active_session".to_string());
             let _ = emit_tracking_data_changed(app, "startup-sealed", end_time as u64);
         }
@@ -295,8 +270,18 @@ async fn initialize_tracker<R: Runtime>(
     if !repair_notes.is_empty() {
         let now = now_ms();
         let summary = repair_notes.join(",");
-        save_setting_value(pool, TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY, &now.to_string()).await?;
-        save_setting_value(pool, TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY, &summary).await?;
+        tracker_settings::save_setting_value(
+            pool,
+            tracker_settings::TRACKER_LAST_STARTUP_SELF_HEAL_AT_KEY,
+            &now.to_string(),
+        )
+        .await?;
+        tracker_settings::save_setting_value(
+            pool,
+            tracker_settings::TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY,
+            &summary,
+        )
+        .await?;
         log_tracker_error(format!("startup self-heal applied: {summary}"));
     }
 
@@ -320,8 +305,7 @@ async fn apply_window_transition(
     let mut did_mutate = false;
 
     if decision.should_end_previous {
-        did_mutate |=
-            end_active_sessions(pool, decision.end_time_override.unwrap_or(now_ms)).await?;
+        did_mutate |= sessions::end_active_sessions(pool, decision.end_time_override.unwrap_or(now_ms)).await?;
     }
 
     if decision.should_start_next {
@@ -329,7 +313,12 @@ async fn apply_window_transition(
     }
 
     if decision.should_refresh_metadata {
-        did_mutate |= refresh_active_session_metadata(pool, next_window).await?;
+        did_mutate |= sessions::refresh_active_session_metadata(
+            pool,
+            &next_window.exe_name,
+            &next_window.title,
+        )
+        .await?;
     }
 
     if !did_mutate {
@@ -358,7 +347,7 @@ async fn recover_missing_active_session(
         return Ok(None);
     }
 
-    if load_active_session(pool).await?.is_some() {
+    if sessions::load_active_session(pool).await?.is_some() {
         return Ok(None);
     }
 
@@ -380,7 +369,7 @@ async fn apply_power_lifecycle_event(
         return Ok(None);
     }
 
-    if end_active_sessions(pool, timestamp_ms).await? {
+    if sessions::end_active_sessions(pool, timestamp_ms).await? {
         return Ok(Some(match state {
             "lock" => "session-ended-lock",
             "suspend" => "session-ended-suspend",
@@ -569,246 +558,23 @@ fn should_watchdog_seal(
     now_ms.saturating_sub(last_successful_sample_ms) > TRACKER_STALL_SEAL_AFTER_MS
 }
 
-fn parse_boolean_setting(raw: &str, fallback: bool) -> bool {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => true,
-        "0" | "false" | "no" | "off" => false,
-        _ => fallback,
-    }
-}
-
-async fn load_tracking_paused_setting(pool: &Pool<Sqlite>) -> Result<bool, sqlx::Error> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind(TRACKING_PAUSED_KEY)
-        .fetch_optional(pool)
-        .await?;
-
-    Ok(row
-        .and_then(|row| row.try_get::<String, _>("value").ok())
-        .map(|value| parse_boolean_setting(&value, false))
-        .unwrap_or(false))
-}
-
-fn normalize_exe_setting_key(exe_name: &str) -> Option<String> {
-    let trimmed = exe_name.trim().trim_matches('"');
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    let mut key = trimmed.to_ascii_lowercase();
-    if !key.ends_with(".exe") {
-        key.push_str(".exe");
-    }
-
-    Some(key)
-}
-
-async fn load_capture_window_title_setting_for_app(
-    pool: &Pool<Sqlite>,
-    exe_name: &str,
-) -> Result<bool, sqlx::Error> {
-    let Some(canonical_exe_name) = normalize_exe_setting_key(exe_name) else {
-        return Ok(true);
-    };
-
-    let setting_key = format!("{APP_OVERRIDE_KEY_PREFIX}{canonical_exe_name}");
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind(setting_key)
-        .fetch_optional(pool)
-        .await?;
-
-    let Some(raw_value) = row.and_then(|row| row.try_get::<String, _>("value").ok()) else {
-        return Ok(true);
-    };
-
-    let parsed_override = serde_json::from_str::<StoredAppOverride>(&raw_value).ok();
-    Ok(parsed_override
-        .and_then(|override_value| override_value.capture_title)
-        .unwrap_or(true))
-}
-
-async fn load_afk_timeout_secs(pool: &Pool<Sqlite>) -> Result<u64, sqlx::Error> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind("afk_timeout_secs")
-        .fetch_optional(pool)
-        .await?;
-
-    let value = row
-        .and_then(|row| row.try_get::<String, _>("value").ok())
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(DEFAULT_AFK_TIMEOUT_SECS);
-
-    Ok(value)
-}
-
-async fn load_tracker_heartbeat(pool: &Pool<Sqlite>) -> Result<Option<i64>, sqlx::Error> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind(TRACKER_LAST_HEARTBEAT_KEY)
-        .fetch_optional(pool)
-        .await?;
-
-    Ok(row
-        .and_then(|row| row.try_get::<String, _>("value").ok())
-        .and_then(|value| value.parse::<i64>().ok()))
-}
-
-async fn save_tracker_timestamp(
-    pool: &Pool<Sqlite>,
-    key: &str,
-    timestamp_ms: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO settings (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    )
-    .bind(key)
-    .bind(timestamp_ms.to_string())
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-async fn save_setting_value(
-    pool: &Pool<Sqlite>,
-    key: &str,
-    value: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO settings (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    )
-    .bind(key)
-    .bind(value)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-async fn normalize_closed_session_durations(pool: &Pool<Sqlite>) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE sessions
-         SET duration = MAX(0, end_time - start_time)
-         WHERE end_time IS NOT NULL
-           AND COALESCE(duration, -1) <> MAX(0, end_time - start_time)",
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(result.rows_affected())
-}
-
-async fn load_active_session(
-    pool: &Pool<Sqlite>,
-) -> Result<Option<ActiveSessionSnapshot>, sqlx::Error> {
-    let row = sqlx::query(
-        "SELECT start_time, exe_name, COALESCE(window_title, '') AS window_title
-         FROM sessions
-         WHERE end_time IS NULL
-         ORDER BY start_time DESC, id DESC
-         LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row.map(|row| ActiveSessionSnapshot {
-        start_time: row.get("start_time"),
-        exe_name: row.get("exe_name"),
-        window_title: row.get("window_title"),
-    }))
-}
-
-async fn end_active_sessions(pool: &Pool<Sqlite>, raw_end_time: i64) -> Result<bool, sqlx::Error> {
-    let active_sessions = sqlx::query(
-        "SELECT id, start_time
-         FROM sessions
-         WHERE end_time IS NULL
-         ORDER BY start_time DESC, id DESC",
-    )
-    .fetch_all(pool)
-    .await?;
-
-    if active_sessions.is_empty() {
-        return Ok(false);
-    }
-
-    for session in active_sessions {
-        let id: i64 = session.get("id");
-        let start_time: i64 = session.get("start_time");
-        let end_time = raw_end_time.max(start_time);
-        let duration = end_time - start_time;
-
-        sqlx::query(
-            "UPDATE sessions
-             SET end_time = ?, duration = ?
-             WHERE id = ?",
-        )
-        .bind(end_time)
-        .bind(duration)
-        .bind(id)
-        .execute(pool)
-        .await?;
-    }
-
-    Ok(true)
-}
-
-async fn refresh_active_session_metadata(
-    pool: &Pool<Sqlite>,
-    window: &tracker::WindowInfo,
-) -> Result<bool, sqlx::Error> {
-    let Some(active_session) = load_active_session(pool).await? else {
-        return Ok(false);
-    };
-
-    if !active_session
-        .exe_name
-        .eq_ignore_ascii_case(&window.exe_name)
-        || active_session.window_title == window.title
-    {
-        return Ok(false);
-    }
-
-    sqlx::query(
-        "UPDATE sessions
-         SET window_title = ?
-         WHERE end_time IS NULL",
-    )
-    .bind(&window.title)
-    .execute(pool)
-    .await?;
-
-    Ok(true)
-}
-
 async fn start_session(
     pool: &Pool<Sqlite>,
     window: &tracker::WindowInfo,
     start_time: i64,
 ) -> Result<bool, sqlx::Error> {
-    if let Some(existing_session) = load_active_session(pool).await? {
-        if existing_session
-            .exe_name
-            .eq_ignore_ascii_case(&window.exe_name)
-            && existing_session.window_title == window.title
-        {
-            return Ok(false);
-        }
-    }
-
     let app_name = map_app_name(&window.exe_name, &window.process_path);
-
-    sqlx::query(
-        "INSERT INTO sessions (app_name, exe_name, window_title, start_time)
-         VALUES (?, ?, ?, ?)",
+    let did_start = sessions::start_session(
+        pool,
+        &app_name,
+        &window.exe_name,
+        &window.title,
+        start_time,
     )
-    .bind(app_name)
-    .bind(&window.exe_name)
-    .bind(&window.title)
-    .bind(start_time)
-    .execute(pool)
     .await?;
+    if !did_start {
+        return Ok(false);
+    }
 
     if !window.process_path.is_empty() {
         let pool = pool.clone();
@@ -822,7 +588,7 @@ async fn start_session(
         });
     }
 
-    Ok(true)
+    Ok(did_start)
 }
 
 async fn ensure_icon_cache(
@@ -830,13 +596,7 @@ async fn ensure_icon_cache(
     exe_name: &str,
     process_path: &str,
 ) -> Result<(), sqlx::Error> {
-    let already_cached = sqlx::query("SELECT exe_name FROM icon_cache WHERE exe_name = ? LIMIT 1")
-        .bind(exe_name)
-        .fetch_optional(pool)
-        .await?
-        .is_some();
-
-    if already_cached {
+    if icon_cache::is_icon_cached(pool, exe_name).await? {
         return Ok(());
     }
 
@@ -848,18 +608,7 @@ async fn ensure_icon_cache(
         return Ok(());
     };
 
-    sqlx::query(
-        "INSERT INTO icon_cache (exe_name, icon_base64, last_updated)
-         VALUES (?, ?, ?)
-         ON CONFLICT(exe_name) DO UPDATE
-         SET icon_base64 = excluded.icon_base64,
-             last_updated = excluded.last_updated",
-    )
-    .bind(exe_name)
-    .bind(base64_icon)
-    .bind(now_ms())
-    .execute(pool)
-    .await?;
+    icon_cache::upsert_icon(pool, exe_name, &base64_icon, now_ms()).await?;
 
     Ok(())
 }
@@ -1237,7 +986,7 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
 
-            let enabled = load_capture_window_title_setting_for_app(&pool, "QQ.exe")
+            let enabled = tracker_settings::load_capture_window_title_setting_for_app(&pool, "QQ.exe")
                 .await
                 .unwrap();
 
@@ -1249,7 +998,7 @@ mod tests {
     fn app_title_capture_override_can_disable_title_recording() {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
-            let key = format!("{APP_OVERRIDE_KEY_PREFIX}qq.exe");
+            let key = format!("{}qq.exe", tracker_settings::APP_OVERRIDE_KEY_PREFIX);
             let value = serde_json::to_string(&json!({
                 "captureTitle": false,
                 "enabled": true
@@ -1266,7 +1015,7 @@ mod tests {
             .await
             .unwrap();
 
-            let enabled = load_capture_window_title_setting_for_app(&pool, "QQ.exe")
+            let enabled = tracker_settings::load_capture_window_title_setting_for_app(&pool, "QQ.exe")
                 .await
                 .unwrap();
 
@@ -1504,7 +1253,7 @@ mod tests {
             .await
             .unwrap();
 
-            let affected = normalize_closed_session_durations(&pool).await.unwrap();
+            let affected = sessions::normalize_closed_session_durations(&pool).await.unwrap();
             let duration: i64 = sqlx::query_scalar("SELECT duration FROM sessions LIMIT 1")
                 .fetch_one(&pool)
                 .await

@@ -41,3 +41,35 @@ pub async fn insert_for_restore(
 
     Ok(())
 }
+
+pub async fn is_icon_cached(pool: &Pool<Sqlite>, exe_name: &str) -> Result<bool, sqlx::Error> {
+    Ok(
+        sqlx::query("SELECT exe_name FROM icon_cache WHERE exe_name = ? LIMIT 1")
+            .bind(exe_name)
+            .fetch_optional(pool)
+            .await?
+            .is_some(),
+    )
+}
+
+pub async fn upsert_icon(
+    pool: &Pool<Sqlite>,
+    exe_name: &str,
+    icon_base64: &str,
+    last_updated: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO icon_cache (exe_name, icon_base64, last_updated)
+         VALUES (?, ?, ?)
+         ON CONFLICT(exe_name) DO UPDATE
+         SET icon_base64 = excluded.icon_base64,
+             last_updated = excluded.last_updated",
+    )
+    .bind(exe_name)
+    .bind(icon_base64)
+    .bind(last_updated)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}

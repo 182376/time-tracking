@@ -301,6 +301,9 @@ Rust `commands/*` 只做：
 
 - Rust `data/` 中继续扩充仓储与数据职责（已完成 `backup` 首批仓储边界，并新增 `app_settings` 读取边界）
 - Rust `domain/` 中继续补齐核心模型与 DTO 落点（已新增 `domain/backup.rs` 与 `domain/settings.rs`）
+- Rust tracking runtime 主链已开始下沉到 `data/domain`（已新增 `domain/tracking.rs`，并将 session/icon/tracker settings 读写收口到 `data/repositories/*`）
+- Rust app 壳层中的 tray settings 直连已收口（`app/tray.rs` 不再直接访问 `settings` 表，`tracking_paused` 读写统一进入 `tracker_settings` repository）
+- Rust sqlite pool 与 DB 入口常量已收口到 `data/sqlite_pool.rs`，`app/runtime.rs` 不再承接该基础设施，`lib.rs` 复用同一 DB 标识来源
 - 前端根层基础设施继续去耦（已完成 `classification` 持久化边界、`history/dashboard` session read/compiler 主路径迁移、`runtime/adapter` 细粒度拆分、`settings-store/classification-store` 拆分与 `db.ts` adapter 化、legacy service 退场与 low-level helper 归位）
 - 减少遗留 `src/lib/*` 的边界模糊性
 
@@ -331,3 +334,4 @@ Rust `commands/*` 只做：
 - 优先迁移当前任务真正触及的高价值区域
 - 若某次任务只涉及局部改动，应只把相关代码向目标结构推进一步
 - 若一次性执行单与本文件冲突，以本文件为长期方向修正执行单
+- 当仓库处于稳定期且问题归属存在歧义时，先按 [`docs/issue-fix-boundary-guardrails.md`](C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/issue-fix-boundary-guardrails.md) 做边界分流，再决定是否直接实现

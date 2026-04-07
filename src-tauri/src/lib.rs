@@ -23,7 +23,7 @@ pub fn run() {
         )
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:timetracker.db", data::migrations::tracker_migrations())
+                .add_migrations(data::sqlite_pool::SQLITE_DB_NAME, data::migrations::tracker_migrations())
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
