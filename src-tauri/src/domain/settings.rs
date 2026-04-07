@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub const DEFAULT_LAUNCH_AT_LOGIN: bool = true;
+pub const DEFAULT_START_MINIMIZED: bool = true;
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloseBehavior {
@@ -29,8 +32,8 @@ impl Default for DesktopBehaviorSettings {
         Self {
             close_behavior: CloseBehavior::Tray,
             minimize_behavior: MinimizeBehavior::Taskbar,
-            launch_at_login: false,
-            start_minimized: true,
+            launch_at_login: DEFAULT_LAUNCH_AT_LOGIN,
+            start_minimized: DEFAULT_START_MINIMIZED,
         }
     }
 }

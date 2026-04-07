@@ -1,6 +1,8 @@
 import { Trash2 } from "lucide-react";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
 import QuietColorField from "../../../shared/components/QuietColorField";
+import QuietIconAction from "../../../shared/components/QuietIconAction";
+import QuietResetAction from "../../../shared/components/QuietResetAction";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
@@ -54,23 +56,19 @@ export default function CategoryColorControls({
                   title="颜色"
                 />
 
-                <button
-                  type="button"
+                <QuietResetAction
                   onClick={() => onApplyColor(category, null)}
-                  className="rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium text-[var(--qp-text-tertiary)] transition hover:text-[var(--qp-text-secondary)]"
                   title="恢复默认颜色"
                 >
                   默认
-                </button>
+                </QuietResetAction>
 
-                <button
-                  type="button"
+                <QuietIconAction
+                  icon={<Trash2 size={12} />}
+                  tone="danger"
                   onClick={() => onDeleteCategory(category)}
-                  className="rounded-[6px] p-1 text-[var(--qp-danger)] transition hover:bg-[color:var(--qp-danger)]/10"
                   title={`删除分类：${label}`}
-                >
-                  <Trash2 size={12} />
-                </button>
+                />
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import { RELEASE_DEFAULT_SETTINGS } from "./config/releaseDefaultProfile.ts";
 
 export type CloseBehavior = "exit" | "tray";
 export type MinimizeBehavior = "taskbar" | "tray";
@@ -16,21 +17,13 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  afk_timeout_secs: 300,
-  refresh_interval_secs: 1,
-  min_session_secs: 30,
-  tracking_paused: false,
-  close_behavior: "tray",
-  minimize_behavior: "taskbar",
-  launch_at_login: false,
-  start_minimized: true,
-  onboarding_completed: false,
+  ...RELEASE_DEFAULT_SETTINGS,
 };
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
 const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
-const REFRESH_INTERVAL_OPTIONS = [1];
+const REFRESH_INTERVAL_OPTIONS = [1, 3];
 const MIN_SESSION_OPTIONS = [30, 60, 180, 300, 600];
 const CLOSE_BEHAVIOR_OPTIONS: CloseBehavior[] = ["exit", "tray"];
 const MINIMIZE_BEHAVIOR_OPTIONS: MinimizeBehavior[] = ["taskbar", "tray"];

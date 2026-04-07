@@ -6,7 +6,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
@@ -23,6 +22,7 @@ import { HistoryReadModelService } from "../../../shared/lib/historyReadModelSer
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietSelect from "../../../shared/components/QuietSelect";
+import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 
 interface Props {
   icons: Record<string, string>;
@@ -246,17 +246,7 @@ export default function History({
                     domain={[0, chartAxis.domainMax]}
                     tickFormatter={(value) => formatChartHours(Number(value))}
                   />
-                  <Tooltip
-                    formatter={(value) => `${formatChartHours(Number(value))}h`}
-                    contentStyle={{
-                      borderRadius: "10px",
-                      border: "1px solid var(--qp-border-subtle)",
-                      background: "var(--qp-bg-panel)",
-                      color: "var(--qp-text-primary)",
-                      fontSize: 11,
-                      boxShadow: "0 8px 20px rgba(17, 24, 39, 0.08)",
-                    }}
-                  />
+                  <QuietChartTooltip formatter={(value) => `${formatChartHours(Number(value))}h`} />
                   <Area
                     type="monotone"
                     dataKey="hours"

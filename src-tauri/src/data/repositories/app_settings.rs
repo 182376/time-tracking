@@ -1,5 +1,6 @@
 use crate::domain::settings::{
-    parse_boolean_setting, parse_close_behavior, parse_minimize_behavior, DesktopBehaviorSettings,
+    parse_boolean_setting, parse_close_behavior, parse_minimize_behavior,
+    DesktopBehaviorSettings, DEFAULT_LAUNCH_AT_LOGIN, DEFAULT_START_MINIMIZED,
 };
 use sqlx::{Pool, Row, Sqlite};
 
@@ -33,8 +34,12 @@ pub async fn load_desktop_behavior_settings(
             MINIMIZE_BEHAVIOR_KEY => {
                 minimize_behavior = Some(parse_minimize_behavior(&value));
             }
-            LAUNCH_AT_LOGIN_KEY => launch_at_login = Some(parse_boolean_setting(&value, false)),
-            START_MINIMIZED_KEY => start_minimized = Some(parse_boolean_setting(&value, true)),
+            LAUNCH_AT_LOGIN_KEY => {
+                launch_at_login = Some(parse_boolean_setting(&value, DEFAULT_LAUNCH_AT_LOGIN));
+            }
+            START_MINIMIZED_KEY => {
+                start_minimized = Some(parse_boolean_setting(&value, DEFAULT_START_MINIMIZED));
+            }
             _ => {}
         }
     }
@@ -42,7 +47,7 @@ pub async fn load_desktop_behavior_settings(
     Ok(DesktopBehaviorSettings {
         close_behavior: close_behavior.unwrap_or_default(),
         minimize_behavior: minimize_behavior.unwrap_or_default(),
-        launch_at_login: launch_at_login.unwrap_or(false),
-        start_minimized: start_minimized.unwrap_or(true),
+        launch_at_login: launch_at_login.unwrap_or(DEFAULT_LAUNCH_AT_LOGIN),
+        start_minimized: start_minimized.unwrap_or(DEFAULT_START_MINIMIZED),
     })
 }

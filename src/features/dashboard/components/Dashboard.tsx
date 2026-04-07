@@ -1,11 +1,12 @@
 ﻿import { motion } from "framer-motion";
 import { Monitor, BarChart3, Activity } from "lucide-react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../../../lib/copy";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { formatDashboardDuration } from "../services/dashboardFormatting";
 import type { DashboardReadModel } from "../../../shared/lib/historyReadModelService";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 
 interface Props {
   dashboard: DashboardReadModel;
@@ -93,17 +94,7 @@ export default function Dashboard({
                         <Cell key={`cell-${index}`} fill={item.color || "var(--qp-accent-default)"} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(v) => formatDashboardDuration(Number(v))}
-                    contentStyle={{
-                      borderRadius: "10px",
-                      border: "1px solid var(--qp-border-subtle)",
-                      background: "var(--qp-bg-panel)",
-                      boxShadow: "0 8px 20px rgba(17, 24, 39, 0.08)",
-                      color: "var(--qp-text-primary)",
-                      fontSize: "11px",
-                    }}
-                  />
+                  <QuietChartTooltip formatter={(v) => formatDashboardDuration(Number(v))} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -144,17 +135,9 @@ export default function Dashboard({
                     padding={{ left: 12, right: 12 }}
                   />
                   <YAxis hide domain={[0, 60]} allowDataOverflow />
-                  <Tooltip
+                  <QuietChartTooltip
                     cursor={{ fill: "rgba(101, 114, 135, 0.12)" }}
                     formatter={(v) => [`${Math.round(Number(v))}m`, UI_TEXT.dashboard.activeMinutes]}
-                    contentStyle={{
-                      borderRadius: "10px",
-                      border: "1px solid var(--qp-border-subtle)",
-                      background: "var(--qp-bg-panel)",
-                      boxShadow: "0 8px 20px rgba(17, 24, 39, 0.08)",
-                      color: "var(--qp-text-primary)",
-                      fontSize: "10px",
-                    }}
                   />
                   <Bar dataKey="minutes" fill="var(--qp-accent-default)" radius={[3, 3, 0, 0]} barSize={8} />
                 </BarChart>

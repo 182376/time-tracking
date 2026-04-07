@@ -22,6 +22,11 @@ import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
 import QuietSelect from "../../../shared/components/QuietSelect";
 import QuietDialog from "../../../shared/components/QuietDialog";
 import QuietColorField from "../../../shared/components/QuietColorField";
+import QuietSegmentedFilter from "../../../shared/components/QuietSegmentedFilter";
+import QuietInlineAction from "../../../shared/components/QuietInlineAction";
+import QuietIconAction from "../../../shared/components/QuietIconAction";
+import QuietBadge from "../../../shared/components/QuietBadge";
+import QuietResetAction from "../../../shared/components/QuietResetAction";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 
 interface Props {
@@ -600,28 +605,21 @@ export default function AppMapping({
 
       <section className="qp-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {FILTER_OPTIONS.map((item) => {
+          <QuietSegmentedFilter
+            value={filter}
+            onChange={setFilter}
+            options={FILTER_OPTIONS.map((item) => {
               const count = item.value === "all"
                 ? counts.all
                 : item.value === "other"
                   ? counts.other
                   : counts.classified;
-              return (
-                <button
-                  key={item.value}
-                  onClick={() => setFilter(item.value)}
-                  className={`rounded-[8px] border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    filter === item.value
-                      ? "border-[color:var(--qp-accent-default)] bg-[var(--qp-accent-muted)] text-[var(--qp-accent-default)]"
-                      : "border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] text-[var(--qp-text-secondary)] hover:border-[var(--qp-border-strong)]"
-                  }`}
-                >
-                  {item.label} ({count})
-                </button>
-              );
+              return {
+                value: item.value,
+                label: `${item.label} (${count})`,
+              };
             })}
-          </div>
+          />
           <button
             type="button"
             onClick={() => setShowCategoryDialog(true)}
@@ -706,8 +704,9 @@ export default function AppMapping({
                                 {displayName}
                               </span>
                             )}
-                            <button
-                              type="button"
+                            <QuietIconAction
+                              icon={<Pencil size={13} />}
+                              title="修改应用名称"
                               disabled={isBusy}
                               onClick={() => {
                                 skipNextNameBlurExeRef.current = null;
@@ -721,25 +720,21 @@ export default function AppMapping({
                                   [candidate.exeName]: prev[candidate.exeName] ?? displayName,
                                 }));
                               }}
-                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[var(--qp-text-tertiary)] transition hover:bg-[var(--qp-bg-panel)] hover:text-[var(--qp-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
-                              title="修改应用名称"
-                            >
-                              <Pencil size={13} />
-                            </button>
+                            />
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2 px-2">
-                            <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-0.5 text-[11px] font-medium text-[var(--qp-text-secondary)]">
+                            <QuietBadge>
                               {candidate.exeName}
-                            </span>
+                            </QuietBadge>
                             {!trackingEnabled && (
-                              <span className="rounded-[6px] border border-[color:var(--qp-warning)]/25 bg-[color:var(--qp-warning)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--qp-warning)]">
+                              <QuietBadge tone="warning">
                                 不统计
-                              </span>
+                              </QuietBadge>
                             )}
                             {!titleCaptureEnabled && (
-                              <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-badge-subtle)] px-2 py-0.5 text-[11px] font-medium text-[var(--qp-text-secondary)]">
+                              <QuietBadge tone="subtle">
                                 不记标题
-                              </span>
+                              </QuietBadge>
                             )}
                           </div>
                         </div>
@@ -757,17 +752,14 @@ export default function AppMapping({
                               title="颜色"
                             />
                             
-                            <button
-                              type="button"
+                            <QuietResetAction
                               disabled={isBusy}
+                              dimmed={!hasManualColor}
                               onClick={() => handleColorAssign(candidate, null)}
-                              className={`rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                                hasManualColor ? "text-[var(--qp-text-tertiary)] hover:text-[var(--qp-text-secondary)]" : "text-[var(--qp-text-disabled)]"
-                              }`}
                               title="恢复默认颜色"
                             >
                               默认
-                            </button>
+                            </QuietResetAction>
                           </div>
                           <QuietSelect
                             value={assignedCategory}
@@ -784,52 +776,40 @@ export default function AppMapping({
                           />
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          <button
-                            type="button"
+                          <QuietInlineAction
                             disabled={isBusy}
                             onClick={() => handleTitleCaptureToggle(candidate, !titleCaptureEnabled)}
-                            className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                              titleCaptureEnabled
-                                ? "text-[var(--qp-text-secondary)] hover:bg-[var(--qp-bg-panel)]"
-                                : "text-[var(--qp-accent-default)] hover:bg-[var(--qp-accent-muted)]"
-                            }`}
+                            tone={titleCaptureEnabled ? "neutral" : "accent"}
                             title={titleCaptureEnabled ? "不记录该应用窗口标题" : "恢复记录该应用窗口标题"}
                           >
                             {titleCaptureEnabled ? "记录标题" : "不记标题"}
-                          </button>
-                          <button
-                            type="button"
+                          </QuietInlineAction>
+                          <QuietInlineAction
                             disabled={isBusy}
                             onClick={() => handleTrackingToggle(candidate, !trackingEnabled)}
-                            className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                              trackingEnabled
-                                ? "text-[var(--qp-warning)] hover:bg-[color:var(--qp-warning)]/10"
-                                : "text-[var(--qp-success)] hover:bg-[color:var(--qp-success)]/10"
-                            }`}
+                            tone={trackingEnabled ? "warning" : "accent"}
                             title={trackingEnabled ? "将该应用排除出统计" : "恢复该应用进入统计"}
                           >
                             {trackingEnabled ? "统计中" : "不统计"}
-                          </button>
-                          <button
-                            type="button"
+                          </QuietInlineAction>
+                          <QuietInlineAction
                             disabled={isBusy}
                             onClick={() => handleResetAppOverride(candidate)}
-                            className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium text-[var(--qp-text-secondary)] hover:bg-[var(--qp-bg-panel)] disabled:cursor-not-allowed disabled:opacity-50"
+                            tone="neutral"
                             title="恢复该应用默认识别"
+                            leadingIcon={<RotateCcw size={12} />}
                           >
-                            <RotateCcw size={12} />
                             恢复默认
-                          </button>
-                          <button
-                            type="button"
+                          </QuietInlineAction>
+                          <QuietInlineAction
                             disabled={isBusy}
                             onClick={() => void handleDeleteAllSessions(candidate)}
-                            className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1.5 text-[10px] leading-none font-medium text-[var(--qp-danger)] hover:bg-[color:var(--qp-danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            tone="danger"
                             title="删除应用记录"
+                            leadingIcon={<Trash2 size={12} />}
                           >
-                            <Trash2 size={12} />
                             删除应用记录
-                          </button>
+                          </QuietInlineAction>
                         </div>
                       </div>
                     </div>

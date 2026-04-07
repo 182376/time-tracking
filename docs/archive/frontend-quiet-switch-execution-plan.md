@@ -117,39 +117,39 @@ Document Type: One-off Execution Plan
 
 执行项：
 
-- [ ] 新增 `QuietSwitch.tsx`
-- [ ] 定义共享 props，至少覆盖：`checked`、`disabled`、`onChange`、`ariaLabel`
-- [ ] 在 `App.css` 增加 `qp-switch-*` 样式角色
-- [ ] 阶段 A 完成后运行 `npm run build`
+- [x] 新增 `QuietSwitch.tsx`
+- [x] 定义共享 props，至少覆盖：`checked`、`disabled`、`onChange`、`ariaLabel`
+- [x] 在 `App.css` 增加 `qp-switch-*` 样式角色
+- [x] 阶段 A 完成后运行 `npm run build`
 
 验收门槛：
 
-- [ ] `QuietSwitch` 已能独立表达开/关、hover、focus、disabled
-- [ ] 样式属于 Quiet Pro，而不是页面临时拼装
+- [x] `QuietSwitch` 已能独立表达开/关、hover、focus、disabled
+- [x] 样式属于 Quiet Pro，而不是页面临时拼装
 
 ### 阶段 B：接入 Settings
 
 执行项：
 
-- [ ] 用 `QuietSwitch` 替换 `tracking_paused`
-- [ ] 用 `QuietSwitch` 替换 `launch_at_login`
-- [ ] 用 `QuietSwitch` 替换 `start_minimized`
-- [ ] 保持 `start_minimized` 依赖 `launch_at_login` 的禁用逻辑不变
-- [ ] 阶段 B 完成后运行 `npm run build`
+- [x] 用 `QuietSwitch` 替换 `tracking_paused`
+- [x] 用 `QuietSwitch` 替换 `launch_at_login`
+- [x] 用 `QuietSwitch` 替换 `start_minimized`
+- [x] 保持 `start_minimized` 依赖 `launch_at_login` 的禁用逻辑不变
+- [x] 阶段 B 完成后运行 `npm run build`
 
 验收门槛：
 
-- [ ] 三个开关行为与改造前一致
-- [ ] 禁用态、已开/未开态清楚
-- [ ] 页面布局没有因替换原语发生明显错位
+- [x] 三个开关行为与改造前一致
+- [x] 禁用态、已开/未开态清楚
+- [x] 页面布局没有因替换原语发生明显错位
 
 ### 阶段 C：收尾与复核
 
 执行项：
 
-- [ ] 复核 `Settings` 页没有残留页面私有 switch 结构
-- [ ] 更新本执行单勾选状态
-- [ ] 收尾运行 `npm run build`
+- [x] 复核 `Settings` 页没有残留页面私有 switch 结构
+- [x] 更新本执行单勾选状态
+- [x] 收尾运行 `npm run build`
 
 如本轮改动影响现有测试链路，再补跑：
 
@@ -157,11 +157,11 @@ Document Type: One-off Execution Plan
 
 ## 8. 完成定义
 
-- [ ] `QuietSwitch` 已成为共享原语
-- [ ] `Settings` 中 3 个开关已全部切到 `QuietSwitch`
-- [ ] 页面私有 toggle 结构已不再是主路径
-- [ ] `npm run build` 通过
-- [ ] 如受影响，`npm test` 通过
+- [x] `QuietSwitch` 已成为共享原语
+- [x] `Settings` 中 3 个开关已全部切到 `QuietSwitch`
+- [x] 页面私有 toggle 结构已不再是主路径
+- [x] `npm run build` 通过
+- [x] 如受影响，`npm test` 通过
 
 ## 9. 给 GPT-5.3-Codex 的执行要求
 

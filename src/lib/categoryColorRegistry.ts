@@ -1,11 +1,13 @@
 import {
   getCategoryToken,
   isAppCategory,
+  isCustomCategory,
   OTHER_CATEGORY_FIXED_COLOR,
   QUIET_PRO_CATEGORY_PALETTE_37,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
 } from "./config/categoryTokens.ts";
+import { RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS } from "./config/releaseDefaultProfile.ts";
 
 function normalizeHexColor(color: string | undefined): string | null {
   const raw = (color ?? "").trim();
@@ -120,6 +122,13 @@ export class CategoryColorRegistry {
     const persisted = this.categoryDefaultColorAssignments[category];
     if (persisted) {
       return persisted;
+    }
+
+    if (!isCustomCategory(category)) {
+      const releaseDefaultColor = RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS[category];
+      if (releaseDefaultColor) {
+        return releaseDefaultColor;
+      }
     }
 
     const usedColors = new Set<string>();

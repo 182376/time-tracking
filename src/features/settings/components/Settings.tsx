@@ -9,6 +9,7 @@ import {
   Zap,
   Monitor,
   Database,
+  Info,
 } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
 import type { AppSettings, CloseBehavior, MinimizeBehavior } from "../../../lib/settings-store";
@@ -17,6 +18,10 @@ import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";
 import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
 import QuietSelect from "../../../shared/components/QuietSelect";
+import QuietSwitch from "../../../shared/components/QuietSwitch";
+import QuietDangerAction from "../../../shared/components/QuietDangerAction";
+import QuietSubpanel from "../../../shared/components/QuietSubpanel";
+import QuietActionRow from "../../../shared/components/QuietActionRow";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
@@ -337,20 +342,12 @@ export default function Settings({
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     暂停后不再写入新记录，恢复后继续计时。
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => handleChange("tracking_paused", !draftSettings.tracking_paused)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      draftSettings.tracking_paused ? "bg-[var(--qp-warning)]" : "bg-[var(--qp-control-off)]"
-                    }`}
-                    aria-label="切换暂停追踪"
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        draftSettings.tracking_paused ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
+                  <QuietSwitch
+                    checked={draftSettings.tracking_paused}
+                    onChange={(nextChecked) => handleChange("tracking_paused", nextChecked)}
+                    ariaLabel="切换暂停追踪"
+                    tone="warning"
+                  />
                 </div>
               </div>
             </div>
@@ -405,20 +402,11 @@ export default function Settings({
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     开启后，系统登录时自动启动应用。
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => handleChange("launch_at_login", !draftSettings.launch_at_login)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      draftSettings.launch_at_login ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
-                    }`}
-                    aria-label="切换开机自启动"
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        draftSettings.launch_at_login ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
+                  <QuietSwitch
+                    checked={draftSettings.launch_at_login}
+                    onChange={(nextChecked) => handleChange("launch_at_login", nextChecked)}
+                    ariaLabel="切换开机自启动"
+                  />
                 </div>
               </div>
 
@@ -428,21 +416,12 @@ export default function Settings({
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     仅对自启动生效：启动后直接进托盘。
                   </p>
-                  <button
-                    type="button"
+                  <QuietSwitch
+                    checked={draftSettings.start_minimized}
                     disabled={!draftSettings.launch_at_login}
-                    onClick={() => handleChange("start_minimized", !draftSettings.start_minimized)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      draftSettings.start_minimized ? "bg-[var(--qp-success)]" : "bg-[var(--qp-control-off)]"
-                    } ${!draftSettings.launch_at_login ? "cursor-not-allowed opacity-60" : ""}`}
-                    aria-label="切换启动时最小化"
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        draftSettings.start_minimized ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
+                    onChange={(nextChecked) => handleChange("start_minimized", nextChecked)}
+                    ariaLabel="切换启动时最小化"
+                  />
                 </div>
               </div>
             </div>
@@ -455,14 +434,14 @@ export default function Settings({
             </div>
 
             <div className="space-y-5">
-              <div className="rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] p-4">
+              <QuietSubpanel>
                 <p className="text-sm font-semibold text-[var(--qp-text-primary)]">备份与恢复</p>
                 <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">
                   包含会话数据、设置项和图标缓存。恢复会覆盖当前数据。
                 </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="flex items-center justify-between rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-3">
+                  <QuietActionRow className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-[var(--qp-text-primary)]">导出</p>
                       <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">生成当前数据快照</p>
@@ -475,9 +454,9 @@ export default function Settings({
                     >
                       {isExportingBackup ? "导出中..." : "导出"}
                     </button>
-                  </div>
+                  </QuietActionRow>
 
-                  <div className="flex items-center justify-between rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-3">
+                  <QuietActionRow className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-[var(--qp-text-primary)]">恢复</p>
                       <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">从备份文件回滚数据</p>
@@ -490,32 +469,11 @@ export default function Settings({
                     >
                       {isRestoringBackup ? "恢复中..." : "恢复"}
                     </button>
-                  </div>
+                  </QuietActionRow>
                 </div>
-              </div>
+              </QuietSubpanel>
 
-              <div className="rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] p-4">
-                <p className="text-sm font-semibold text-[var(--qp-text-primary)]">发布信息</p>
-                <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">当前版本：v{appVersion}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleOpenReleaseNotes()}
-                    className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
-                  >
-                    更新说明
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleOpenFeedback()}
-                    className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
-                  >
-                    问题反馈
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-[12px] border border-[color:var(--qp-danger)]/28 bg-[var(--qp-bg-panel)] p-4">
+              <QuietSubpanel tone="danger">
                 <p className="text-sm font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.settings.cleanupTitle}</p>
                 <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">{UI_TEXT.settings.cleanupHint}</p>
 
@@ -527,19 +485,49 @@ export default function Settings({
                     options={CLEANUP_OPTIONS}
                   />
 
-                  <motion.button
-                    whileTap={isCleaning ? undefined : { scale: 0.995 }}
-                    transition={{ duration: 0.1, ease: "easeOut" }}
+                  <QuietDangerAction
                     onClick={handleCleanup}
                     disabled={isCleaning}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-[8px] border border-[color:var(--qp-danger)]/35 text-[var(--qp-danger)] font-semibold text-sm transition-colors hover:bg-[color:var(--qp-danger)]/8 disabled:opacity-50 disabled:cursor-not-allowed"
+                    leadingIcon={isCleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   >
-                    {isCleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     {isCleaning ? UI_TEXT.settings.cleanupRunning : UI_TEXT.settings.cleanupNow}
-                  </motion.button>
+                  </QuietDangerAction>
                 </div>
-              </div>
+              </QuietSubpanel>
             </div>
+          </section>
+
+          <section className="qp-panel p-5 md:p-6">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-[var(--qp-border-subtle)] mb-5">
+              <Info size={16} className="text-[var(--qp-accent-default)]" />
+              <h2 className="text-sm font-semibold text-[var(--qp-text-primary)]">关于</h2>
+            </div>
+
+            <QuietSubpanel>
+              <p className="text-sm font-semibold text-[var(--qp-text-primary)]">应用信息</p>
+              <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">
+                当前版本：v{appVersion}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">
+                查看最新发布说明，或提交使用反馈。
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleOpenReleaseNotes()}
+                  className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
+                >
+                  更新说明
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleOpenFeedback()}
+                  className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
+                >
+                  问题反馈
+                </button>
+              </div>
+            </QuietSubpanel>
           </section>
         </div>
       </div>
