@@ -22,6 +22,7 @@ import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { HistoryReadModelService } from "../../../shared/lib/historyReadModelService";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import QuietSelect from "../../../shared/components/QuietSelect";
 
 interface Props {
   icons: Record<string, string>;
@@ -317,18 +318,16 @@ export default function History({
         <div className="flex-1 qp-panel p-5 flex flex-col overflow-hidden min-h-0">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="font-semibold text-[var(--qp-text-primary)] text-sm">{UI_TEXT.history.timeline}</h3>
-            <select
+            <QuietSelect
               value={minSessionSecs}
-              onChange={(event) => handleMinSessionChange(event.target.value)}
-              className="qp-control h-8 !min-h-0 min-w-[68px] rounded-[8px] px-2 text-[11px] font-semibold text-[var(--qp-text-secondary)] outline-none"
-              aria-label="专注时间流最少时长"
-            >
-              {TIMELINE_MIN_SESSION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => handleMinSessionChange(String(value))}
+              className="w-[88px]"
+              ariaLabel="专注时间流最少时长"
+              options={TIMELINE_MIN_SESSION_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
           </div>
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-[var(--qp-text-tertiary)] text-sm">{UI_TEXT.history.loading}</div>

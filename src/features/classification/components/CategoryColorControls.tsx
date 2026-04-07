@@ -1,17 +1,23 @@
 import { Trash2 } from "lucide-react";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
+import QuietColorField from "../../../shared/components/QuietColorField";
+import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 
 interface Props {
   categories: AppCategory[];
+  colorFormat: ColorDisplayFormat;
   getCategoryColor: (category: AppCategory) => string;
+  onColorFormatChange: (nextFormat: ColorDisplayFormat) => void;
   onApplyColor: (category: AppCategory, color: string | null) => void;
   onDeleteCategory: (category: AppCategory) => void;
 }
 
 export default function CategoryColorControls({
   categories,
+  colorFormat,
   getCategoryColor,
+  onColorFormatChange,
   onApplyColor,
   onDeleteCategory,
 }: Props) {
@@ -20,7 +26,7 @@ export default function CategoryColorControls({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
       {categories.map((category) => {
         const label = AppClassificationFacade.getCategoryLabel(category);
         const color = getCategoryColor(category);
@@ -33,23 +39,19 @@ export default function CategoryColorControls({
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <span
-                  className="h-3.5 w-3.5 rounded-full border border-[var(--qp-bg-panel)]"
+                  className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--qp-bg-panel)]"
                   style={{ backgroundColor: color }}
                 />
-                <span className="truncate text-sm font-semibold text-[var(--qp-text-secondary)]">{label}</span>
+                <span className="truncate text-sm font-semibold text-[var(--qp-text-primary)]">{label}</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--qp-text-secondary)]">
-                  {color}
-                </span>
-
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(event) => onApplyColor(category, event.target.value)}
-                  className="h-7 w-7 cursor-pointer rounded-[6px] border border-[var(--qp-border-subtle)] bg-transparent p-0.5"
-                  title={`${label} 颜色`}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <QuietColorField
+                  color={color}
+                  format={colorFormat}
+                  onChange={(nextColor) => onApplyColor(category, nextColor)}
+                  onFormatChange={onColorFormatChange}
+                  title="颜色"
                 />
 
                 <button

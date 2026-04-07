@@ -11,11 +11,12 @@ import {
   Database,
 } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
-import { buildDangerConfirmMessage } from "../../../lib/confirm";
 import type { AppSettings, CloseBehavior, MinimizeBehavior } from "../../../lib/settings-store";
 import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
 import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";
+import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
+import QuietSelect from "../../../shared/components/QuietSelect";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
@@ -31,6 +32,7 @@ export default function Settings({
   onDirtyChange,
   onToast,
 }: SettingsPageProps) {
+  const { confirm, dialogs } = useQuietDialogs();
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
   const [draftSettings, setDraftSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,11 +120,13 @@ export default function Settings({
   const handleCleanup = async () => {
     const selectedLabel = CLEANUP_OPTIONS.find((option) => option.value === cleanupRange)?.label
       ?? UI_TEXT.settings.confirmRangeFallback;
-    const confirmText = buildDangerConfirmMessage(
-      "清理历史数据",
-      `将删除 ${selectedLabel} 及更早的记录。`,
-    );
-    if (!window.confirm(confirmText)) return;
+    const confirmed = await confirm({
+      title: UI_TEXT.settings.cleanupConfirmTitle,
+      description: UI_TEXT.settings.cleanupConfirmDetail(selectedLabel),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
+    if (!confirmed) return;
 
     setIsCleaning(true);
     try {
@@ -174,12 +178,12 @@ export default function Settings({
     }
     if (!preparation || !preparation.compatible) return;
 
-    const confirmed = window.confirm(
-      buildDangerConfirmMessage(
-        "恢复备份",
-        `恢复会覆盖当前统计、应用映射和缓存图标。\n目标文件：${preparation.path}\n\n${preparation.previewSummary}`,
-      ),
-    );
+    const confirmed = await confirm({
+      title: UI_TEXT.settings.restoreConfirmTitle,
+      description: UI_TEXT.settings.restoreConfirmDetail(preparation.path, preparation.previewSummary),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
     if (!confirmed) return;
 
     setIsRestoringBackup(true);
@@ -231,6 +235,7 @@ export default function Settings({
       transition={{ duration: 0.16, ease: "easeOut" }}
       className="flex h-full w-full min-w-0 flex-col gap-4 md:gap-5"
     >
+      {dialogs}
       <header className="qp-panel p-4 md:p-5 flex justify-between items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] flex items-center justify-center text-[var(--qp-accent-default)]">
@@ -294,15 +299,16 @@ export default function Settings({
                 <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.afkLabel}</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.afkHint}</p>
-                  <select
+                  <QuietSelect
                     value={draftSettings.afk_timeout_secs}
-                    onChange={(e) => handleChange("afk_timeout_secs", Number(e.target.value))}
-                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
-                    <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
-                    <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
-                  </select>
+                    onChange={(value) => handleChange("afk_timeout_secs", value)}
+                    className="w-[132px]"
+                    options={[
+                      { value: 60, label: UI_TEXT.settings.minutePresets[60] },
+                      { value: 180, label: UI_TEXT.settings.minutePresets[180] },
+                      { value: 300, label: UI_TEXT.settings.minutePresets[300] },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -310,17 +316,18 @@ export default function Settings({
                 <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.minSessionLabel}</label>
                 <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
-                  <select
+                  <QuietSelect
                     value={draftSettings.min_session_secs}
-                    onChange={(e) => handleChange("min_session_secs", Number(e.target.value))}
-                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value={30}>30 s</option>
-                    <option value={60}>{UI_TEXT.settings.minutePresets[60]}</option>
-                    <option value={180}>{UI_TEXT.settings.minutePresets[180]}</option>
-                    <option value={300}>{UI_TEXT.settings.minutePresets[300]}</option>
-                    <option value={600}>{UI_TEXT.settings.minutePresets[600]}</option>
-                  </select>
+                    onChange={(value) => handleChange("min_session_secs", value)}
+                    className="w-[132px]"
+                    options={[
+                      { value: 30, label: "30 s" },
+                      { value: 60, label: UI_TEXT.settings.minutePresets[60] },
+                      { value: 180, label: UI_TEXT.settings.minutePresets[180] },
+                      { value: 300, label: UI_TEXT.settings.minutePresets[300] },
+                      { value: 600, label: UI_TEXT.settings.minutePresets[600] },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -362,14 +369,15 @@ export default function Settings({
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     点最小化后，选择去任务栏或托盘。
                   </p>
-                  <select
+                  <QuietSelect
                     value={draftSettings.minimize_behavior}
-                    onChange={(e) => handleChange("minimize_behavior", e.target.value as MinimizeBehavior)}
-                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value="taskbar">最小化到任务栏</option>
-                    <option value="tray">最小化到托盘</option>
-                  </select>
+                    onChange={(value) => handleChange("minimize_behavior", value as MinimizeBehavior)}
+                    className="w-[148px]"
+                    options={[
+                      { value: "taskbar", label: "最小化到任务栏" },
+                      { value: "tray", label: "最小化到托盘" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -379,14 +387,15 @@ export default function Settings({
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
                     点关闭后，选择直接退出或隐藏到托盘。
                   </p>
-                  <select
+                  <QuietSelect
                     value={draftSettings.close_behavior}
-                    onChange={(e) => handleChange("close_behavior", e.target.value as CloseBehavior)}
-                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value="tray">最小化到托盘</option>
-                    <option value="exit">直接退出</option>
-                  </select>
+                    onChange={(value) => handleChange("close_behavior", value as CloseBehavior)}
+                    className="w-[148px]"
+                    options={[
+                      { value: "tray", label: "最小化到托盘" },
+                      { value: "exit", label: "直接退出" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -511,17 +520,12 @@ export default function Settings({
                 <p className="mt-1 text-sm text-[var(--qp-text-secondary)]">{UI_TEXT.settings.cleanupHint}</p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <select
+                  <QuietSelect
                     value={cleanupRange}
-                    onChange={(e) => setCleanupRange(Number(e.target.value) as CleanupRange)}
-                    className="qp-control px-3 py-2 rounded-[8px] text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    {CLEANUP_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setCleanupRange(value as CleanupRange)}
+                    className="w-[128px]"
+                    options={CLEANUP_OPTIONS}
+                  />
 
                   <motion.button
                     whileTap={isCleaning ? undefined : { scale: 0.995 }}

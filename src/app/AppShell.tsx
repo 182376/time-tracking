@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../lib/copy";
-import { buildDangerConfirmMessage } from "../lib/confirm";
 import Sidebar from "../shared/components/Sidebar";
 import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack, { type ToastItem, type ToastTone } from "../shared/components/ToastStack";
@@ -10,12 +9,14 @@ import { useWindowTracking } from "./hooks/useWindowTracking";
 import { AppSettingsRuntimeService } from "./services/appSettingsRuntimeService";
 import type { View } from "../shared/types/app";
 import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
+import { useQuietDialogs } from "../shared/hooks/useQuietDialogs";
 
 const History = lazy(() => import("../features/history/components/History"));
 const Settings = lazy(() => import("../features/settings/components/Settings"));
 const AppMapping = lazy(() => import("../features/classification/components/AppMapping"));
 
 export default function AppShell() {
+  const { confirm, dialogs } = useQuietDialogs();
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [viewDirtyState, setViewDirtyState] = useState<{ settings: boolean; mapping: boolean }>({
     settings: false,
@@ -65,6 +66,7 @@ export default function AppShell() {
   }, []);
 
   const handleNavigate = useCallback((nextView: View) => {
+    void (async () => {
     if (nextView === currentView) {
       return;
     }
@@ -75,12 +77,12 @@ export default function AppShell() {
       return;
     }
 
-    const confirmed = window.confirm(
-      buildDangerConfirmMessage(
-        UI_TEXT.app.unsavedConfirmTitle,
-        UI_TEXT.app.unsavedConfirmBody,
-      ),
-    );
+    const confirmed = await confirm({
+      title: UI_TEXT.app.unsavedConfirmTitle,
+      description: UI_TEXT.app.unsavedConfirmBody,
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
     if (!confirmed) {
       return;
     }
@@ -95,11 +97,13 @@ export default function AppShell() {
       return current;
     });
     setCurrentView(nextView);
-  }, [currentView, viewDirtyState]);
+    })();
+  }, [confirm, currentView, viewDirtyState]);
 
   return (
     <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
+      {dialogs}
       <Sidebar currentView={currentView} onNavigate={handleNavigate} />
 
       <main className="qp-canvas flex-1 min-h-0 flex flex-col gap-4 md:gap-5 p-4 md:p-5 relative overflow-hidden">
@@ -148,7 +152,6 @@ export default function AppShell() {
               <AppMapping
                 key="mapping"
                 icons={icons}
-                refreshKey={refreshSignal}
                 onDirtyChange={(dirty) => {
                   setViewDirtyState((current) => ({ ...current, mapping: dirty }));
                 }}

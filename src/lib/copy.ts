@@ -1,4 +1,9 @@
 export const UI_TEXT = {
+  dialog: {
+    confirm: "确认",
+    cancel: "取消",
+    confirmDanger: "继续",
+  },
   app: {
     loadingView: "正在加载界面...",
     mappingUpdated: "应用映射已更新。",
@@ -65,6 +70,10 @@ export const UI_TEXT = {
     cleanupHint: "删除早于所选天数的记录，例如选择“30 天前”会清理 30 天前及更早的数据。",
     cleanupRunning: "正在清理...",
     cleanupNow: "立即清理记录",
+    cleanupConfirmTitle: "清理历史数据",
+    cleanupConfirmDetail: (label: string) => `将删除 ${label} 及更早的记录。`,
+    restoreConfirmTitle: "恢复备份",
+    restoreConfirmDetail: (path: string, summary: string) => `恢复会覆盖当前统计、应用映射和缓存图标。\n目标文件：${path}\n\n${summary}`,
     otherReviewTitle: "未分类应用微调",
     otherReviewHint: "这里只显示你真实出现过的未分类应用，可轻量指定类别。",
     otherReviewToggle: "查看未分类应用",
@@ -108,6 +117,13 @@ export const UI_TEXT = {
     categoryControl: "分类控制",
     loading: "加载中...",
     emptyState: "当前筛选下暂无应用",
+    createCategoryTitle: "新建自定义分类",
+    createCategoryDescription: "请输入自定义分类名称（最多 4 个字）。",
+    createCategoryPlaceholder: "例如：学习",
+    deleteCategoryTitle: "删除分类",
+    deleteCategoryDetail: (label: string) => `目标分类：${label}`,
+    deleteAppSessionsTitle: "删除应用记录",
+    deleteAppSessionsDetail: (label: string) => `目标应用：${label}`,
   },
   categories: {
     development: "开发编码",

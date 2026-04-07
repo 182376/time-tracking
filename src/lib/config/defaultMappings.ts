@@ -98,4 +98,8 @@ export const DEFAULT_APP_MAPPINGS: Record<string, DefaultAppMapping> = {
   "logonui.exe": { name: "Logon UI", category: "system" },
   "dwm.exe": { name: "Desktop Window Manager", category: "system" },
   "time_tracker.exe": { name: "Time Tracker", category: "system" },
+  "time-tracker.exe": { name: "Time Tracker", category: "system" },
+  "timetracker.exe": { name: "Time Tracker", category: "system" },
+  "uninstall.exe": { name: "卸载程序", category: "system" },
+  "unins000.exe": { name: "卸载程序", category: "system" },
 };

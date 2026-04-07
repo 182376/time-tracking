@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Palette, RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, X, Pencil } from "lucide-react";
+import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
 import {
   ClassificationService,
   type AppOverride,
   type ClassificationDraftState,
 } from "../services/classificationService";
-import { buildDangerConfirmMessage } from "../../../lib/confirm";
 import type { CandidateFilter, ObservedAppCandidate } from "../types";
 import type { AppCategory } from "../../../lib/config/categoryTokens";
 import {
@@ -19,10 +18,14 @@ import {
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import CategoryColorControls from "./CategoryColorControls";
+import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
+import QuietSelect from "../../../shared/components/QuietSelect";
+import QuietDialog from "../../../shared/components/QuietDialog";
+import QuietColorField from "../../../shared/components/QuietColorField";
+import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 
 interface Props {
   icons: Record<string, string>;
-  refreshKey?: number;
   onDirtyChange?: (dirty: boolean) => void;
   onOverridesChanged?: () => void;
   onSessionsDeleted?: () => void;
@@ -35,6 +38,10 @@ const FILTER_OPTIONS: Array<{ value: CandidateFilter; label: string }> = [
 ];
 const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
 const AUTO_CATEGORY_VALUE = "__auto__";
+const APP_MAPPING_COLLATOR = new Intl.Collator("zh-CN", {
+  numeric: true,
+  sensitivity: "base",
+});
 
 function normalizeHexColor(colorValue: string | undefined): string | undefined {
   const raw = (colorValue ?? "").trim();
@@ -87,11 +94,11 @@ function createDraftState(bootstrap: Awaited<ReturnType<typeof ClassificationSer
 
 export default function AppMapping({
   icons,
-  refreshKey = 0,
   onDirtyChange,
   onOverridesChanged,
   onSessionsDeleted,
 }: Props) {
+  const { confirm, prompt, dialogs } = useQuietDialogs();
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<ObservedAppCandidate[]>([]);
   const [savedState, setSavedState] = useState<ClassificationDraftState | null>(null);
@@ -104,6 +111,7 @@ export default function AppMapping({
   const [saving, setSaving] = useState(false);
   const [deletingSessionsExe, setDeletingSessionsExe] = useState<string | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [colorFormat, setColorFormat] = useState<ColorDisplayFormat>("hex");
   const iconThemeColors = useIconThemeColors(icons);
   const skipNextNameBlurExeRef = useRef<string | null>(null);
 
@@ -126,7 +134,7 @@ export default function AppMapping({
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, []);
 
   const draftOverrides = draftState?.overrides ?? {};
   const draftCategoryColorOverrides = draftState?.categoryColorOverrides ?? {};
@@ -187,12 +195,23 @@ export default function AppMapping({
   };
 
   const filteredCandidates = useMemo(
-    () => candidates.filter((candidate) => {
-      const category = resolveMappedCategory(candidate);
-      if (filter === "all") return true;
-      if (filter === "other") return category === "other";
-      return category !== "other";
-    }),
+    () => candidates
+      .filter((candidate) => {
+        const category = resolveMappedCategory(candidate);
+        if (filter === "all") return true;
+        if (filter === "other") return category === "other";
+        return category !== "other";
+      })
+      .sort((left, right) => {
+        const labelCompare = APP_MAPPING_COLLATOR.compare(
+          resolveEffectiveDisplayName(left),
+          resolveEffectiveDisplayName(right),
+        );
+        if (labelCompare !== 0) {
+          return labelCompare;
+        }
+        return APP_MAPPING_COLLATOR.compare(left.exeName, right.exeName);
+      }),
     [candidates, filter, draftOverrides],
   );
 
@@ -232,10 +251,17 @@ export default function AppMapping({
     return hasOther ? [...base, ...customCategoryOptions, "other"] : [...base, ...customCategoryOptions];
   }, [activeBuiltinCategories, customCategoryOptions]);
 
-  const colorControlCategories = useMemo<AppCategory[]>(
-    () => [...orderedAssignableCategories],
-    [orderedAssignableCategories],
-  );
+  const categoryControlCategories = useMemo<AppCategory[]>(() => {
+    const manageable = [
+      ...activeBuiltinCategories.filter((category) => category !== "other"),
+      ...customCategoryOptions,
+    ];
+    return [...manageable]
+      .sort((a, b) => AppClassificationFacade.getCategoryLabel(a).localeCompare(
+        AppClassificationFacade.getCategoryLabel(b),
+        "zh-CN",
+      ));
+  }, [activeBuiltinCategories, customCategoryOptions]);
 
   const refreshCandidates = async () => {
     const observed = await ClassificationService.loadObservedAppCandidates();
@@ -262,9 +288,13 @@ export default function AppMapping({
     });
   };
 
-  const handleCreateCustomCategory = () => {
-    const customCategoryName = window.prompt("请输入自定义分类名称（最多4个字）", "");
-    if (customCategoryName === null) return;
+  const handleCreateCustomCategory = async () => {
+    const customCategoryName = await prompt({
+      title: UI_TEXT.mapping.createCategoryTitle,
+      description: UI_TEXT.mapping.createCategoryDescription,
+      placeholder: UI_TEXT.mapping.createCategoryPlaceholder,
+    });
+    if (!customCategoryName) return;
     const normalized = customCategoryName.trim();
     if (!normalized) return;
     const category = buildCustomCategory(normalized);
@@ -280,11 +310,17 @@ export default function AppMapping({
     });
   };
 
-  const handleDeleteCategory = (category: AppCategory) => {
+  const handleDeleteCategory = async (category: AppCategory) => {
+    if (category === "other") {
+      return;
+    }
     const categoryLabel = AppClassificationFacade.getCategoryLabel(category);
-    const confirmed = window.confirm(
-      buildDangerConfirmMessage("删除分类", `目标分类：${categoryLabel}`),
-    );
+    const confirmed = await confirm({
+      title: UI_TEXT.mapping.deleteCategoryTitle,
+      description: UI_TEXT.mapping.deleteCategoryDetail(categoryLabel),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
     if (!confirmed) return;
     setDraftState((current) => {
       if (!current) return current;
@@ -420,9 +456,12 @@ export default function AppMapping({
 
   const handleDeleteAllSessions = async (candidate: ObservedAppCandidate) => {
     const displayName = resolveEffectiveDisplayName(candidate);
-    const confirmed = window.confirm(
-      buildDangerConfirmMessage("删除应用记录", `目标应用：${displayName}`),
-    );
+    const confirmed = await confirm({
+      title: UI_TEXT.mapping.deleteAppSessionsTitle,
+      description: UI_TEXT.mapping.deleteAppSessionsDetail(displayName),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
     if (!confirmed) return;
     setDeletingSessionsExe(candidate.exeName);
     try {
@@ -708,18 +747,16 @@ export default function AppMapping({
                       <div className="flex min-w-0 flex-col gap-2 items-end">
                         <div className="flex flex-nowrap items-center gap-2">
                           <div className="order-2 flex max-w-full flex-wrap items-center gap-2 rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-1.5">
-                            <Palette size={14} className="text-[var(--qp-text-tertiary)]" />
-                            <span className="rounded-[6px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--qp-text-secondary)]">
-                              {displayColor}
-                            </span>
-                            <input
-                              type="color"
-                              value={displayColor}
+                            <QuietColorField
+                              color={displayColor}
+                              format={colorFormat}
+                              fixedValueSlot
                               disabled={isBusy}
-                              onChange={(event) => handleColorAssign(candidate, event.target.value)}
-                              className="h-7 w-7 cursor-pointer rounded-[6px] border border-[var(--qp-border-subtle)] bg-transparent p-0.5 disabled:cursor-not-allowed"
-                              title="应用颜色"
+                              onChange={(nextColor) => handleColorAssign(candidate, nextColor)}
+                              onFormatChange={setColorFormat}
+                              title="颜色"
                             />
+                            
                             <button
                               type="button"
                               disabled={isBusy}
@@ -732,19 +769,19 @@ export default function AppMapping({
                               默认
                             </button>
                           </div>
-                          <select
-                            className="qp-control order-1 min-w-[120px] rounded-[8px] border bg-[var(--qp-bg-panel)] px-3 py-2 text-sm font-semibold text-[var(--qp-text-secondary)] outline-none cursor-pointer disabled:cursor-not-allowed"
+                          <QuietSelect
                             value={assignedCategory}
                             disabled={isBusy}
-                            onChange={(event) => handleCategoryAssign(candidate, event.target.value)}
-                          >
-                            <option value={AUTO_CATEGORY_VALUE}>自动识别</option>
-                            {orderedAssignableCategories.map((category) => (
-                              <option key={category} value={category}>
-                                {AppClassificationFacade.getCategoryLabel(category)}
-                              </option>
-                            ))}
-                          </select>
+                            className="order-1 min-w-[132px]"
+                            onChange={(value) => handleCategoryAssign(candidate, String(value))}
+                            options={[
+                              { value: AUTO_CATEGORY_VALUE, label: "自动识别" },
+                              ...orderedAssignableCategories.map((category) => ({
+                                value: category,
+                                label: AppClassificationFacade.getCategoryLabel(category),
+                              })),
+                            ]}
+                          />
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           <button
@@ -804,43 +841,44 @@ export default function AppMapping({
         )}
       </div>
 
-      {showCategoryDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/22 p-4">
-          <div className="w-full max-w-5xl rounded-[14px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-canvas)] p-4 shadow-[var(--qp-shadow-overlay)]">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-[var(--qp-text-primary)]">分类控制</h3>
-                <p className="text-xs text-[var(--qp-text-tertiary)]">在这里新建分类并调整分类主色</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCreateCustomCategory}
-                  className="qp-button-secondary rounded-[8px] px-2.5 py-1.5 text-xs font-semibold"
-                >
-                  + 新建分类
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryDialog(false)}
-                  className="rounded-[8px] p-1.5 text-[var(--qp-text-tertiary)] hover:bg-[var(--qp-bg-panel)]"
-                  title="关闭"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="max-h-[70vh] overflow-y-auto pr-1">
-              <CategoryColorControls
-                categories={colorControlCategories}
-                getCategoryColor={resolveCategoryColor}
-                onApplyColor={applyCategoryColor}
-                onDeleteCategory={handleDeleteCategory}
-              />
-            </div>
-          </div>
+      <QuietDialog
+        open={showCategoryDialog}
+        title="分类控制"
+        description="在这里新建分类并调整分类主色"
+        onClose={() => setShowCategoryDialog(false)}
+        surfaceClassName="qp-category-dialog-surface"
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() => setShowCategoryDialog(false)}
+              className="qp-button-secondary qp-dialog-action"
+            >
+              关闭
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreateCustomCategory()}
+              className="qp-button-primary qp-dialog-action"
+            >
+              + 新建分类
+            </button>
+          </>
+        )}
+      >
+        <div className="qp-category-dialog-body custom-scrollbar">
+          <CategoryColorControls
+            categories={categoryControlCategories}
+            colorFormat={colorFormat}
+            getCategoryColor={resolveCategoryColor}
+            onColorFormatChange={setColorFormat}
+            onApplyColor={applyCategoryColor}
+            onDeleteCategory={handleDeleteCategory}
+          />
         </div>
-      )}
+      </QuietDialog>
+
+      {dialogs}
     </motion.div>
   );
 }

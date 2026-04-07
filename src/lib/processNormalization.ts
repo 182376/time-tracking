@@ -50,6 +50,18 @@ const NON_TRACKABLE_EXE_NAMES = new Set([
   "",
   "time_tracker.exe",
   "time_tracker",
+  "time-tracker.exe",
+  "time-tracker",
+  "timetracker.exe",
+  "timetracker",
+  "time tracker.exe",
+  "time tracker",
+  "uninstall.exe",
+  "uninstall",
+  "unins000.exe",
+  "unins000",
+  "unins.exe",
+  "unins",
 ]);
 
 // Keep a tiny frontend read-model guard so historical rows containing known

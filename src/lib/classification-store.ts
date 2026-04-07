@@ -30,6 +30,13 @@ export interface ObservedAppCandidate {
 
 type DeleteAppSessionScope = "today" | "all";
 
+function isPersistableDeletedCategory(category: string): category is AppCategory {
+  return isAppCategory(category)
+    && !isCustomCategory(category)
+    && category !== "system"
+    && category !== "other";
+}
+
 function normalizeHexColor(colorValue: string | undefined): string | null {
   const raw = (colorValue ?? "").trim();
   if (!raw) {
@@ -214,7 +221,8 @@ export async function loadDeletedCategories(): Promise<AppCategory[]> {
   const categories = new Set<AppCategory>();
   for (const row of rows) {
     const category = row.key.slice(DELETED_CATEGORY_KEY_PREFIX.length);
-    if (!isAppCategory(category)) {
+    if (!isPersistableDeletedCategory(category)) {
+      await db.execute("DELETE FROM settings WHERE key = ?", [row.key]);
       continue;
     }
     categories.add(category);
@@ -226,6 +234,10 @@ export async function loadDeletedCategories(): Promise<AppCategory[]> {
 export async function saveDeletedCategory(category: AppCategory, deleted: boolean): Promise<void> {
   const key = `${DELETED_CATEGORY_KEY_PREFIX}${category}`;
   const db = await getDB();
+  if (!isPersistableDeletedCategory(category)) {
+    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    return;
+  }
   if (!deleted) {
     await db.execute("DELETE FROM settings WHERE key = ?", [key]);
     return;

@@ -26,6 +26,14 @@ export interface ClassificationDraftState {
   deletedCategories: AppCategory[];
 }
 
+function sanitizeDeletedCategories(categories: AppCategory[]): AppCategory[] {
+  return categories.filter((category) => (
+    !isCustomCategory(category)
+    && category !== "system"
+    && category !== "other"
+  ));
+}
+
 function normalizeOverride(override: AppOverride | null | undefined): AppOverride | null {
   if (!override) return null;
   if (override.enabled === false) return null;
@@ -93,12 +101,14 @@ export class ClassificationService {
       classificationPersistence.loadDeletedCategories(),
     ]);
 
+    const sanitizedDeletedCategories = sanitizeDeletedCategories(loadedDeletedCategories ?? []);
+
     return {
       observed,
       loadedOverrides,
       loadedCategoryColorOverrides: loadedCategoryColorOverrides ?? {},
       loadedCustomCategories,
-      loadedDeletedCategories: loadedDeletedCategories ?? [],
+      loadedDeletedCategories: sanitizedDeletedCategories,
     };
   }
 
@@ -117,7 +127,7 @@ export class ClassificationService {
   }
 
   static setDeletedCategories(categories: AppCategory[]) {
-    ProcessMapper.setDeletedCategories(categories);
+    ProcessMapper.setDeletedCategories(sanitizeDeletedCategories(categories));
   }
 
   static async saveCustomCategory(category: CustomAppCategory) {
@@ -143,7 +153,10 @@ export class ClassificationService {
     if (!areStringArraysEqual(saved.customCategories, draft.customCategories)) {
       return true;
     }
-    if (!areStringArraysEqual(saved.deletedCategories, draft.deletedCategories)) {
+    if (!areStringArraysEqual(
+      sanitizeDeletedCategories(saved.deletedCategories),
+      sanitizeDeletedCategories(draft.deletedCategories),
+    )) {
       return true;
     }
 
@@ -160,6 +173,9 @@ export class ClassificationService {
   }
 
   static async commitDraftChanges(saved: ClassificationDraftState, draft: ClassificationDraftState): Promise<void> {
+    const savedDeletedCategories = sanitizeDeletedCategories(saved.deletedCategories);
+    const draftDeletedCategories = sanitizeDeletedCategories(draft.deletedCategories);
+
     const savedOverrideKeys = new Set(Object.keys(saved.overrides));
     const draftOverrideKeys = new Set(Object.keys(draft.overrides));
     const overrideKeys = new Set([...savedOverrideKeys, ...draftOverrideKeys]);
@@ -198,10 +214,12 @@ export class ClassificationService {
       await classificationPersistence.saveCategoryColorOverride(category, null);
     }
 
-    const assignableCategories = USER_ASSIGNABLE_CATEGORIES.filter((category) => !isCustomCategory(category));
+    const assignableCategories = USER_ASSIGNABLE_CATEGORIES.filter((category) => (
+      !isCustomCategory(category) && category !== "other"
+    ));
     for (const category of assignableCategories) {
-      const savedDeleted = saved.deletedCategories.includes(category);
-      const draftDeleted = draft.deletedCategories.includes(category);
+      const savedDeleted = savedDeletedCategories.includes(category);
+      const draftDeleted = draftDeletedCategories.includes(category);
       if (savedDeleted !== draftDeleted) {
         await classificationPersistence.saveDeletedCategory(category, draftDeleted);
       }
@@ -209,6 +227,6 @@ export class ClassificationService {
 
     ProcessMapper.setUserOverrides(draft.overrides);
     ProcessMapper.setCategoryColorOverrides(draft.categoryColorOverrides);
-    ProcessMapper.setDeletedCategories(draft.deletedCategories);
+    ProcessMapper.setDeletedCategories(draftDeletedCategories);
   }
 }
