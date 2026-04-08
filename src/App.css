@@ -170,6 +170,62 @@ button {
   border-radius: var(--qp-radius-panel);
 }
 
+.qp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+@media (min-width: 768px) {
+  .qp-page-header {
+    padding: 16px 20px;
+  }
+}
+
+.qp-page-header-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.qp-page-header-icon {
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--qp-border-subtle);
+  background: var(--qp-bg-elevated);
+  color: var(--qp-accent-default);
+}
+
+.qp-page-header-copy {
+  min-width: 0;
+}
+
+.qp-page-header-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--qp-text-primary);
+}
+
+.qp-page-header-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--qp-text-tertiary);
+}
+
+.qp-page-header-right {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
 .qp-panel-elevated {
   background: var(--qp-bg-elevated);
   border: 1px solid var(--qp-border-subtle);

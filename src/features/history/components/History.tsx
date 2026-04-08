@@ -8,7 +8,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { type HistorySession } from "../../../shared/lib/sessionReadRepository";
 import { UI_TEXT } from "../../../lib/copy";
 import {
@@ -23,6 +23,7 @@ import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietSelect from "../../../shared/components/QuietSelect";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
+import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 
 interface Props {
   icons: Record<string, string>;
@@ -187,37 +188,35 @@ export default function History({
       transition={{ duration: 0.16, ease: "easeOut" }}
       className="flex-1 min-h-0 flex flex-col gap-4 md:gap-5 h-full overflow-hidden"
     >
-      <header className="qp-panel px-4 py-3 md:px-5 md:py-4 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.history.title}</h1>
-          <p className="text-[11px] text-[var(--qp-text-tertiary)] flex items-center gap-1.5 mt-1">
-            <Calendar size={13} />
-            {formatDateLabel(selectedDate)} · {UI_TEXT.history.sessionCount(timelineSessions.length)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <motion.button
-            whileTap={{ scale: 0.995 }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-            onClick={() => changeDate(-1)}
-            className="qp-control w-9 h-9 !min-h-0 flex items-center justify-center text-[var(--qp-text-secondary)] hover:text-[var(--qp-text-primary)]"
-          >
-            <ChevronLeft size={16} />
-          </motion.button>
-          <span className="qp-status px-3 py-1.5 text-xs font-semibold text-[var(--qp-text-secondary)] min-w-[102px] text-center">
-            {formatDateLabel(selectedDate)}
-          </span>
-          <motion.button
-            whileTap={{ scale: 0.995 }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-            onClick={() => changeDate(1)}
-            disabled={isToday}
-            className="qp-control w-9 h-9 !min-h-0 flex items-center justify-center text-[var(--qp-text-secondary)] hover:text-[var(--qp-text-primary)] disabled:opacity-35 disabled:cursor-not-allowed"
-          >
-            <ChevronRight size={16} />
-          </motion.button>
-        </div>
-      </header>
+      <QuietPageHeader
+        icon={<Clock size={18} />}
+        title={UI_TEXT.history.title}
+        subtitle={`${formatDateLabel(selectedDate)} · ${UI_TEXT.history.sessionCount(timelineSessions.length)}`}
+        rightSlot={(
+          <div className="flex items-center gap-2 shrink-0">
+            <motion.button
+              whileTap={{ scale: 0.995 }}
+              transition={{ duration: 0.1, ease: "easeOut" }}
+              onClick={() => changeDate(-1)}
+              className="qp-control w-9 h-9 !min-h-0 flex items-center justify-center text-[var(--qp-text-secondary)] hover:text-[var(--qp-text-primary)]"
+            >
+              <ChevronLeft size={16} />
+            </motion.button>
+            <span className="qp-status px-3 py-1.5 text-xs font-semibold text-[var(--qp-text-secondary)] min-w-[102px] text-center">
+              {formatDateLabel(selectedDate)}
+            </span>
+            <motion.button
+              whileTap={{ scale: 0.995 }}
+              transition={{ duration: 0.1, ease: "easeOut" }}
+              onClick={() => changeDate(1)}
+              disabled={isToday}
+              className="qp-control w-9 h-9 !min-h-0 flex items-center justify-center text-[var(--qp-text-secondary)] hover:text-[var(--qp-text-primary)] disabled:opacity-35 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={16} />
+            </motion.button>
+          </div>
+        )}
+      />
 
       <div className="flex gap-4 md:gap-5 min-h-0 flex-1">
         <div className="w-5/12 flex flex-col gap-4 md:gap-5 min-h-0">

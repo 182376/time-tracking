@@ -27,6 +27,7 @@ import QuietInlineAction from "../../../shared/components/QuietInlineAction";
 import QuietIconAction from "../../../shared/components/QuietIconAction";
 import QuietBadge from "../../../shared/components/QuietBadge";
 import QuietResetAction from "../../../shared/components/QuietResetAction";
+import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 
 interface Props {
@@ -553,55 +554,51 @@ export default function AppMapping({
       transition={{ duration: 0.16, ease: "easeOut" }}
       className="flex h-full min-w-0 flex-col gap-4 md:gap-5 overflow-hidden"
     >
-      <header className="qp-panel flex items-center justify-between p-4 md:p-5">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] text-[var(--qp-accent-default)] flex items-center justify-center">
-            <Sparkles size={18} />
+      <QuietPageHeader
+        icon={<Sparkles size={18} />}
+        title={UI_TEXT.mapping.title}
+        subtitle={UI_TEXT.mapping.subtitle}
+        rightSlot={(
+          <div className="flex items-center gap-2.5">
+            <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
+              {saveStatus === "saving" && (
+                <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
+                  <RefreshCw size={12} className="animate-spin" />
+                  {UI_TEXT.mapping.saving}
+                </span>
+              )}
+              {saveStatus === "saved" && !hasUnsavedChanges && (
+                <span className="text-[var(--qp-success)] flex items-center gap-1.5">
+                  <Save size={14} />
+                  {UI_TEXT.mapping.saved}
+                </span>
+              )}
+              {saveStatus !== "saving" && hasUnsavedChanges && (
+                <span className="text-[var(--qp-warning)]">{UI_TEXT.mapping.unsaved}</span>
+              )}
+              {saveStatus === "idle" && !hasUnsavedChanges && (
+                <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.mapping.idle}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={!hasUnsavedChanges || saving}
+              className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {UI_TEXT.mapping.cancel}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!hasUnsavedChanges || saving}
+              className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? UI_TEXT.mapping.saving : UI_TEXT.mapping.save}
+            </button>
           </div>
-          <div>
-            <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.mapping.title}</h1>
-            <p className="mt-1 text-[11px] text-[var(--qp-text-tertiary)]">{UI_TEXT.mapping.subtitle}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
-            {saveStatus === "saving" && (
-              <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
-                <RefreshCw size={12} className="animate-spin" />
-                {UI_TEXT.mapping.saving}
-              </span>
-            )}
-            {saveStatus === "saved" && !hasUnsavedChanges && (
-              <span className="text-[var(--qp-success)] flex items-center gap-1.5">
-                <Save size={14} />
-                {UI_TEXT.mapping.saved}
-              </span>
-            )}
-            {saveStatus !== "saving" && hasUnsavedChanges && (
-              <span className="text-[var(--qp-warning)]">{UI_TEXT.mapping.unsaved}</span>
-            )}
-            {saveStatus === "idle" && !hasUnsavedChanges && (
-              <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.mapping.idle}</span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={!hasUnsavedChanges || saving}
-            className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {UI_TEXT.mapping.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={!hasUnsavedChanges || saving}
-            className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? UI_TEXT.mapping.saving : UI_TEXT.mapping.save}
-          </button>
-        </div>
-      </header>
+        )}
+      />
 
       <section className="qp-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

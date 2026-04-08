@@ -6,7 +6,7 @@ import {
   Clock,
   Save,
   RefreshCw,
-  Zap,
+  Settings2,
   Monitor,
   Database,
   Info,
@@ -22,6 +22,7 @@ import QuietSwitch from "../../../shared/components/QuietSwitch";
 import QuietDangerAction from "../../../shared/components/QuietDangerAction";
 import QuietSubpanel from "../../../shared/components/QuietSubpanel";
 import QuietActionRow from "../../../shared/components/QuietActionRow";
+import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
@@ -241,55 +242,51 @@ export default function Settings({
       className="flex h-full w-full min-w-0 flex-col gap-4 md:gap-5"
     >
       {dialogs}
-      <header className="qp-panel p-4 md:p-5 flex justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] flex items-center justify-center text-[var(--qp-accent-default)]">
-            <Zap size={18} />
+      <QuietPageHeader
+        icon={<Settings2 size={18} />}
+        title={UI_TEXT.settings.title}
+        subtitle={UI_TEXT.settings.subtitle}
+        rightSlot={(
+          <div className="flex items-center gap-2.5">
+            <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
+              {saveStatus === "saving" && (
+                <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
+                  <RefreshCw size={12} className="animate-spin" />
+                  {UI_TEXT.settings.saving}
+                </span>
+              )}
+              {saveStatus === "saved" && !hasUnsavedChanges && (
+                <span className="text-[var(--qp-success)] flex items-center gap-1.5">
+                  <Save size={14} />
+                  {UI_TEXT.settings.saved}
+                </span>
+              )}
+              {saveStatus !== "saving" && hasUnsavedChanges && (
+                <span className="text-[var(--qp-warning)]">{UI_TEXT.settings.unsaved}</span>
+              )}
+              {saveStatus === "idle" && !hasUnsavedChanges && (
+                <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.settings.idle}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={!hasUnsavedChanges || saveStatus === "saving"}
+              className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {UI_TEXT.settings.cancel}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!hasUnsavedChanges || saveStatus === "saving"}
+              className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saveStatus === "saving" ? UI_TEXT.settings.saving : UI_TEXT.settings.save}
+            </button>
           </div>
-          <div>
-            <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.settings.title}</h1>
-            <p className="text-[11px] text-[var(--qp-text-tertiary)] mt-1">{UI_TEXT.settings.subtitle}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <div className="qp-status flex px-3 py-1.5 rounded-[8px] items-center text-xs font-semibold">
-            {saveStatus === "saving" && (
-              <span className="text-[var(--qp-accent-default)] flex items-center gap-2">
-                <RefreshCw size={12} className="animate-spin" />
-                {UI_TEXT.settings.saving}
-              </span>
-            )}
-            {saveStatus === "saved" && !hasUnsavedChanges && (
-              <span className="text-[var(--qp-success)] flex items-center gap-1.5">
-                <Save size={14} />
-                {UI_TEXT.settings.saved}
-              </span>
-            )}
-            {saveStatus !== "saving" && hasUnsavedChanges && (
-              <span className="text-[var(--qp-warning)]">{UI_TEXT.settings.unsaved}</span>
-            )}
-            {saveStatus === "idle" && !hasUnsavedChanges && (
-              <span className="text-[var(--qp-text-tertiary)]">{UI_TEXT.settings.idle}</span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={!hasUnsavedChanges || saveStatus === "saving"}
-            className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {UI_TEXT.settings.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={!hasUnsavedChanges || saveStatus === "saving"}
-            className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saveStatus === "saving" ? UI_TEXT.settings.saving : UI_TEXT.settings.save}
-          </button>
-        </div>
-      </header>
+        )}
+      />
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
         <div className="grid grid-cols-1 gap-4 md:gap-5">

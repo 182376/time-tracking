@@ -1,5 +1,5 @@
 ﻿import { motion } from "framer-motion";
-import { Monitor, BarChart3, Activity } from "lucide-react";
+import { Monitor, BarChart3 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../../../lib/copy";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
@@ -7,6 +7,7 @@ import { formatDashboardDuration } from "../services/dashboardFormatting";
 import type { DashboardReadModel } from "../../../shared/lib/historyReadModelService";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
+import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 
 interface Props {
   dashboard: DashboardReadModel;
@@ -48,39 +49,36 @@ export default function Dashboard({
       transition={{ duration: 0.16, ease: "easeOut" }}
       className="flex flex-col gap-4 md:gap-5 h-full overflow-hidden"
     >
-      <header className="qp-panel px-4 py-3 md:px-5 md:py-4 flex justify-between items-center">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-[10px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] flex items-center justify-center text-[var(--qp-accent-default)]">
-            <Activity size={18} />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-[1.1rem] font-semibold text-[var(--qp-text-primary)]">{UI_TEXT.dashboard.title}</h1>
-            <p className="text-[11px] text-[var(--qp-text-tertiary)] flex items-center gap-1.5 mt-1 truncate">
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
+      <QuietPageHeader
+        icon={<Monitor size={18} />}
+        title={UI_TEXT.dashboard.title}
+        subtitle={(
+          <span className="flex items-center gap-1.5 truncate">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
                 trackingPaused
                   ? "bg-[var(--qp-warning)]"
                   : activeAppName
                     ? "bg-[var(--qp-success)]"
                     : "bg-[var(--qp-border-strong)]"
               }`}
-              />
-              {trackingPaused
-                ? UI_TEXT.dashboard.trackingPaused
-                : activeAppName
-                  ? UI_TEXT.dashboard.tracking(activeAppName)
-                  : UI_TEXT.dashboard.idle}
-            </p>
-          </div>
-        </div>
-
-        <div className="qp-status px-3 py-1.5 flex items-center gap-2 shrink-0">
-          <span className={`w-2 h-2 rounded-full ${runtimeStateToneClass}`} />
-          <span className="text-[11px] font-semibold text-[var(--qp-text-secondary)]">
-            {runtimeStateLabel}
+            />
+            {trackingPaused
+              ? UI_TEXT.dashboard.trackingPaused
+              : activeAppName
+                ? UI_TEXT.dashboard.tracking(activeAppName)
+                : UI_TEXT.dashboard.idle}
           </span>
-        </div>
-      </header>
+        )}
+        rightSlot={(
+          <div className="qp-status px-3 py-1.5 flex items-center gap-2 shrink-0">
+            <span className={`w-2 h-2 rounded-full ${runtimeStateToneClass}`} />
+            <span className="text-[11px] font-semibold text-[var(--qp-text-secondary)]">
+              {runtimeStateLabel}
+            </span>
+          </div>
+        )}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-5 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pr-1">
         <div className="lg:col-span-4 flex flex-col gap-4 md:gap-5 min-h-0 dashboard-left-column">
