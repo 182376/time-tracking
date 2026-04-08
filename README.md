@@ -1,92 +1,76 @@
 # Time Tracker
 
-Time Tracker is a local-first Windows desktop app that automatically records which app you are actively using and turns it into a clean daily dashboard, a readable history view, and a focus timeline.
+Time Tracker is a local-first Windows desktop app that automatically records which app you are actively using and turns that activity into a clean dashboard, a readable history view, and a calm focus timeline.
 
 Built with **Rust**, **Tauri v2**, **React**, and **TypeScript**.
 
-**What you get**
+## Why this project exists
 
-- Automatic app tracking, without manually starting and stopping timers
-- Local-only storage, with no account or cloud required
-- Timing that handles AFK, lock screen, and sleep more carefully than a simple foreground-app logger
-- App cleanup tools so your reports stay readable instead of messy
+Most time trackers either ask you to start and stop timers manually, or they log foreground windows in a way that quickly stops feeling trustworthy.
 
-## Why It Feels Trustworthy
+Time Tracker is built around a simpler promise:
 
-- **Native window tracking**: Uses Rust and the Windows API to detect the current foreground app with low overhead.
-- **AFK-aware timing**: If you go idle longer than the configured threshold, the current session is cut back to the threshold boundary instead of counting the whole idle period.
-- **Lock and sleep boundaries**: Windows lock/unlock and suspend/resume events end sessions at system boundaries instead of leaking through breaks or sleep.
-- **Crash-safe sealing and watchdog recovery**: The tracker stores a lightweight local heartbeat and seals stale active sessions near the last live sample instead of letting them run forever.
-- **System app filtering**: System-level apps such as Explorer, Terminal, and Task Manager are filtered out of user-facing stats.
-- **Real-duration stats**: Rankings, distributions, hourly activity, and rolling summaries stay on real active duration instead of timeline display spans.
+- track activity automatically
+- keep the data local
+- handle real desktop boundaries more carefully
+- make the result readable enough to use every day
 
-## What You Can Do
+It is designed as a personal desktop tool first, not a team SaaS product or a productivity game.
 
-- See **Top Apps**, **Hourly Activity**, **7-day trends**, and a daily **History** timeline
-- Review all observed apps in a dedicated **App Classification & Color** page
-- Rename, recolor, and reclassify apps globally
-- Exclude apps from stats when they should not count
-- Turn **window title capture** on or off per app
-- Reset an app to automatic recognition or delete its historical sessions
-- Control **close/minimize behavior**, **launch at login**, and **start minimized**
-- Export a local backup and restore it later with overwrite confirmation and rollback safety
-- Clean up old records by retention range
+## What it does today
 
-## How To Read The Numbers
+- Automatically tracks the app you are actively using
+- Builds a daily dashboard with top apps, hourly activity, trends, and recent summaries
+- Shows a readable History timeline for reviewing your day
+- Lets you rename, recolor, reclassify, and exclude apps from stats
+- Lets you enable or disable window title capture per app
+- Supports backup, restore, and history cleanup
+- Supports desktop behaviors such as tray/minimize options and launch-at-login
 
-These three rules matter when you compare the dashboard with the timeline:
+## Why it feels trustworthy
 
-1. **Stats use real active duration.**
-2. **The Focus Timeline may merge short interruptions for readability.**
-3. **The minimum segment filter only affects timeline display, not totals.**
+Time tracking only works if the numbers feel believable. The project currently leans on a few core behaviors to protect that trust:
 
-That means a timeline can look visually simplified while the totals still stay accurate.
+- **Native window tracking** via Rust and the Windows API
+- **AFK-aware timing** so idle time is not silently counted as active work
+- **Lock and sleep boundaries** so sessions do not leak through breaks
+- **Crash-safe recovery** so stale active sessions get sealed near the last known live point
+- **System app filtering** so user-facing stats stay cleaner
+- **Real-duration stats** so totals are based on actual active time, not just visual spans
 
-## Good First-Run Setup
+## How to read the data
 
-If you want a solid setup in the first few minutes, start here:
+Three rules matter when you compare the dashboard with the focus timeline:
 
-1. Set your **AFK threshold** to `1 / 3 / 5` minutes
-2. Choose your **close behavior**: `exit` or `tray`
-3. Choose your **minimize behavior**: `taskbar` or `tray`
-4. Decide whether to enable **launch at login** and **start minimized**
-5. Open **App Classification & Color** and fix the few apps you care about most
-6. Export a backup once your setup looks right
+1. Stats use real active duration.
+2. The focus timeline may merge short interruptions for readability.
+3. The minimum segment filter only changes timeline display, not totals.
 
-## Privacy And Data
+That means the timeline can look visually simplified while the totals still remain accurate.
 
-- All data is stored locally in **SQLite**
-- Backups include `sessions`, `settings`, and `icon_cache`
-- Title capture can be disabled per app
+## Privacy and data
+
+- All core data is stored locally in **SQLite**
 - No account, cloud sync, or server dependency is required for normal use
+- Title capture can be disabled per app
+- Backups currently include `sessions`, `settings`, and `icon_cache`
 
-## Current Settings
+## Current scope
 
-- **AFK threshold**: `1 / 3 / 5` minutes
-- **Focus timeline minimum segment**: `30s / 1 / 3 / 5 / 10` minutes
-- **Desktop behavior**: close (`exit / tray`), minimize (`taskbar / tray`), launch-at-login, start-minimized
-- **History cleanup**: delete records older than `7 / 15 / 30 / 60 / 90 / 180` days
-- **App mapping controls**: rename, category override, color override, exclude from stats, title capture toggle, reset, full-history deletion
-- **Backup controls**: export backup file and restore from backup file
+Time Tracker is currently focused on a narrow but intentional scope:
 
-## Current Tracking Model
+- **Windows 10/11 desktop first**
+- **Personal use first**
+- **Local-first storage and control**
 
-At a high level, the app works like this:
+It is not currently aimed at:
 
-1. Rust polls foreground window data every `1s` with timeout protection.
-2. Session transitions use window identity (`app + process + root owner + class`) instead of only `exe_name`.
-3. Lock/sleep boundaries and watchdog sealing prevent stale sessions from leaking duration.
-4. Frontend health checks stop live-session growth when tracker sampling is stale.
-5. Stats stay on real active duration, while the Focus Timeline applies readability merge and minimum-segment filtering only for display.
-6. Window-title persistence is controlled per app through `captureTitle`.
+- team collaboration
+- cloud-first workflows
+- mobile-first usage
+- multi-platform parity
 
-## Current Limitations
-
-- The current implementation is **Windows-focused** because active-window and idle detection rely on Windows APIs.
-- This project is best suited for **Windows 10/11 desktop usage** today.
-- Cloud sync and multi-platform support are not part of the current release scope.
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
@@ -101,13 +85,13 @@ cd time-tracking
 npm install
 ```
 
-### Run In Development
+### Run in development
 
 ```bash
 npm run tauri dev
 ```
 
-### Run Tests
+### Run tests
 
 ```bash
 npm test
@@ -125,7 +109,7 @@ npm run tauri build
 
 Bundled installers are generated under `src-tauri/target/release/bundle/`.
 
-## Tech Stack
+## Tech stack
 
 - **Desktop shell**: [Tauri v2](https://v2.tauri.app/)
 - **Backend**: Rust
@@ -136,6 +120,15 @@ Bundled installers are generated under `src-tauri/target/release/bundle/`.
 - **Database**: SQLite via `@tauri-apps/plugin-sql`
 - **Windows integration**: `windows` crate
 
+## Project docs
+
+For long-lived project references, see:
+
+- [`docs/product-principles-and-scope.md`](docs/product-principles-and-scope.md)
+- [`docs/roadmap-and-prioritization.md`](docs/roadmap-and-prioritization.md)
+- [`docs/architecture-target.md`](docs/architecture-target.md)
+- [`docs/quiet-pro-component-guidelines.md`](docs/quiet-pro-component-guidelines.md)
+- [`docs/versioning-and-release-policy.md`](docs/versioning-and-release-policy.md)
 
 ## Feedback
 
