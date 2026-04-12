@@ -6,8 +6,8 @@ pub const DEFAULT_START_MINIMIZED: bool = true;
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloseBehavior {
-    Exit,
     #[default]
+    Exit,
     Tray,
 }
 
@@ -30,7 +30,7 @@ pub struct DesktopBehaviorSettings {
 impl Default for DesktopBehaviorSettings {
     fn default() -> Self {
         Self {
-            close_behavior: CloseBehavior::Tray,
+            close_behavior: CloseBehavior::Exit,
             minimize_behavior: MinimizeBehavior::Taskbar,
             launch_at_login: DEFAULT_LAUNCH_AT_LOGIN,
             start_minimized: DEFAULT_START_MINIMIZED,
@@ -49,10 +49,10 @@ impl DesktopBehaviorSettings {
 }
 
 pub fn parse_close_behavior(raw: &str) -> CloseBehavior {
-    if raw.trim().eq_ignore_ascii_case("exit") {
-        CloseBehavior::Exit
-    } else {
+    if raw.trim().eq_ignore_ascii_case("tray") {
         CloseBehavior::Tray
+    } else {
+        CloseBehavior::Exit
     }
 }
 

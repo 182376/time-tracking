@@ -8,7 +8,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Minus, Plus } from "lucide-react";
 import { type HistorySession } from "../../../shared/lib/sessionReadRepository";
 import { UI_TEXT } from "../../../lib/copy";
 import {
@@ -21,7 +21,6 @@ import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { HistoryReadModelService } from "../../../shared/lib/historyReadModelService";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
-import QuietSelect from "../../../shared/components/QuietSelect";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 
@@ -43,13 +42,8 @@ interface HistorySnapshotCacheItem {
 }
 
 const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshotCacheItem>();
-const TIMELINE_MIN_SESSION_OPTIONS = [
-  { value: 30, label: "30s" },
-  { value: 60, label: "1m" },
-  { value: 180, label: "3m" },
-  { value: 300, label: "5m" },
-  { value: 600, label: "10m" },
-] as const;
+const TIMELINE_MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
+const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function formatHistoryCacheKey(date: Date) {
   const localDate = new Date(date);
@@ -171,13 +165,20 @@ export default function History({
     chartAxis,
   } = historyView;
 
-  const handleMinSessionChange = (value: string) => {
-    const nextValue = Number(value);
-    if (!Number.isFinite(nextValue)) {
-      return;
-    }
-
-    onMinSessionSecsChange?.(nextValue);
+  const minSessionMinutes = clampMinute(
+    Math.max(1, Math.round(minSessionSecs / 60)),
+    TIMELINE_MIN_SESSION_MINUTES_RANGE.min,
+    TIMELINE_MIN_SESSION_MINUTES_RANGE.max,
+  );
+  const canDecreaseMinSession = minSessionMinutes > TIMELINE_MIN_SESSION_MINUTES_RANGE.min;
+  const canIncreaseMinSession = minSessionMinutes < TIMELINE_MIN_SESSION_MINUTES_RANGE.max;
+  const updateMinSessionMinutes = (nextMinutes: number) => {
+    const clampedMinutes = clampMinute(
+      nextMinutes,
+      TIMELINE_MIN_SESSION_MINUTES_RANGE.min,
+      TIMELINE_MIN_SESSION_MINUTES_RANGE.max,
+    );
+    onMinSessionSecsChange?.(clampedMinutes * 60);
   };
 
   return (
@@ -307,16 +308,29 @@ export default function History({
         <div className="flex-1 qp-panel p-5 flex flex-col overflow-hidden min-h-0">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="font-semibold text-[var(--qp-text-primary)] text-sm">{UI_TEXT.history.timeline}</h3>
-            <QuietSelect
-              value={minSessionSecs}
-              onChange={(value) => handleMinSessionChange(String(value))}
-              className="w-[88px]"
-              ariaLabel="专注时间流最少时长"
-              options={TIMELINE_MIN_SESSION_OPTIONS.map((option) => ({
-                value: option.value,
-                label: option.label,
-              }))}
-            />
+            <div className="flex max-w-[124px] items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => updateMinSessionMinutes(minSessionMinutes - 1)}
+                disabled={!canDecreaseMinSession}
+                aria-label="减少最少时长 1 分钟"
+                className="qp-button-secondary inline-flex h-6 w-6 items-center justify-center rounded-[6px] p-0 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Minus size={11} />
+              </button>
+              <span className="min-w-[62px] text-center text-xs font-medium tabular-nums text-[var(--qp-text-secondary)]">
+                {minSessionMinutes} 分钟
+              </span>
+              <button
+                type="button"
+                onClick={() => updateMinSessionMinutes(minSessionMinutes + 1)}
+                disabled={!canIncreaseMinSession}
+                aria-label="增加最少时长 1 分钟"
+                className="qp-button-secondary inline-flex h-6 w-6 items-center justify-center rounded-[6px] p-0 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus size={11} />
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-[var(--qp-text-tertiary)] text-sm">{UI_TEXT.history.loading}</div>

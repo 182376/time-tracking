@@ -256,12 +256,12 @@ runTest("alias-first sessions still use canonical display name", () => {
   assert.equal(stats[0].app_name, resolveCanonicalDisplayName("douyin.exe"));
 });
 
-runTest("installer and updater executables collapse into the owning app", () => {
+runTest("installer windows are filtered instead of collapsing into the owning app", () => {
   const sessions: HistorySession[] = [
     makeSession({
       id: 1,
       exe_name: "alma-0.0.750-win-x64.exe",
-      app_name: "AI Provider Management Desktop App",
+      app_name: "Alma Installer",
       window_title: "Alma 安装",
       start_time: 0,
       end_time: 20_000,
@@ -287,7 +287,7 @@ runTest("installer and updater executables collapse into the owning app", () => 
   assert.equal(stats.length, 1);
   assert.equal(stats[0].exe_name.toLowerCase(), "alma.exe");
   assert.equal(stats[0].app_name, "Alma");
-  assert.equal(stats[0].total_duration, 80_000);
+  assert.equal(stats[0].total_duration, 60_000);
 });
 
 runTest("non-aliased apps prefer session app_name for display", () => {
@@ -762,6 +762,20 @@ runTest("canonical normalization resolves aliases and filters PickerHost", () =>
   assert.equal(resolveCanonicalDisplayName("douyin.exe"), "抖音");
   assert.equal(shouldTrackProcess("PickerHost.exe"), false);
   assert.equal(shouldTrackProcess("pickerhost"), false);
+  assert.equal(shouldTrackProcess("uninstall.exe"), false);
+  assert.equal(shouldTrackProcess("unins000.exe"), false);
+  assert.equal(shouldTrackProcess("obsidian-setup.exe"), false);
+  assert.equal(shouldTrackProcess("cursor-installer.exe"), false);
+  assert.equal(shouldTrackProcess("cursor-updater.exe"), false);
+  assert.equal(shouldTrackProcess("maintenancetool.exe"), false);
+  assert.equal(shouldTrackProcess("alma-0.0.750-win-x64.exe", {
+    appName: "AI Provider Management Desktop App",
+    windowTitle: "Alma \u5b89\u88c5",
+  }), false);
+  assert.equal(shouldTrackProcess("alma-0.0.750-win-x64.exe", {
+    appName: "AI Provider Management Desktop App",
+    windowTitle: "Alma",
+  }), true);
   assert.equal(shouldTrackProcess("Antigravity.exe"), true);
 });
 

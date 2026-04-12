@@ -19,7 +19,7 @@ export const RELEASE_DEFAULT_SETTINGS: ReleaseDefaultSettingsProfile = {
   refresh_interval_secs: 3,
   min_session_secs: 60,
   tracking_paused: false,
-  close_behavior: "tray",
+  close_behavior: "exit",
   minimize_behavior: "taskbar",
   launch_at_login: true,
   start_minimized: true,

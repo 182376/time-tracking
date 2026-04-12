@@ -22,9 +22,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
-const AFK_TIMEOUT_OPTIONS = [60, 180, 300];
+const AFK_TIMEOUT_SECONDS_RANGE = { min: 60, max: 1800, step: 60 } as const;
 const REFRESH_INTERVAL_OPTIONS = [1, 3];
-const MIN_SESSION_OPTIONS = [30, 60, 180, 300, 600];
+const MIN_SESSION_SECONDS_RANGE = { min: 60, max: 600, step: 60 } as const;
 const CLOSE_BEHAVIOR_OPTIONS: CloseBehavior[] = ["exit", "tray"];
 const MINIMIZE_BEHAVIOR_OPTIONS: MinimizeBehavior[] = ["taskbar", "tray"];
 
@@ -36,6 +36,16 @@ function parseNumberSetting(value: string | undefined, fallback: number) {
 function normalizeOptionValue(value: string | undefined, fallback: number, allowedValues: number[]) {
   const parsed = parseNumberSetting(value, fallback);
   return allowedValues.includes(parsed) ? parsed : fallback;
+}
+
+function normalizeRangeStepValue(
+  value: string | undefined,
+  fallback: number,
+  range: { min: number; max: number; step: number },
+) {
+  const parsed = parseNumberSetting(value, fallback);
+  const clamped = Math.min(range.max, Math.max(range.min, parsed));
+  return Math.round(clamped / range.step) * range.step;
 }
 
 function parseBooleanSetting(value: string | undefined, fallback: boolean) {
@@ -94,9 +104,17 @@ export async function loadSettings(): Promise<AppSettings> {
   for (const row of rows) map[row.key] = row.value;
 
   return {
-    afk_timeout_secs: normalizeOptionValue(map.afk_timeout_secs, DEFAULT_SETTINGS.afk_timeout_secs, AFK_TIMEOUT_OPTIONS),
+    afk_timeout_secs: normalizeRangeStepValue(
+      map.afk_timeout_secs,
+      DEFAULT_SETTINGS.afk_timeout_secs,
+      AFK_TIMEOUT_SECONDS_RANGE,
+    ),
     refresh_interval_secs: normalizeOptionValue(map.refresh_interval_secs, DEFAULT_SETTINGS.refresh_interval_secs, REFRESH_INTERVAL_OPTIONS),
-    min_session_secs: normalizeOptionValue(map.min_session_secs, DEFAULT_SETTINGS.min_session_secs, MIN_SESSION_OPTIONS),
+    min_session_secs: normalizeRangeStepValue(
+      map.min_session_secs,
+      DEFAULT_SETTINGS.min_session_secs,
+      MIN_SESSION_SECONDS_RANGE,
+    ),
     tracking_paused: parseBooleanSetting(map.tracking_paused, DEFAULT_SETTINGS.tracking_paused),
     close_behavior: normalizeEnumOption(map.close_behavior, DEFAULT_SETTINGS.close_behavior, CLOSE_BEHAVIOR_OPTIONS),
     minimize_behavior: normalizeEnumOption(

@@ -462,7 +462,10 @@ fn is_trackable_window(window: Option<&tracker::WindowInfo>) -> bool {
         return false;
     };
 
-    !window.exe_name.is_empty() && !window.is_afk && should_track(&window.exe_name)
+    !window.exe_name.is_empty()
+        && !window.is_afk
+        && should_track(&window.exe_name)
+        && !is_lifecycle_utility_window(window)
 }
 
 fn should_track(exe_name: &str) -> bool {
@@ -513,7 +516,187 @@ fn should_track(exe_name: &str) -> bool {
         return false;
     }
 
+    if is_lifecycle_utility_process(&lower_name) {
+        return false;
+    }
+
     true
+}
+
+fn is_lifecycle_utility_process(lower_name: &str) -> bool {
+    let normalized = lower_name.trim().trim_matches('"');
+    let stem = normalized.strip_suffix(".exe").unwrap_or(normalized);
+
+    if stem.is_empty() {
+        return false;
+    }
+
+    if matches!(
+        stem,
+        "setup"
+            | "install"
+            | "installer"
+            | "uninstall"
+            | "uninstaller"
+            | "unins"
+            | "unins000"
+            | "update"
+            | "updater"
+            | "upgrade"
+            | "remove"
+            | "maintenance"
+            | "maintenancetool"
+    ) {
+        return true;
+    }
+
+    let mut tokens = stem
+        .split(|ch: char| ch == '-' || ch == '_' || ch == '.' || ch.is_whitespace())
+        .filter(|token| !token.is_empty());
+
+    let first = tokens.next();
+    let second = tokens.next();
+    if first.is_none() || second.is_none() {
+        return false;
+    }
+
+    std::iter::once(first.unwrap())
+        .chain(std::iter::once(second.unwrap()))
+        .chain(tokens)
+        .any(|token| {
+            matches!(
+                token,
+                "setup"
+                    | "install"
+                    | "installer"
+                    | "uninstall"
+                    | "uninstaller"
+                    | "unins"
+                    | "unins000"
+                    | "update"
+                    | "updater"
+                    | "upgrade"
+                    | "remove"
+                    | "maintenance"
+                    | "maintenancetool"
+            )
+        })
+}
+
+fn is_lifecycle_utility_window(window: &tracker::WindowInfo) -> bool {
+    if !is_lifecycle_metadata_candidate_executable(&window.exe_name) {
+        return false;
+    }
+
+    has_lifecycle_metadata_signal(&window.title)
+}
+
+fn is_lifecycle_metadata_candidate_executable(exe_name: &str) -> bool {
+    let normalized = exe_name.trim().trim_matches('"').to_lowercase();
+    let stem = normalized.strip_suffix(".exe").unwrap_or(normalized.as_str());
+    if stem.is_empty() {
+        return false;
+    }
+
+    let tokens: Vec<&str> = stem
+        .split(|ch: char| ch == '-' || ch == '_' || ch == '.' || ch.is_whitespace())
+        .filter(|token| !token.is_empty())
+        .collect();
+    if tokens.len() < 2 {
+        return false;
+    }
+
+    let has_version = tokens.iter().any(|token| is_version_like_token(token));
+    if !has_version {
+        return false;
+    }
+
+    tokens.iter().any(|token| {
+        matches!(
+            *token,
+            "win"
+                | "windows"
+                | "x64"
+                | "x86"
+                | "amd64"
+                | "arm64"
+                | "ia32"
+                | "portable"
+                | "release"
+                | "latest"
+                | "beta"
+                | "alpha"
+                | "nightly"
+                | "stable"
+                | "desktop"
+                | "app"
+        )
+    })
+}
+
+fn is_version_like_token(token: &str) -> bool {
+    let raw = token.trim();
+    if raw.is_empty() {
+        return false;
+    }
+
+    let version = raw.strip_prefix('v').unwrap_or(raw);
+    if version.chars().all(|ch| ch.is_ascii_digit()) {
+        return true;
+    }
+
+    let mut segment_count = 0usize;
+    for segment in version.split('.') {
+        if segment.is_empty() || !segment.chars().all(|ch| ch.is_ascii_digit()) {
+            return false;
+        }
+        segment_count += 1;
+    }
+
+    (2..=6).contains(&segment_count)
+}
+
+fn has_lifecycle_metadata_signal(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    if trimmed.contains("安装")
+        || trimmed.contains("卸载")
+        || trimmed.contains("更新")
+        || trimmed.contains("维护工具")
+    {
+        return true;
+    }
+
+    trimmed
+        .to_lowercase()
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .any(|token| {
+            matches!(
+                token,
+                "setup"
+                    | "install"
+                    | "installer"
+                    | "installation"
+                    | "installing"
+                    | "uninstall"
+                    | "uninstaller"
+                    | "uninstallation"
+                    | "uninstalling"
+                    | "unins"
+                    | "unins000"
+                    | "update"
+                    | "updater"
+                    | "updating"
+                    | "upgrade"
+                    | "remove"
+                    | "maintenance"
+                    | "maintenancetool"
+            )
+        })
 }
 
 fn is_likely_system_process(lower_name: &str) -> bool {
@@ -970,6 +1153,29 @@ mod tests {
         assert!(!should_track("SearchUXHost.exe"));
         assert!(!should_track("FooExperienceHost.exe"));
         assert!(!should_track("svchost.exe"));
+    }
+
+    #[test]
+    fn lifecycle_utility_processes_are_not_trackable() {
+        assert!(!should_track("uninstall.exe"));
+        assert!(!should_track("unins000.exe"));
+        assert!(!should_track("obsidian-setup.exe"));
+        assert!(!should_track("cursor-installer.exe"));
+        assert!(!should_track("cursor-updater.exe"));
+        assert!(!should_track("maintenancetool.exe"));
+        assert!(should_track("Antigravity.exe"));
+    }
+
+    #[test]
+    fn lifecycle_utility_window_titles_are_not_trackable_for_versioned_installers() {
+        let installer = make_window(&[
+            ("exe_name", "alma-0.0.750-win-x64.exe"),
+            ("title", "Alma 安装"),
+        ]);
+        let app = make_window(&[("exe_name", "Alma.exe"), ("title", "Alma")]);
+
+        assert!(!is_trackable_window(Some(&installer)));
+        assert!(is_trackable_window(Some(&app)));
     }
 
     #[test]

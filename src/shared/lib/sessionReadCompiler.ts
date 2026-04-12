@@ -80,9 +80,13 @@ function mergeDiagnosticCodes(
   return Array.from(new Set([...current, ...incoming]));
 }
 
-function shouldTrackInReadModel(exeName: string) {
+function shouldTrackInReadModel(session: HistorySession) {
+  const exeName = session.exe_name;
   const canonicalExe = resolveCanonicalExecutable(exeName);
-  return shouldTrackProcess(canonicalExe) && ProcessMapper.shouldTrack(canonicalExe);
+  return shouldTrackProcess(exeName, {
+    appName: session.app_name,
+    windowTitle: session.window_title,
+  }) && ProcessMapper.shouldTrack(canonicalExe);
 }
 
 function resolveCompiledDisplayName(
@@ -207,7 +211,7 @@ function buildCompiledSessionBase(
 ): CompiledSession[] {
   const directMergeGapMs = minSessionSecs > 0 ? DIRECT_MERGE_GAP_MS : 0;
   const prepared = sessions
-    .filter((session) => shouldTrackInReadModel(session.exe_name))
+    .filter((session) => shouldTrackInReadModel(session))
     .map((session) => prepareSession(session))
     .sort((a, b) => a.start_time - b.start_time);
 

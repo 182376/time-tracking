@@ -10,9 +10,11 @@ import {
   Monitor,
   Database,
   Info,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
-import type { AppSettings, CloseBehavior, MinimizeBehavior } from "../../../lib/settings-store";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../../lib/settings-store";
 import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
 import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";
@@ -32,6 +34,86 @@ const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 15, label: UI_TEXT.settings.cleanupRangeLabels[15] },
   { value: 7, label: UI_TEXT.settings.cleanupRangeLabels[7] },
 ];
+
+const MINIMIZE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.minimize_behavior;
+const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
+  MINIMIZE_BEHAVIOR_DEFAULT === "taskbar" ? "tray" : "taskbar";
+const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.close_behavior;
+const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
+  CLOSE_BEHAVIOR_DEFAULT === "tray" ? "exit" : "tray";
+const AFK_MINUTES_RANGE = { min: 1, max: 30 } as const;
+const MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
+
+const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const secondsToMinute = (seconds: number, min: number, max: number) =>
+  clampMinute(Math.round(seconds / 60), min, max);
+
+type MinuteStepperSliderProps = {
+  ariaLabel: string;
+  minutes: number;
+  minMinutes: number;
+  maxMinutes: number;
+  onMinutesChange: (nextMinutes: number) => void;
+};
+
+function MinuteStepperSlider({
+  ariaLabel,
+  minutes,
+  minMinutes,
+  maxMinutes,
+  onMinutesChange,
+}: MinuteStepperSliderProps) {
+  const canDecrease = minutes > minMinutes;
+  const canIncrease = minutes < maxMinutes;
+  const updateMinutes = (nextMinutes: number) => onMinutesChange(clampMinute(nextMinutes, minMinutes, maxMinutes));
+  const sliderProgress = ((minutes - minMinutes) / (maxMinutes - minMinutes)) * 100;
+
+  return (
+    <div className="flex w-full max-w-[236px] items-center gap-3 md:justify-self-end">
+      <div className="contents">
+        <button
+          type="button"
+          onClick={() => updateMinutes(minutes - 1)}
+          disabled={!canDecrease}
+          aria-label={`${ariaLabel}减少 1 分钟`}
+          className="qp-button-secondary order-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] p-0 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Minus size={11} />
+        </button>
+
+        <input
+          type="range"
+          min={minMinutes}
+          max={maxMinutes}
+          step={1}
+          value={minutes}
+          onChange={(event) => updateMinutes(Number(event.target.value))}
+          aria-label={ariaLabel}
+          style={{
+            backgroundImage: `linear-gradient(to right, var(--qp-text-tertiary) 0%, var(--qp-text-tertiary) ${sliderProgress}%, var(--qp-track-muted) ${sliderProgress}%, var(--qp-track-muted) 100%)`,
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "100% 3px",
+          }}
+          className="order-2 h-5 min-w-[84px] flex-1 cursor-pointer appearance-none rounded-full [&::-webkit-slider-runnable-track]:h-[3px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-5.5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[var(--qp-bg-panel)] [&::-webkit-slider-thumb]:bg-[var(--qp-text-tertiary)] [&::-moz-range-track]:h-[3px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-[var(--qp-bg-panel)] [&::-moz-range-thumb]:bg-[var(--qp-text-tertiary)]"
+        />
+
+        <button
+          type="button"
+          onClick={() => updateMinutes(minutes + 1)}
+          disabled={!canIncrease}
+          aria-label={`${ariaLabel}增加 1 分钟`}
+          className="qp-button-secondary order-4 inline-flex h-6 w-6 items-center justify-center rounded-[6px] p-0 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={11} />
+        </button>
+      </div>
+      <p className="order-3 min-w-[52px] text-center text-xs font-medium tabular-nums text-[var(--qp-text-secondary)]">
+        {minutes} 分钟
+      </p>
+    </div>
+  );
+}
 
 export default function Settings({
   onSettingsChanged,
@@ -232,6 +314,17 @@ export default function Settings({
     );
   }
 
+  const afkMinutes = secondsToMinute(
+    draftSettings.afk_timeout_secs,
+    AFK_MINUTES_RANGE.min,
+    AFK_MINUTES_RANGE.max,
+  );
+  const minSessionMinutes = secondsToMinute(
+    draftSettings.min_session_secs,
+    MIN_SESSION_MINUTES_RANGE.min,
+    MIN_SESSION_MINUTES_RANGE.max,
+  );
+
   return (
     <motion.div
       key="settings"
@@ -299,36 +392,28 @@ export default function Settings({
             <div className="mt-5 space-y-5">
               <div>
                 <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.afkLabel}</label>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <div className="mt-2 grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,260px)] md:gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.afkHint}</p>
-                  <QuietSelect
-                    value={draftSettings.afk_timeout_secs}
-                    onChange={(value) => handleChange("afk_timeout_secs", value)}
-                    className="w-[132px]"
-                    options={[
-                      { value: 60, label: UI_TEXT.settings.minutePresets[60] },
-                      { value: 180, label: UI_TEXT.settings.minutePresets[180] },
-                      { value: 300, label: UI_TEXT.settings.minutePresets[300] },
-                    ]}
+                  <MinuteStepperSlider
+                    ariaLabel={UI_TEXT.settings.afkLabel}
+                    minutes={afkMinutes}
+                    minMinutes={AFK_MINUTES_RANGE.min}
+                    maxMinutes={AFK_MINUTES_RANGE.max}
+                    onMinutesChange={(nextMinutes) => handleChange("afk_timeout_secs", nextMinutes * 60)}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.minSessionLabel}</label>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <div className="mt-2 grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,260px)] md:gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.minSessionHint}</p>
-                  <QuietSelect
-                    value={draftSettings.min_session_secs}
-                    onChange={(value) => handleChange("min_session_secs", value)}
-                    className="w-[132px]"
-                    options={[
-                      { value: 30, label: "30 s" },
-                      { value: 60, label: UI_TEXT.settings.minutePresets[60] },
-                      { value: 180, label: UI_TEXT.settings.minutePresets[180] },
-                      { value: 300, label: UI_TEXT.settings.minutePresets[300] },
-                      { value: 600, label: UI_TEXT.settings.minutePresets[600] },
-                    ]}
+                  <MinuteStepperSlider
+                    ariaLabel={UI_TEXT.settings.minSessionLabel}
+                    minutes={minSessionMinutes}
+                    minMinutes={MIN_SESSION_MINUTES_RANGE.min}
+                    maxMinutes={MIN_SESSION_MINUTES_RANGE.max}
+                    onMinutesChange={(nextMinutes) => handleChange("min_session_secs", nextMinutes * 60)}
                   />
                 </div>
               </div>
@@ -358,37 +443,39 @@ export default function Settings({
 
             <div className="mt-5 space-y-5">
               <div>
-                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">最小化按钮行为</label>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">最小化到托盘</label>
+                <div className="mt-2 flex items-start justify-between gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
-                    点最小化后，选择去任务栏或托盘。
+                    点最小化后，将窗口收进系统托盘。
                   </p>
-                  <QuietSelect
-                    value={draftSettings.minimize_behavior}
-                    onChange={(value) => handleChange("minimize_behavior", value as MinimizeBehavior)}
-                    className="w-[148px]"
-                    options={[
-                      { value: "taskbar", label: "最小化到任务栏" },
-                      { value: "tray", label: "最小化到托盘" },
-                    ]}
+                  <QuietSwitch
+                    checked={draftSettings.minimize_behavior !== MINIMIZE_BEHAVIOR_DEFAULT}
+                    onChange={(nextChecked) => {
+                      handleChange(
+                        "minimize_behavior",
+                        nextChecked ? MINIMIZE_BEHAVIOR_ALTERNATE : MINIMIZE_BEHAVIOR_DEFAULT,
+                      );
+                    }}
+                    ariaLabel="切换最小化到托盘"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">关闭按钮行为</label>
-                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">关闭到托盘</label>
+                <div className="mt-2 flex items-start justify-between gap-4">
                   <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">
-                    点关闭后，选择直接退出或隐藏到托盘。
+                    点关闭后，隐藏窗口并继续后台运行。
                   </p>
-                  <QuietSelect
-                    value={draftSettings.close_behavior}
-                    onChange={(value) => handleChange("close_behavior", value as CloseBehavior)}
-                    className="w-[148px]"
-                    options={[
-                      { value: "tray", label: "最小化到托盘" },
-                      { value: "exit", label: "直接退出" },
-                    ]}
+                  <QuietSwitch
+                    checked={draftSettings.close_behavior !== CLOSE_BEHAVIOR_DEFAULT}
+                    onChange={(nextChecked) => {
+                      handleChange(
+                        "close_behavior",
+                        nextChecked ? CLOSE_BEHAVIOR_ALTERNATE : CLOSE_BEHAVIOR_DEFAULT,
+                      );
+                    }}
+                    ariaLabel="切换关闭到托盘"
                   />
                 </div>
               </div>

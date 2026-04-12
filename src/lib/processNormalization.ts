@@ -45,6 +45,47 @@ const LIFECYCLE_ALIAS_NOISE_TOKENS = new Set([
 ]);
 
 const LIFECYCLE_ALIAS_PATTERN = LIFECYCLE_ALIAS_MARKERS.join("|");
+const LIFECYCLE_TRACKING_MARKERS = new Set([
+  "setup",
+  "install",
+  "installer",
+  "uninstall",
+  "uninstaller",
+  "unins",
+  "unins000",
+  "update",
+  "updater",
+  "upgrade",
+  "remove",
+  "maintenance",
+  "maintenancetool",
+]);
+const LIFECYCLE_TITLE_MARKERS = new Set([
+  ...LIFECYCLE_TRACKING_MARKERS,
+  "installation",
+  "installing",
+  "uninstallation",
+  "uninstalling",
+  "updating",
+]);
+const LIFECYCLE_METADATA_BUILD_TOKENS = new Set([
+  "win",
+  "windows",
+  "x64",
+  "x86",
+  "amd64",
+  "arm64",
+  "ia32",
+  "portable",
+  "release",
+  "latest",
+  "beta",
+  "alpha",
+  "nightly",
+  "stable",
+  "desktop",
+  "app",
+]);
 
 const NON_TRACKABLE_EXE_NAMES = new Set([
   "",
@@ -79,8 +120,80 @@ function stripExeSuffix(exeName: string) {
   return exeName.endsWith(".exe") ? exeName.slice(0, -4) : exeName;
 }
 
+function isLifecycleUtilityExecutable(exeName: string) {
+  const normalized = normalizeExecutable(exeName);
+  const stem = stripExeSuffix(normalized);
+  if (!stem) {
+    return false;
+  }
+
+  if (LIFECYCLE_TRACKING_MARKERS.has(stem)) {
+    return true;
+  }
+
+  const tokens = stem.split(/[_\-. ]+/).filter(Boolean);
+  if (tokens.length < 2) {
+    return false;
+  }
+
+  return tokens.some((token) => LIFECYCLE_TRACKING_MARKERS.has(token));
+}
+
 function isVersionLikeToken(token: string) {
   return /^\d+$/.test(token) || /^v?\d+(?:\.\d+){1,5}$/.test(token);
+}
+
+function hasLifecycleMetadataSignal(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    normalized.includes("安装")
+    || normalized.includes("卸载")
+    || normalized.includes("更新")
+    || normalized.includes("维护工具")
+  ) {
+    return true;
+  }
+
+  const englishTokens = normalized
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return englishTokens.some((token) => LIFECYCLE_TITLE_MARKERS.has(token));
+}
+
+function isLifecycleMetadataCandidateExecutable(exeName: string) {
+  const normalized = normalizeExecutable(exeName);
+  const stem = stripExeSuffix(normalized);
+  if (!stem) {
+    return false;
+  }
+
+  const tokens = stem.split(/[_\-. ]+/).filter(Boolean);
+  if (tokens.length < 2) {
+    return false;
+  }
+
+  const hasVersion = tokens.some(isVersionLikeToken);
+  if (!hasVersion) {
+    return false;
+  }
+
+  return tokens.some((token) => LIFECYCLE_METADATA_BUILD_TOKENS.has(token));
+}
+
+function isLifecycleMetadataRecord(
+  exeName: string,
+  appName: string | undefined,
+  windowTitle: string | undefined,
+) {
+  if (!isLifecycleMetadataCandidateExecutable(exeName)) {
+    return false;
+  }
+
+  return hasLifecycleMetadataSignal(appName ?? "") || hasLifecycleMetadataSignal(windowTitle ?? "");
 }
 
 function sanitizeAliasBaseStem(rawStem: string) {
@@ -191,7 +304,18 @@ export function resolveCanonicalDisplayName(exeName: string) {
   return DEFAULT_APP_MAPPINGS[canonicalExe]?.name;
 }
 
-export function shouldTrackProcess(exeName: string) {
+export function shouldTrackProcess(
+  exeName: string,
+  options: { appName?: string; windowTitle?: string } = {},
+) {
+  if (isLifecycleUtilityExecutable(exeName)) {
+    return false;
+  }
+
+  if (isLifecycleMetadataRecord(exeName, options.appName, options.windowTitle)) {
+    return false;
+  }
+
   const canonicalExe = resolveCanonicalExecutable(exeName);
   if (!canonicalExe) return false;
   if (NON_TRACKABLE_EXE_NAMES.has(canonicalExe)) return false;
