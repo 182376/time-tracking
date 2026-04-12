@@ -17,7 +17,11 @@ export function applyProcessMapperRuntimeSnapshot(snapshot: ProcessMapperRuntime
   );
 }
 
-export async function initializeProcessMapperRuntime(): Promise<void> {
+export async function refreshProcessMapperRuntime(): Promise<void> {
   const snapshot = await loadProcessMapperRuntimeSnapshot();
   applyProcessMapperRuntimeSnapshot(snapshot);
+}
+
+export async function initializeProcessMapperRuntime(): Promise<void> {
+  await refreshProcessMapperRuntime();
 }

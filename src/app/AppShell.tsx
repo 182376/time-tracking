@@ -7,6 +7,10 @@ import ToastStack, { type ToastItem, type ToastTone } from "../shared/components
 import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
 import { AppSettingsRuntimeService } from "./services/appSettingsRuntimeService";
+import {
+  loadDashboardRuntimeSnapshot,
+  loadHistoryRuntimeSnapshot,
+} from "./services/readModelRuntimeService";
 import type { View } from "../shared/types/app";
 import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
 import { useQuietDialogs } from "../shared/hooks/useQuietDialogs";
@@ -38,6 +42,7 @@ export default function AppShell() {
     appSettings.refresh_interval_secs,
     refreshSignal,
     trackerHealth,
+    loadDashboardRuntimeSnapshot,
     mappingVersion,
     classificationReady,
   );
@@ -137,6 +142,7 @@ export default function AppShell() {
                 minSessionSecs={appSettings.min_session_secs}
                 onMinSessionSecsChange={handleMinSessionSecsChange}
                 trackerHealth={trackerHealth}
+                loadHistorySnapshot={loadHistoryRuntimeSnapshot}
                 mappingVersion={mappingVersion}
               />
             )}

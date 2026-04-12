@@ -18,7 +18,7 @@ import {
   formatChartHours,
 } from "../services/historyFormatting";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
-import { HistoryReadModelService } from "../../../shared/lib/historyReadModelService";
+import { HistoryReadModelService, type HistorySnapshot } from "../../../shared/lib/historyReadModelService";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
@@ -32,6 +32,7 @@ interface Props {
   minSessionSecs: number;
   onMinSessionSecsChange?: (value: number) => void;
   trackerHealth: TrackerHealthSnapshot;
+  loadHistorySnapshot: (date: Date, rollingDayCount?: number) => Promise<HistorySnapshot>;
   mappingVersion?: number;
 }
 
@@ -59,6 +60,7 @@ export default function History({
   minSessionSecs,
   onMinSessionSecsChange,
   trackerHealth,
+  loadHistorySnapshot,
   mappingVersion = 0,
 }: Props) {
   const initialDate = new Date();
@@ -94,7 +96,7 @@ export default function History({
     }
 
     try {
-      const snapshot = await HistoryReadModelService.loadHistorySnapshot(selectedDate);
+      const snapshot = await loadHistorySnapshot(selectedDate);
       HISTORY_SNAPSHOT_CACHE.set(cacheKey, {
         daySessions: snapshot.daySessions,
         weeklySessions: snapshot.weeklySessions,
@@ -111,7 +113,7 @@ export default function History({
         setLoading(false);
       }
     }
-  }, [selectedDate]);
+  }, [loadHistorySnapshot, selectedDate]);
 
   useEffect(() => {
     void loadData(!hasLoadedRef.current);

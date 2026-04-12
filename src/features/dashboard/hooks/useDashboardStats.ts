@@ -1,6 +1,10 @@
 ﻿import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import type { HistorySession } from "../../../shared/lib/sessionReadRepository";
-import { HistoryReadModelService, type DashboardReadModel } from "../../../shared/lib/historyReadModelService";
+import {
+  HistoryReadModelService,
+  type DashboardReadModel,
+  type DashboardSnapshot,
+} from "../../../shared/lib/historyReadModelService";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 
 export interface UseStatsResult {
@@ -12,6 +16,7 @@ export function useDashboardStats(
   refreshIntervalSecs: number,
   refreshKey: number,
   trackerHealth: TrackerHealthSnapshot,
+  loadDashboardSnapshot: (date?: Date) => Promise<DashboardSnapshot>,
   mappingVersion: number = 0,
   classificationReady: boolean = true,
 ): UseStatsResult {
@@ -23,7 +28,7 @@ export function useDashboardStats(
     if (!classificationReady) return;
 
     try {
-      const snapshot = await HistoryReadModelService.loadDashboardSnapshot(new Date());
+      const snapshot = await loadDashboardSnapshot(new Date());
 
       startTransition(() => {
         setRawSessions(snapshot.sessions);
@@ -33,7 +38,7 @@ export function useDashboardStats(
     } catch (err) {
       console.error("Failed to load stats:", err);
     }
-  }, [classificationReady]);
+  }, [classificationReady, loadDashboardSnapshot]);
 
   useEffect(() => {
     void fetchData();
