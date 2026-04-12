@@ -69,7 +69,7 @@ function MinuteStepperSlider({
   const sliderProgress = ((minutes - minMinutes) / (maxMinutes - minMinutes)) * 100;
 
   return (
-    <div className="flex w-full max-w-[236px] items-center gap-3 md:justify-self-end">
+    <div className="flex w-full max-w-[224px] items-center gap-2.5 md:justify-self-end">
       <div className="contents">
         <button
           type="button"
@@ -95,7 +95,7 @@ function MinuteStepperSlider({
             backgroundRepeat: "no-repeat",
             backgroundSize: "100% 3px",
           }}
-          className="order-2 h-5 min-w-[84px] flex-1 cursor-pointer appearance-none rounded-full [&::-webkit-slider-runnable-track]:h-[3px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-5.5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[var(--qp-bg-panel)] [&::-webkit-slider-thumb]:bg-[var(--qp-text-tertiary)] [&::-moz-range-track]:h-[3px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-[var(--qp-bg-panel)] [&::-moz-range-thumb]:bg-[var(--qp-text-tertiary)]"
+          className="order-2 h-5 min-w-[80px] flex-1 cursor-pointer appearance-none rounded-full [&::-webkit-slider-runnable-track]:h-[3px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:mt-[-5.5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[var(--qp-bg-panel)] [&::-webkit-slider-thumb]:bg-[var(--qp-text-tertiary)] [&::-moz-range-track]:h-[3px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-[var(--qp-bg-panel)] [&::-moz-range-thumb]:bg-[var(--qp-text-tertiary)]"
         />
 
         <button
@@ -108,7 +108,7 @@ function MinuteStepperSlider({
           <Plus size={11} />
         </button>
       </div>
-      <p className="order-3 min-w-[52px] text-center text-xs font-medium tabular-nums text-[var(--qp-text-secondary)]">
+      <p className="order-3 min-w-[48px] text-center text-xs font-medium tabular-nums text-[var(--qp-text-secondary)]">
         {minutes} 分钟
       </p>
     </div>

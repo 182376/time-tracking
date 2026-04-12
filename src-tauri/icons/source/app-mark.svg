@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="mark-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#657287" />
+      <stop offset="48%" stop-color="#3A4658" />
+      <stop offset="100%" stop-color="#2D3748" />
+    </linearGradient>
+  </defs>
+  <path d="M 218.21 95.17 A 96 96 0 0 1 189.70 201.54" fill="none" stroke="url(#mark-grad)" stroke-width="16" stroke-linecap="round" />
+  <path d="M 160.83 218.21 A 96 96 0 1 1 160.83 37.79" fill="none" stroke="url(#mark-grad)" stroke-width="16" stroke-linecap="round" />
+  <circle cx="195.88" cy="60.12" r="14" fill="url(#mark-grad)" />
+  <path d="M 128 184 L 128 134 Q 128 128 132.24 123.76 L 164 92" fill="none" stroke="url(#mark-grad)" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round" />
+  <g transform="translate(164, 92) rotate(-45)">
+    <path d="M 20 0 L -10 -16 L -10 16 Z" fill="url(#mark-grad)" stroke="url(#mark-grad)" stroke-width="4" stroke-linejoin="round" />
+  </g>
+</svg>

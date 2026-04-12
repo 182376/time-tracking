@@ -273,7 +273,7 @@ export default function History({
                 <p className="text-[var(--qp-text-tertiary)] text-xs text-center mt-8">{UI_TEXT.history.noData}</p>
               ) : (
                 <div className="space-y-4">
-                  {appSummary.slice(0, 15).map((app) => {
+                  {appSummary.map((app) => {
                     const mapped = AppClassificationFacade.mapApp(app.exeName, { appName: app.appName });
                     const overrideColor = AppClassificationFacade.getUserOverride(app.exeName)?.color;
                     const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? mapped.color;

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <filter id="qp-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#111827" flood-opacity="0.06" />
+    </filter>
+    <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8D98A9" />
+      <stop offset="52%" stop-color="#657287" />
+      <stop offset="100%" stop-color="#4D5B70" />
+    </linearGradient>
+    <linearGradient id="active-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4D5B70" />
+      <stop offset="100%" stop-color="#2D3748" />
+    </linearGradient>
+  </defs>
+  <g filter="url(#qp-shadow)">
+    <path d="M 218.21 95.17 A 96 96 0 0 1 189.70 201.54" fill="none" stroke="url(#ring-grad)" stroke-width="16" stroke-linecap="round" />
+    <path d="M 160.83 218.21 A 96 96 0 1 1 160.83 37.79" fill="none" stroke="url(#ring-grad)" stroke-width="16" stroke-linecap="round" />
+    <circle cx="195.88" cy="60.12" r="14" fill="url(#active-grad)" />
+    <path d="M 128 184 L 128 134 Q 128 128 132.24 123.76 L 164 92" fill="none" stroke="url(#active-grad)" stroke-width="16" stroke-linecap="butt" stroke-linejoin="round" />
+    <g transform="translate(164, 92) rotate(-45)">
+      <path d="M 20 0 L -10 -16 L -10 16 Z" fill="url(#active-grad)" stroke="url(#active-grad)" stroke-width="4" stroke-linejoin="round" />
+    </g>
+  </g>
+</svg>

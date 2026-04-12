@@ -44,7 +44,8 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
 
   return stats.map((item) => {
     const mapped = AppClassificationFacade.mapApp(item.exe_name, { appName: item.app_name });
-    const name = item.app_name.trim() || mapped.name;
+    const overrideName = AppClassificationFacade.getUserOverride(item.exe_name)?.displayName?.trim();
+    const name = overrideName || item.app_name.trim() || mapped.name;
     return {
       exeName: item.exe_name,
       name,

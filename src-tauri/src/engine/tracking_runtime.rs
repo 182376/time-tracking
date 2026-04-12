@@ -759,13 +759,17 @@ async fn start_session(
         return Ok(false);
     }
 
-    if !window.process_path.is_empty() {
+    if !window.exe_name.is_empty() {
         let pool = pool.clone();
         let exe_name = window.exe_name.clone();
         let process_path = window.process_path.clone();
+        let hwnd = window.hwnd.clone();
+        let root_owner_hwnd = window.root_owner_hwnd.clone();
 
         tauri::async_runtime::spawn(async move {
-            if let Err(error) = ensure_icon_cache(&pool, &exe_name, &process_path).await {
+            if let Err(error) =
+                ensure_icon_cache(&pool, &exe_name, &process_path, &root_owner_hwnd, &hwnd).await
+            {
                 log_tracker_error(format!("failed to update icon cache: {error}"));
             }
         });
@@ -778,16 +782,24 @@ async fn ensure_icon_cache(
     pool: &Pool<Sqlite>,
     exe_name: &str,
     process_path: &str,
+    root_owner_hwnd: &str,
+    hwnd: &str,
 ) -> Result<(), sqlx::Error> {
     if icon_cache::is_icon_cached(pool, exe_name).await? {
         return Ok(());
     }
 
-    let Some(icon_source_path) = resolve_icon_source_path(process_path, exe_name) else {
-        return Ok(());
-    };
+    let base64_icon =
+        if let Some(icon_source_path) = resolve_icon_source_path(process_path, exe_name) {
+            icon_extractor::get_icon_base64(&icon_source_path)
+        } else {
+            None
+        };
 
-    let Some(base64_icon) = icon_extractor::get_icon_base64(&icon_source_path) else {
+    let base64_icon = base64_icon
+        .or_else(|| icon_extractor::get_window_icon_base64(root_owner_hwnd))
+        .or_else(|| icon_extractor::get_window_icon_base64(hwnd));
+    let Some(base64_icon) = base64_icon else {
         return Ok(());
     };
 

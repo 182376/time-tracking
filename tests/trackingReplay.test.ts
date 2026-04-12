@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { HistoryReadModelService } from "../src/shared/lib/historyReadModelService.ts";
+import { buildTopApplications } from "../src/features/dashboard/services/dashboardFormatting.ts";
+import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
 import type { HistorySession } from "../src/shared/lib/sessionReadRepository.ts";
 import { resolveTrackerHealth } from "../src/types/tracking.ts";
 
@@ -97,5 +99,20 @@ assert.equal(
   dashboard.topApplications.some((item) => item.exeName.toLowerCase() === "qq.exe"),
   true,
 );
+
+ProcessMapper.setUserOverrides({
+  "dism++x64.exe": {
+    displayName: "Dism++",
+    enabled: true,
+  },
+});
+const overriddenTopApps = buildTopApplications([{
+  app_name: "Dism++主程序",
+  exe_name: "Dism++x64.exe",
+  total_duration: 60_000,
+  suspicious_duration: 0,
+}]);
+assert.equal(overriddenTopApps[0]?.name, "Dism++");
+ProcessMapper.clearUserOverrides();
 
 console.log("PASS tracking replay scenario");

@@ -157,6 +157,7 @@ export default function AppShell() {
                 }}
                 onOverridesChanged={() => {
                   setMappingVersion((version) => version + 1);
+                  setDataRefreshTick((tick) => tick + 1);
                   pushToast(UI_TEXT.app.mappingUpdated, "success");
                 }}
                 onSessionsDeleted={() => {
