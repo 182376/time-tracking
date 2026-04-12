@@ -275,6 +275,7 @@
 - `CHANGELOG.md` 主要服务版本追溯、后续维护与内部回顾
 - GitHub Release 应更短、更好扫读，更强调用户可感知的变化
 - GitHub Release 不应直接整段复制 `CHANGELOG.md`
+- GitHub Release 默认采用“简短版”写法，除非该版本确实存在必须详细解释的安装、迁移或兼容性风险
 
 ---
 
@@ -329,6 +330,9 @@ GitHub Release 正文应优先来自 `CHANGELOG.md` 中对应版本节。
 - GitHub Release 应优先使用面向用户的简短语言
 - GitHub Release 只保留最重要、最值得让用户知道的变化
 - 更完整的版本历史保留在 `CHANGELOG.md`
+- 默认控制为“一段短摘要 + 3 到 6 条核心变化 + 必要时的安装或附件说明”
+- 若没有明显必要，不要把 `Added / Changed / Fixed / Internal` 全部分节原样搬进 GitHub Release
+- GitHub Release 的首要目标是让用户在几十秒内看懂“这版是什么、值不值得更新、该下哪个包”
 
 ### 10.5 Pre-release 规则
 
@@ -363,6 +367,29 @@ GitHub Release 正文应优先来自 `CHANGELOG.md` 中对应版本节。
 - 最后对外发布
 
 不要反过来先打 tag、先写 Release，再回头补代码版本和 changelog。
+
+### 11.1 与 Codex 的默认协作方式
+
+如无特殊说明，后续发布流程默认由 Codex 先完成以下工作：
+
+1. 检查并同步版本号
+2. 更新 `CHANGELOG.md`
+3. 运行最小发布校验
+4. 构建发布产物
+5. 提交版本相关改动
+6. 推送 `main`
+7. 创建或移动 Git tag
+8. 推送 tag
+9. 生成简短版 GitHub Release 正文
+
+在当前工具边界下，用户通常只需要完成最后的 GitHub 网页操作：
+
+- 选择正确的 tag
+- 粘贴或确认简短版 release notes
+- 上传发布附件
+- 点击 `Publish release`
+
+如果未来具备可稳定操作 GitHub Release 页面或 API 的能力，再将最后一步一并自动化；在此之前，默认采用“Codex 完成发布准备，用户完成最终发布按钮”的协作模式。
 
 ---
 
@@ -445,3 +472,4 @@ GitHub Release 附件应优先使用 Tauri 打包产物。
 - 版本号必须在代码、tag、release 标题中一致
 - 没有完成最小发布校验，不应标记为正式稳定发布
 - 不再临时发明新的 tag 格式、版本后缀或 release 文案结构
+- 默认由 Codex 执行大部分发布准备，GitHub 页面中的最终发布动作由用户完成，除非后续工具能力明确覆盖该步骤
