@@ -27,6 +27,7 @@ export function useWindowTracking() {
   const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
+  const [classificationReady, setClassificationReady] = useState(false);
   const [trackerHealth, setTrackerHealth] = useState<TrackerHealthSnapshot>(() => (
     resolveTrackerHealth(null, Date.now(), TRACKER_HEARTBEAT_STALE_AFTER_MS)
   ));
@@ -51,9 +52,11 @@ export function useWindowTracking() {
         setAppSettings(bootstrap.settings);
         setActiveWindow(bootstrap.activeWindow);
         setTrackerHealth(bootstrap.trackerHealth);
+        setClassificationReady(true);
       } catch (err) {
         if (cancelled) return;
         console.error("Tracking init error", err);
+        setClassificationReady(true);
       }
 
       if (cancelled) return;
@@ -133,6 +136,7 @@ export function useWindowTracking() {
     activeWindow,
     appSettings,
     setAppSettings,
+    classificationReady,
     syncTick,
     trackerHealth,
   };

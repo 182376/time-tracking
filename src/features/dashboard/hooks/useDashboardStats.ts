@@ -13,12 +13,15 @@ export function useDashboardStats(
   refreshKey: number,
   trackerHealth: TrackerHealthSnapshot,
   mappingVersion: number = 0,
+  classificationReady: boolean = true,
 ): UseStatsResult {
   const [rawSessions, setRawSessions] = useState<HistorySession[]>([]);
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const fetchData = useCallback(async () => {
+    if (!classificationReady) return;
+
     try {
       const snapshot = await HistoryReadModelService.loadDashboardSnapshot(new Date());
 
@@ -30,7 +33,7 @@ export function useDashboardStats(
     } catch (err) {
       console.error("Failed to load stats:", err);
     }
-  }, []);
+  }, [classificationReady]);
 
   useEffect(() => {
     void fetchData();
@@ -43,7 +46,7 @@ export function useDashboardStats(
 
   useEffect(() => {
     const hasLiveSession = rawSessions.some((session) => session.end_time === null);
-    if (!hasLiveSession || trackerHealth.status !== "healthy") {
+    if (!classificationReady || !hasLiveSession || trackerHealth.status !== "healthy") {
       return;
     }
 
@@ -68,11 +71,15 @@ export function useDashboardStats(
     return () => {
       window.clearInterval(timer);
     };
-  }, [icons, rawSessions, refreshIntervalSecs, trackerHealth.status]);
+  }, [classificationReady, icons, rawSessions, refreshIntervalSecs, trackerHealth.status]);
 
   const dashboard = useMemo(
-    () => HistoryReadModelService.buildDashboardReadModel(rawSessions, trackerHealth, nowMs),
-    [mappingVersion, nowMs, rawSessions, trackerHealth],
+    () => HistoryReadModelService.buildDashboardReadModel(
+      classificationReady ? rawSessions : [],
+      trackerHealth,
+      nowMs,
+    ),
+    [classificationReady, mappingVersion, nowMs, rawSessions, trackerHealth],
   );
 
   return {

@@ -28,6 +28,7 @@ export default function AppShell() {
   const {
     activeWindow,
     appSettings,
+    classificationReady,
     setAppSettings,
     syncTick,
     trackerHealth,
@@ -38,6 +39,7 @@ export default function AppShell() {
     refreshSignal,
     trackerHealth,
     mappingVersion,
+    classificationReady,
   );
 
   const activeExeName = activeWindow?.exe_name ?? null;
