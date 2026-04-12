@@ -1,83 +1,92 @@
 # Time Tracker
 
-Time Tracker is a local-first Windows desktop app that automatically records which app you are actively using and turns that activity into a clean dashboard, a readable history view, and a calm focus timeline.
+Time Tracker 是一个本地优先的 Windows 桌面时间追踪应用。
 
-Built with **Rust**, **Tauri v2**, **React**, and **TypeScript**.
+它会自动记录你当前正在使用的前台应用，并把这些活动整理成清晰的今日概览、历史视图和可读的专注时间线。
 
-## Why this project exists
+项目基于 **Rust**、**Tauri v2**、**React** 和 **TypeScript** 构建。
 
-Most time trackers either ask you to start and stop timers manually, or they log foreground windows in a way that quickly stops feeling trustworthy.
+## 这个项目是做什么的
 
-Time Tracker is built around a simpler promise:
+很多时间追踪工具要么依赖手动开关计时器，要么虽然会自动记录前台窗口，但统计结果很快就会变得不可信。
 
-- track activity automatically
-- keep the data local
-- handle real desktop boundaries more carefully
-- make the result readable enough to use every day
+Time Tracker 想解决的是更基础的问题：
 
-It is designed as a personal desktop tool first, not a team SaaS product or a productivity game.
+- 自动记录真实的桌面使用行为
+- 尽量把数据留在本地
+- 更认真地处理 AFK、锁屏、睡眠等桌面边界
+- 把结果整理成每天都看得懂、用得上的界面
 
-## What it does today
+它首先是一个个人桌面工具，而不是团队协作 SaaS，也不是带强游戏化的效率产品。
 
-- Automatically tracks the app you are actively using
-- Builds a daily dashboard with top apps, hourly activity, trends, and recent summaries
-- Shows a readable History timeline for reviewing your day
-- Lets you rename, recolor, reclassify, and exclude apps from stats
-- Lets you enable or disable window title capture per app
-- Supports backup, restore, and history cleanup
-- Supports desktop behaviors such as tray/minimize options and launch-at-login
+## 当前已经支持
 
-## Why it feels trustworthy
+- 自动追踪当前正在使用的前台应用
+- 今日概览，包括应用排行、分类分布、小时活跃情况
+- 历史页，用于回看当天和近 7 天的活动
+- 应用映射工作台，支持：
+  - 应用重命名
+  - 分类覆盖
+  - 颜色覆盖
+  - 排除出统计
+  - 按应用关闭标题记录
+  - 删除历史记录
+- 设置页显式保存 / 取消流程
+- 本地备份导出与恢复
+- 历史保留期清理
+- 托盘、最小化、开机启动等桌面行为设置
 
-Time tracking only works if the numbers feel believable. The project currently leans on a few core behaviors to protect that trust:
+## 为什么它的统计更可信
 
-- **Native window tracking** via Rust and the Windows API
-- **AFK-aware timing** so idle time is not silently counted as active work
-- **Lock and sleep boundaries** so sessions do not leak through breaks
-- **Crash-safe recovery** so stale active sessions get sealed near the last known live point
-- **System app filtering** so user-facing stats stay cleaner
-- **Real-duration stats** so totals are based on actual active time, not just visual spans
+时间追踪只有在“数字看起来可信”的前提下才有意义。当前项目主要依赖这些机制来保证统计结果更可靠：
 
-## How to read the data
+- **原生窗口追踪**：通过 Rust 和 Windows API 获取前台窗口信息
+- **AFK 感知**：空闲时间不会被悄悄算成有效工作时间
+- **锁屏 / 睡眠边界处理**：避免会话跨休息时间错误延长
+- **异常恢复**：程序中断后会尽量在最后有效心跳附近封口会话
+- **系统应用过滤**：减少系统级噪音对统计结果的污染
+- **真实时长统计**：总时长基于真实活跃时间，而不是视觉拼接结果
 
-Three rules matter when you compare the dashboard with the focus timeline:
+## 如何理解首页和时间线
 
-1. Stats use real active duration.
-2. The focus timeline may merge short interruptions for readability.
-3. The minimum segment filter only changes timeline display, not totals.
+当你对比首页统计和历史页时间线时，记住 3 条规则：
 
-That means the timeline can look visually simplified while the totals still remain accurate.
+1. 首页和统计卡片使用真实活跃时长。
+2. 历史时间线为了可读性，可能会合并短暂打断。
+3. 时间线最小时长筛选只影响显示，不影响总时长。
 
-## Privacy and data
+所以你会看到：时间线看起来更简洁，但统计总量依然保持准确。
 
-- All core data is stored locally in **SQLite**
-- No account, cloud sync, or server dependency is required for normal use
-- Title capture can be disabled per app
-- Backups currently include `sessions`, `settings`, and `icon_cache`
+## 隐私与数据
 
-## Current scope
+- 核心数据保存在本地 **SQLite**
+- 正常使用不依赖账号、云同步或远程服务
+- 可以按应用关闭标题记录
+- 当前备份会覆盖 `sessions`、`settings` 和 `icon_cache`
 
-Time Tracker is currently focused on a narrow but intentional scope:
+## 当前范围
 
-- **Windows 10/11 desktop first**
-- **Personal use first**
-- **Local-first storage and control**
+项目目前聚焦在一个刻意收紧的范围内：
 
-It is not currently aimed at:
+- **Windows 10 / 11 优先**
+- **个人使用优先**
+- **本地优先存储与控制**
 
-- team collaboration
-- cloud-first workflows
-- mobile-first usage
-- multi-platform parity
+当前不以这些方向为目标：
 
-## Getting started
+- 团队协作
+- 云优先工作流
+- 移动端优先
+- 多平台完全一致
 
-### Prerequisites
+## 快速开始
+
+### 环境要求
 
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 18 或更高版本
 
-### Install
+### 安装依赖
 
 ```bash
 git clone https://github.com/182376/time-tracking.git
@@ -85,13 +94,13 @@ cd time-tracking
 npm install
 ```
 
-### Run in development
+### 开发运行
 
 ```bash
 npm run tauri dev
 ```
 
-### Run tests
+### 运行测试
 
 ```bash
 npm test
@@ -100,29 +109,33 @@ cd src-tauri
 cargo test
 ```
 
-### Build
+### 构建发布包
 
 ```bash
 npm run build
 npm run tauri build
 ```
 
-Bundled installers are generated under `src-tauri/target/release/bundle/`.
+打包后的安装器会输出到：
 
-## Tech stack
+```text
+src-tauri/target/release/bundle/
+```
 
-- **Desktop shell**: [Tauri v2](https://v2.tauri.app/)
-- **Backend**: Rust
-- **Frontend**: React + Vite + TypeScript
-- **Styling**: Tailwind CSS
-- **Animation**: Framer Motion
-- **Charts**: Recharts
-- **Database**: SQLite via `@tauri-apps/plugin-sql`
-- **Windows integration**: `windows` crate
+## 技术栈
 
-## Project docs
+- 桌面壳：Tauri v2
+- 后端：Rust
+- 前端：React + Vite + TypeScript
+- 样式：Tailwind CSS
+- 动画：Framer Motion
+- 图表：Recharts
+- 数据库：SQLite（`@tauri-apps/plugin-sql`）
+- Windows 集成：`windows` crate
 
-For long-lived project references, see:
+## 项目文档
+
+长期有效的项目文档可从这里开始：
 
 - [`docs/product-principles-and-scope.md`](docs/product-principles-and-scope.md)
 - [`docs/roadmap-and-prioritization.md`](docs/roadmap-and-prioritization.md)
@@ -130,10 +143,10 @@ For long-lived project references, see:
 - [`docs/quiet-pro-component-guidelines.md`](docs/quiet-pro-component-guidelines.md)
 - [`docs/versioning-and-release-policy.md`](docs/versioning-and-release-policy.md)
 
-## Feedback
+## 反馈与发布
 
-- Releases: <https://github.com/182376/time-tracking/releases>
-- Issues: <https://github.com/182376/time-tracking/issues/new/choose>
+- Releases：<https://github.com/182376/time-tracking/releases>
+- Issues：<https://github.com/182376/time-tracking/issues/new/choose>
 
 ## License
 
