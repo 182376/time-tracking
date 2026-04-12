@@ -1,4 +1,4 @@
-import type { AppOverride } from "../../lib/ProcessMapper";
+import type { AppOverride } from "../../lib/ProcessMapper.ts";
 import type { AppCategory, CustomAppCategory } from "../../lib/config/categoryTokens";
 import {
   loadAppOverrides as loadAppOverridesFromStore,

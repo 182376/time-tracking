@@ -1,4 +1,4 @@
-import { ProcessMapper } from "../../lib/ProcessMapper";
+import { ProcessMapper } from "../../lib/ProcessMapper.ts";
 import * as classificationPersistence from "../../shared/lib/classificationPersistence";
 
 export type ProcessMapperRuntimeSnapshot = classificationPersistence.ProcessMapperClassificationSnapshot;

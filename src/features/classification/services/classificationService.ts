@@ -1,5 +1,5 @@
-import { ProcessMapper } from "../../../lib/ProcessMapper";
-import type { AppOverride } from "../../../lib/ProcessMapper";
+import { ProcessMapper } from "../../../lib/ProcessMapper.ts";
+import type { AppOverride } from "../../../lib/ProcessMapper.ts";
 import {
   USER_ASSIGNABLE_CATEGORIES,
   isCustomCategory,
@@ -9,7 +9,7 @@ import {
 import * as classificationPersistence from "../../../shared/lib/classificationPersistence";
 import type { ObservedAppCandidate } from "../../../shared/lib/classificationPersistence";
 
-export type { AppOverride } from "../../../lib/ProcessMapper";
+export type { AppOverride } from "../../../lib/ProcessMapper.ts";
 
 export interface ClassificationBootstrapData {
   observed: ObservedAppCandidate[];
