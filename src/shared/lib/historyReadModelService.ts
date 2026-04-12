@@ -7,6 +7,8 @@ import {
   type DailySummary,
   type HistorySession,
 } from "./sessionReadRepository.ts";
+import { ProcessMapper } from "../../lib/ProcessMapper.ts";
+import { loadProcessMapperClassificationSnapshot } from "./classificationPersistence.ts";
 import {
   buildCategoryDistribution,
   buildHourlyActivity,
@@ -76,6 +78,14 @@ export interface ReadModelDiagnostics {
   suspiciousDuration: number;
   suspiciousAppCount: number;
   hasWarnings: boolean;
+}
+
+async function refreshClassificationRuntime() {
+  const snapshot = await loadProcessMapperClassificationSnapshot();
+  ProcessMapper.setUserOverrides(snapshot.overrides);
+  ProcessMapper.setCategoryColorOverrides(snapshot.categoryColorOverrides);
+  ProcessMapper.setCategoryDefaultColorAssignments(snapshot.categoryDefaultColorAssignments);
+  ProcessMapper.setDeletedCategories(snapshot.deletedCategories);
 }
 
 function resolveLiveCutoffMs(trackerHealth: TrackerHealthSnapshot, nowMs: number) {
@@ -181,6 +191,8 @@ function filterTimelineSessionsForDisplay(
 
 export class HistoryReadModelService {
   static async loadDashboardSnapshot(date: Date = new Date()): Promise<DashboardSnapshot> {
+    await refreshClassificationRuntime();
+
     const [sessions, icons] = await Promise.all([
       getHistoryByDate(date),
       getIconMap(),
@@ -194,6 +206,8 @@ export class HistoryReadModelService {
   }
 
   static async loadHistorySnapshot(date: Date, rollingDayCount: number = 7): Promise<HistorySnapshot> {
+    await refreshClassificationRuntime();
+
     const selectedDayRange = getDayRange(date);
     const rollingRanges = getRollingDayRanges(rollingDayCount);
     const weeklyRangeStart = rollingRanges[0]?.startMs ?? selectedDayRange.startMs;

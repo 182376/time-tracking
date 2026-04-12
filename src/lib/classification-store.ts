@@ -1,4 +1,4 @@
-import { getDB } from "./db";
+import { getDB } from "./db.ts";
 import { ProcessMapper, type AppOverride } from "./ProcessMapper.ts";
 import {
   isAppCategory,

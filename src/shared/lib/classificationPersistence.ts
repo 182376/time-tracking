@@ -1,5 +1,5 @@
 import type { AppOverride } from "../../lib/ProcessMapper.ts";
-import type { AppCategory, CustomAppCategory } from "../../lib/config/categoryTokens";
+import type { AppCategory, CustomAppCategory } from "../../lib/config/categoryTokens.ts";
 import {
   loadAppOverrides as loadAppOverridesFromStore,
   saveAppOverride as saveAppOverrideToStore,
@@ -15,7 +15,7 @@ import {
   loadObservedAppCandidates as loadObservedAppCandidatesFromStore,
   deleteObservedAppSessions as deleteObservedAppSessionsFromStore,
   type ObservedAppCandidate as StoreObservedAppCandidate,
-} from "../../lib/classification-store";
+} from "../../lib/classification-store.ts";
 
 export type ObservedAppCandidate = StoreObservedAppCandidate;
 
