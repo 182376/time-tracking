@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing tag version to publish, for example 0.2.0"
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -22,11 +28,22 @@ jobs:
       - name: Read version
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = "${{ inputs.version }}"
+          if (-not $version) {
+            $version = "${{ github.ref_name }}".TrimStart("v")
+          }
           if (-not $version) {
             throw "Could not derive version from ${{ github.ref_name }}."
           }
           "VERSION=$version" >> $env:GITHUB_ENV
+          "TAG_NAME=v$version" >> $env:GITHUB_ENV
+
+      - name: Checkout release tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: pwsh
+        run: |
+          git fetch origin "refs/tags/$env:TAG_NAME:refs/tags/$env:TAG_NAME"
+          git checkout "$env:TAG_NAME"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -82,17 +99,18 @@ jobs:
           $installerFile = Get-Item -LiteralPath $installerFilePath
           $signature = (Get-Content -Raw -Encoding UTF8 -LiteralPath $signatureFile.FullName).Trim()
           $encodedName = [System.Uri]::EscapeDataString($installerFile.Name)
-          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$encodedName"
+          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$env:TAG_NAME/$encodedName"
 
           node scripts/release.mjs write-latest-json $env:VERSION $assetUrl $signature dist-release/latest.json windows-x86_64
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Time Tracker ${{ github.ref_name }}
+          tag_name: ${{ env.TAG_NAME }}
+          name: Time Tracker ${{ env.TAG_NAME }}
           body_path: dist-release/release-notes.md
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(env.TAG_NAME, '-') }}
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
 
@@ -107,6 +125,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "updates: latest ${{ github.ref_name }}"
+          git commit -m "updates: latest $env:TAG_NAME"
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git push --force origin updates
