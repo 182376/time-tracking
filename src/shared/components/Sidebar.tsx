@@ -66,16 +66,21 @@ export default function Sidebar({
         ))}
       </nav>
 
-      <div className="mt-auto w-full px-2">
+      <div className="mt-auto flex w-full justify-center px-2">
         {showUpdateEntry ? (
-          <button
+          <motion.button
             type="button"
             onClick={onOpenUpdateDialog}
-            className="qp-chip h-8 w-full rounded-[8px] border border-[var(--qp-border-subtle)] text-[var(--qp-accent-default)] text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+            whileHover={{ x: 0.5 }}
+            whileTap={{ scale: 0.995 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            className="qp-chip flex h-7 w-[58px] items-center justify-center rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-0 text-[var(--qp-text-secondary)] transition-colors hover:border-[var(--qp-border-strong)] hover:bg-[var(--qp-bg-panel)] hover:text-[var(--qp-text-primary)] active:border-[var(--qp-border-strong)] active:bg-[var(--qp-bg-panel)]"
           >
-            <ArrowUpCircle size={13} />
-            更新
-          </button>
+            <span className="inline-flex w-full items-center justify-center gap-1 pl-px text-[10px] leading-none font-medium">
+              <ArrowUpCircle size={11} strokeWidth={1.85} className="shrink-0" />
+              <span className="block leading-none">更新</span>
+            </span>
+          </motion.button>
         ) : null}
       </div>
     </motion.aside>

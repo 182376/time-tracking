@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface QuietDialogProps {
@@ -34,8 +35,8 @@ export default function QuietDialog({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [open, onClose]);
 
-  return (
-    <AnimatePresence>
+  const dialog = (
+    <AnimatePresence initial={false}>
       {open && (
         <motion.div
           className="qp-dialog-backdrop"
@@ -55,9 +56,9 @@ export default function QuietDialog({
             aria-modal="true"
             aria-label={title}
             className={`qp-dialog-surface ${surfaceClassName ?? ""}`}
-            initial={{ opacity: 0, y: 4, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 3, scale: 0.995 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.14, ease: "easeOut" }}
           >
             <header className="qp-dialog-header">
@@ -71,4 +72,10 @@ export default function QuietDialog({
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(dialog, document.body);
 }

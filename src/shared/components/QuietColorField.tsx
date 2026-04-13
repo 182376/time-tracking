@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Pipette } from "lucide-react";
 import {
@@ -30,6 +30,8 @@ interface PopoverPosition {
 const FORMAT_LIST: ColorDisplayFormat[] = ["hex", "rgb", "hsl"];
 const POPOVER_GAP = 8;
 const VIEWPORT_PADDING = 8;
+const DEFAULT_POPOVER_WIDTH = 288;
+const DEFAULT_POPOVER_HEIGHT = 340;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -87,12 +89,12 @@ export default function QuietColorField({
     setHexDraft(normalizedColor);
   }, [normalizedColor]);
 
-  const updatePopoverPosition = (measuredHeight?: number, measuredWidth?: number) => {
+  const resolvePopoverPosition = (measuredHeight?: number, measuredWidth?: number): PopoverPosition | null => {
     const trigger = triggerRef.current;
-    if (!trigger) return;
+    if (!trigger) return null;
     const rect = trigger.getBoundingClientRect();
-    const width = measuredWidth ?? popoverRef.current?.offsetWidth ?? 288;
-    const height = measuredHeight ?? popoverRef.current?.offsetHeight ?? 340;
+    const width = measuredWidth ?? popoverRef.current?.offsetWidth ?? DEFAULT_POPOVER_WIDTH;
+    const height = measuredHeight ?? popoverRef.current?.offsetHeight ?? DEFAULT_POPOVER_HEIGHT;
 
     const left = clamp(
       rect.left,
@@ -113,17 +115,45 @@ export default function QuietColorField({
       window.innerHeight - height - VIEWPORT_PADDING,
     );
 
-    setPosition({
+    return {
       top: boundedTop,
       left,
       placement: shouldFlip ? "top" : "bottom",
+    };
+  };
+
+  const updatePopoverPosition = (measuredHeight?: number, measuredWidth?: number) => {
+    const nextPosition = resolvePopoverPosition(measuredHeight, measuredWidth);
+    if (!nextPosition) return;
+    setPosition((current) => {
+      if (
+        Math.abs(current.top - nextPosition.top) < 1
+        && Math.abs(current.left - nextPosition.left) < 1
+        && current.placement === nextPosition.placement
+      ) {
+        return current;
+      }
+      return nextPosition;
     });
   };
 
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    updatePopoverPosition(
+      popoverRef.current?.offsetHeight,
+      popoverRef.current?.offsetWidth,
+    );
+    return undefined;
+  }, [open, format]);
+
   useEffect(() => {
     if (!open) return undefined;
-    updatePopoverPosition();
-    const handleViewport = () => updatePopoverPosition();
+    const handleViewport = () => {
+      updatePopoverPosition(
+        popoverRef.current?.offsetHeight,
+        popoverRef.current?.offsetWidth,
+      );
+    };
     window.addEventListener("resize", handleViewport);
     window.addEventListener("scroll", handleViewport, true);
     return () => {
@@ -131,17 +161,6 @@ export default function QuietColorField({
       window.removeEventListener("scroll", handleViewport, true);
     };
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const frame = window.requestAnimationFrame(() => {
-      updatePopoverPosition(
-        popoverRef.current?.offsetHeight,
-        popoverRef.current?.offsetWidth,
-      );
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [open, format]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -244,7 +263,19 @@ export default function QuietColorField({
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((previousOpen) => {
+            if (previousOpen) {
+              return false;
+            }
+            const initialPosition = resolvePopoverPosition(DEFAULT_POPOVER_HEIGHT, DEFAULT_POPOVER_WIDTH);
+            if (initialPosition) {
+              setPosition(initialPosition);
+            }
+            return true;
+          });
+        }}
         className={`qp-color-trigger ${fixedValueSlot ? "qp-color-trigger-fixed-slot" : ""}`}
         title={title}
       >
