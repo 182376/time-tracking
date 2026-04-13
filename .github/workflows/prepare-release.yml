@@ -113,7 +113,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Generate updater manifest
+      - name: Prepare release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist-release | Out-Null
@@ -135,7 +135,11 @@ jobs:
 
           $installerFile = Get-Item -LiteralPath $installerFilePath
           $signature = (Get-Content -Raw -Encoding UTF8 -LiteralPath $signatureFile.FullName).Trim()
-          $encodedName = [System.Uri]::EscapeDataString($installerFile.Name)
+          $releaseInstallerName = "TimeTracker_$($version)_x64-setup.exe"
+          $releaseInstallerPath = Join-Path "dist-release" $releaseInstallerName
+          Copy-Item -LiteralPath $installerFile.FullName -Destination $releaseInstallerPath -Force
+
+          $encodedName = [System.Uri]::EscapeDataString($releaseInstallerName)
           $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$tagName/$encodedName"
 
           node --experimental-strip-types scripts/release.ts write-latest-json $version $assetUrl $signature dist-release/latest.json windows-x86_64
@@ -149,7 +153,7 @@ jobs:
           draft: false
           prerelease: ${{ contains(inputs.version, '-') }}
           files: |
-            src-tauri/target/release/bundle/nsis/*.exe
+            dist-release/TimeTracker_${{ inputs.version }}_x64-setup.exe
 
       - name: Publish updater channel
         shell: pwsh
