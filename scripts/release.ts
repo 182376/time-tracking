@@ -70,14 +70,15 @@ async function syncVersion(version) {
   await writeJson(TAURI_CONFIG_PATH, tauriConfig);
 
   const cargoToml = await readText(CARGO_TOML_PATH);
-  const updatedCargoToml = cargoToml.replace(
-    /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m,
-    `$1${version}$2`,
-  );
-
-  if (updatedCargoToml === cargoToml) {
+  const cargoPackageVersionPattern = /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m;
+  if (!cargoPackageVersionPattern.test(cargoToml)) {
     fail("could not find [package] version in src-tauri/Cargo.toml");
   }
+
+  const updatedCargoToml = cargoToml.replace(
+    cargoPackageVersionPattern,
+    `$1${version}$2`,
+  );
 
   await writeFile(CARGO_TOML_PATH, updatedCargoToml, "utf8");
 }
