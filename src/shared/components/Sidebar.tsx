@@ -42,7 +42,6 @@ export default function Sidebar({
         {NAV_ITEMS.map((item) => (
           <motion.button
             key={item.id}
-            whileHover={{ x: 0.5 }}
             whileTap={{ scale: 0.995 }}
             transition={{ duration: 0.1, ease: "easeOut" }}
             title={item.label}
@@ -56,11 +55,7 @@ export default function Sidebar({
           >
             <item.icon size={18} strokeWidth={2.15} />
             {currentView === item.id && (
-              <motion.div
-                layoutId="nav-pill"
-                transition={{ duration: 0.14, ease: "easeOut" }}
-                className="absolute left-[-1px] top-[9px] w-[2px] h-[22px] rounded-full bg-[var(--qp-accent-default)]"
-              />
+              <div className="absolute left-[-1px] top-[9px] w-[2px] h-[22px] rounded-full bg-[var(--qp-accent-default)]" />
             )}
           </motion.button>
         ))}

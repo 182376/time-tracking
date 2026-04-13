@@ -41,14 +41,7 @@ export default function Dashboard({
     : "bg-[var(--qp-success)]";
 
   return (
-    <motion.div
-      key="dashboard"
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -3 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-      className="flex flex-col gap-4 md:gap-5 h-full overflow-hidden"
-    >
+    <div className="flex flex-col gap-4 md:gap-5 h-full overflow-hidden">
       <QuietPageHeader
         icon={<Monitor size={18} />}
         title={UI_TEXT.dashboard.title}
@@ -213,7 +206,7 @@ export default function Dashboard({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

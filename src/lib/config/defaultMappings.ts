@@ -89,6 +89,7 @@ export const DEFAULT_APP_MAPPINGS: Record<string, DefaultAppMapping> = {
   "shellexperiencehost.exe": { name: "Windows Shell", category: "system" },
   "consent.exe": { name: "UAC Prompt", category: "system" },
   "pickerhost.exe": { name: "Picker Host", category: "system" },
+  "openwith.exe": { name: "Open With", category: "system" },
   "startmenuexperiencehost.exe": { name: "Start Menu Experience Host", category: "system" },
   "applicationframehost.exe": { name: "Application Frame Host", category: "system" },
   "textinputhost.exe": { name: "Text Input Host", category: "system" },

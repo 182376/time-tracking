@@ -508,6 +508,7 @@ fn should_track(exe_name: &str) -> bool {
             | "winlogon.exe"
             | "userinit.exe"
             | "pickerhost.exe"
+            | "openwith.exe"
     ) {
         return false;
     }
@@ -1162,6 +1163,7 @@ mod tests {
         assert!(!should_track("ShellExperienceHost.exe"));
         assert!(!should_track("Consent.exe"));
         assert!(!should_track("PickerHost.exe"));
+        assert!(!should_track("openwith.exe"));
         assert!(!should_track("SearchUXHost.exe"));
         assert!(!should_track("FooExperienceHost.exe"));
         assert!(!should_track("svchost.exe"));

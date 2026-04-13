@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Trash2,
@@ -358,14 +357,7 @@ export default function Settings({
   };
 
   return (
-    <motion.div
-      key="settings"
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -3 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-      className="flex h-full w-full min-w-0 flex-col gap-4 md:gap-5"
-    >
+    <div className="flex h-full w-full min-w-0 flex-col gap-4 md:gap-5">
       {dialogs}
       <QuietPageHeader
         icon={<Settings2 size={18} />}
@@ -663,6 +655,6 @@ export default function Settings({
           </section>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

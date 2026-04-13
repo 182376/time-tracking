@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
 import {
@@ -559,14 +558,7 @@ export default function AppMapping({
   }
 
   return (
-    <motion.div
-      key="app-mapping"
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -3 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-      className="flex h-full min-w-0 flex-col gap-4 md:gap-5 overflow-hidden"
-    >
+    <div className="flex h-full min-w-0 flex-col gap-4 md:gap-5 overflow-hidden">
       <QuietPageHeader
         icon={<Sparkles size={18} />}
         title={UI_TEXT.mapping.title}
@@ -869,6 +861,6 @@ export default function AppMapping({
       </QuietDialog>
 
       {dialogs}
-    </motion.div>
+    </div>
   );
 }

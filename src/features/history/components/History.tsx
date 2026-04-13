@@ -184,13 +184,7 @@ export default function History({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -3 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-      className="flex-1 min-h-0 flex flex-col gap-4 md:gap-5 h-full overflow-hidden"
-    >
+    <div className="flex-1 min-h-0 flex flex-col gap-4 md:gap-5 h-full overflow-hidden">
       <QuietPageHeader
         icon={<Clock size={18} />}
         title={UI_TEXT.history.title}
@@ -392,7 +386,7 @@ export default function History({
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
