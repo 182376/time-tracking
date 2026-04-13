@@ -1,4 +1,4 @@
-name: Prepare Release
+name: Publish Release
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   prepare:
-    name: Prepare release commit and tag
+    name: Prepare, build, and publish release
     runs-on: windows-latest
 
     steps:
@@ -32,39 +32,56 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Check tag
+        id: tag
         shell: pwsh
         run: |
           $version = "${{ inputs.version }}"
           $existingTag = git ls-remote --tags origin "refs/tags/v$version"
           if ($existingTag) {
-            throw "Tag v$version already exists."
+            "TAG_EXISTS=true" >> $env:GITHUB_ENV
+            Write-Host "Tag v$version already exists. The workflow will publish from the existing tag."
+          } else {
+            "TAG_EXISTS=false" >> $env:GITHUB_ENV
+            Write-Host "Tag v$version does not exist. The workflow will create it."
           }
+
+      - name: Checkout existing tag
+        if: env.TAG_EXISTS == 'true'
+        shell: pwsh
+        run: |
+          git fetch origin "refs/tags/v${{ inputs.version }}:refs/tags/v${{ inputs.version }}"
+          git checkout "v${{ inputs.version }}"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Sync version files
-        run: node scripts/release.mjs sync-version ${{ inputs.version }}
+        if: env.TAG_EXISTS != 'true'
+        run: node --experimental-strip-types scripts/release.ts sync-version ${{ inputs.version }}
 
       - name: Validate changelog
-        run: node scripts/release.mjs validate-changelog ${{ inputs.version }}
+        run: node --experimental-strip-types scripts/release.ts validate-changelog ${{ inputs.version }}
 
       - name: Verify release notes generation
-        run: node scripts/release.mjs write-release-notes ${{ inputs.version }} dist-release/release-notes.md
+        run: node --experimental-strip-types scripts/release.ts write-release-notes ${{ inputs.version }} dist-release/release-notes.md
 
       - name: Build frontend
+        if: env.TAG_EXISTS != 'true'
         run: npm run build
 
       - name: Run tests
+        if: env.TAG_EXISTS != 'true'
         run: |
           npm test
           npm run test:replay
 
       - name: Check Rust
+        if: env.TAG_EXISTS != 'true'
         working-directory: src-tauri
         run: cargo check
 
       - name: Commit version changes and tag
+        if: env.TAG_EXISTS != 'true'
         shell: pwsh
         run: |
           $version = "${{ inputs.version }}"
@@ -121,7 +138,7 @@ jobs:
           $encodedName = [System.Uri]::EscapeDataString($installerFile.Name)
           $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$tagName/$encodedName"
 
-          node scripts/release.mjs write-latest-json $version $assetUrl $signature dist-release/latest.json windows-x86_64
+          node --experimental-strip-types scripts/release.ts write-latest-json $version $assetUrl $signature dist-release/latest.json windows-x86_64
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

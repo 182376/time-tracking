@@ -220,10 +220,10 @@ async function writeLatestJson(version, assetUrl, signature, outputPath, target 
 
 function help() {
   console.log(`Usage:
-  node scripts/release.mjs sync-version <version>
-  node scripts/release.mjs validate-changelog <version>
-  node scripts/release.mjs write-release-notes <version> <output>
-  node scripts/release.mjs write-latest-json <version> <asset-url> <signature> <output> [target]
+  node --experimental-strip-types scripts/release.ts sync-version <version>
+  node --experimental-strip-types scripts/release.ts validate-changelog <version>
+  node --experimental-strip-types scripts/release.ts write-release-notes <version> <output>
+  node --experimental-strip-types scripts/release.ts write-latest-json <version> <asset-url> <signature> <output> [target]
 `);
 }
 
