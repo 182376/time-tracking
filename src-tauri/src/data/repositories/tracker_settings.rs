@@ -59,19 +59,19 @@ pub async fn load_capture_window_title_setting_for_app(
         .unwrap_or(true))
 }
 
-pub async fn load_afk_timeout_secs(
+pub async fn load_idle_timeout_secs(
     pool: &Pool<Sqlite>,
-    default_afk_timeout_secs: u64,
+    default_idle_timeout_secs: u64,
 ) -> Result<u64, sqlx::Error> {
     let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind("afk_timeout_secs")
+        .bind("idle_timeout_secs")
         .fetch_optional(pool)
         .await?;
 
     Ok(row
         .and_then(|row| row.try_get::<String, _>("value").ok())
         .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(default_afk_timeout_secs))
+        .unwrap_or(default_idle_timeout_secs))
 }
 
 pub async fn load_tracker_timestamp(
@@ -113,6 +113,18 @@ pub async fn save_setting_value(
     Ok(())
 }
 
+pub async fn load_setting_value(
+    pool: &Pool<Sqlite>,
+    key: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(row.and_then(|row| row.try_get::<String, _>("value").ok()))
+}
+
 fn normalize_exe_setting_key(exe_name: &str) -> Option<String> {
     let trimmed = exe_name.trim().trim_matches('"');
     if trimmed.is_empty() {
@@ -125,4 +137,38 @@ fn normalize_exe_setting_key(exe_name: &str) -> Option<String> {
     }
 
     Some(key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::migrations as db_schema;
+    use sqlx::{Executor, SqlitePool};
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        pool.execute(db_schema::MIGRATION_1_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_2_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_3_SQL).await.unwrap();
+        pool
+    }
+
+    #[test]
+    fn idle_timeout_setting_does_not_fallback_to_legacy_afk_key() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            save_setting_value(&pool, "afk_timeout_secs", "999").await.unwrap();
+
+            let fallback = load_idle_timeout_secs(&pool, 180).await.unwrap();
+            assert_eq!(fallback, 180);
+
+            save_setting_value(&pool, "idle_timeout_secs", "240")
+                .await
+                .unwrap();
+
+            let configured = load_idle_timeout_secs(&pool, 180).await.unwrap();
+            assert_eq!(configured, 240);
+        });
+    }
 }

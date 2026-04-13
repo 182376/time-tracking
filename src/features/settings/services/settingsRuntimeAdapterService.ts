@@ -13,7 +13,7 @@ import {
   restoreBackup,
   type BackupPreview,
 } from "../../../shared/lib/backupRuntimeAdapter";
-import { setAfkTimeout } from "../../../app/services/trackingRuntimeGateway";
+import { setIdleTimeout } from "../../../app/services/trackingRuntimeGateway";
 import type { CleanupRange } from "../types";
 
 export type { BackupPreview } from "../../../shared/lib/backupRuntimeAdapter";
@@ -66,8 +66,8 @@ export class SettingsRuntimeAdapterService {
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     await saveSetting(key, value);
 
-    if (key === "afk_timeout_secs") {
-      await setAfkTimeout(value as number);
+    if (key === "idle_timeout_secs") {
+      await setIdleTimeout(value as number);
     }
   }
 
@@ -133,8 +133,8 @@ export class SettingsRuntimeAdapterService {
     const entries = Object.entries(patch) as Array<[keyof AppSettings, AppSettings[keyof AppSettings]]>;
     for (const [key, value] of entries) {
       await saveSetting(key, value);
-      if (key === "afk_timeout_secs") {
-        await setAfkTimeout(value as number);
+      if (key === "idle_timeout_secs") {
+        await setIdleTimeout(value as number);
       }
     }
   }

@@ -20,7 +20,7 @@ use windows::Win32::Storage::FileSystem::{
     GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
 };
 
-const DEFAULT_AFK_TIMEOUT_SECS: u64 = 300;
+const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 300;
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 const TRACKER_WATCHDOG_POLL_MS: u64 = 1_000;
 const TRACKER_STALL_SEAL_AFTER_MS: i64 = 8_000;
@@ -244,9 +244,9 @@ async fn initialize_tracker<R: Runtime>(
     app: &AppHandle<R>,
     pool: &Pool<Sqlite>,
 ) -> Result<(), sqlx::Error> {
-    let afk_timeout_secs =
-        tracker_settings::load_afk_timeout_secs(pool, DEFAULT_AFK_TIMEOUT_SECS).await?;
-    tracker::cmd_set_afk_timeout(afk_timeout_secs);
+    let idle_timeout_secs =
+        tracker_settings::load_idle_timeout_secs(pool, DEFAULT_IDLE_TIMEOUT_SECS).await?;
+    tracker::cmd_set_idle_timeout(idle_timeout_secs);
     let mut repair_notes: Vec<String> = Vec::new();
 
     let normalized_rows = sessions::normalize_closed_session_durations(pool).await?;

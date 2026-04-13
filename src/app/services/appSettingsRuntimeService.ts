@@ -3,14 +3,14 @@ import {
   saveSetting,
   type AppSettings,
 } from "../../shared/lib/settingsPersistenceAdapter";
-import { setAfkTimeout } from "./trackingRuntimeGateway";
+import { setIdleTimeout } from "./trackingRuntimeGateway";
 
 export class AppSettingsRuntimeService {
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     await saveSetting(key, value);
 
-    if (key === "afk_timeout_secs") {
-      await setAfkTimeout(value as number);
+    if (key === "idle_timeout_secs") {
+      await setIdleTimeout(value as number);
     }
   }
 
@@ -18,7 +18,7 @@ export class AppSettingsRuntimeService {
     return loadSettings();
   }
 
-  static async applyAfkTimeout(timeoutSecs: number) {
-    await setAfkTimeout(timeoutSecs);
+  static async applyIdleTimeout(timeoutSecs: number) {
+    await setIdleTimeout(timeoutSecs);
   }
 }

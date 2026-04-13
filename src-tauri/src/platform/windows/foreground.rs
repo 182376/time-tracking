@@ -29,7 +29,7 @@ pub struct WindowInfo {
     pub idle_time_ms: u32,
 }
 
-static AFK_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(300);
+static IDLE_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(300);
 
 pub fn has_meaningful_change(previous: Option<&WindowInfo>, next: &WindowInfo) -> bool {
     let Some(previous) = previous else {
@@ -46,8 +46,8 @@ pub fn has_meaningful_change(previous: Option<&WindowInfo>, next: &WindowInfo) -
         || previous.is_afk != next.is_afk
 }
 
-pub fn cmd_set_afk_timeout(timeout_secs: u64) {
-    AFK_TIMEOUT_SECS.store(timeout_secs, Ordering::Relaxed);
+pub fn cmd_set_idle_timeout(timeout_secs: u64) {
+    IDLE_TIMEOUT_SECS.store(timeout_secs, Ordering::Relaxed);
 }
 
 pub fn get_active_window() -> WindowInfo {
@@ -64,7 +64,7 @@ pub fn get_active_window() -> WindowInfo {
             0
         };
 
-        let afk_threshold_ms = (AFK_TIMEOUT_SECS.load(Ordering::Relaxed) as u32) * 1000;
+        let afk_threshold_ms = (IDLE_TIMEOUT_SECS.load(Ordering::Relaxed) as u32) * 1000;
         let is_afk = idle_time > afk_threshold_ms;
 
         let hwnd = GetForegroundWindow();

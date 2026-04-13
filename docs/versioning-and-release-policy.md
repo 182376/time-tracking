@@ -211,6 +211,10 @@
 
 ## [Unreleased]
 
+Release: 待定。
+
+App note: 待定。
+
 ### Added
 ### Changed
 ### Fixed
@@ -219,12 +223,49 @@
 
 ## [0.2.0] - 2026-04-07
 
+Release: 一句话概括这个版本最值得用户知道的变化。
+
+App note: 一句话概括应用内更新弹窗中展示的变化。
+
 ### Added
 ### Changed
 ### Fixed
 ```
 
-### 9.3 分类规则
+### 9.3 版本摘要字段
+
+每个正式版本节顶部必须包含两个摘要字段：
+
+- `Release:`：给 GitHub Release 正文使用的简短版本摘要。
+- `App note:`：给应用内更新弹窗使用的一句话更新说明。
+
+这两个字段都写在对应版本节的分类标题之前。
+
+`Release:` 的写法：
+
+- 面向最终用户，而不是面向开发者。
+- 默认写成一句话，不超过 100 个中文字符。
+- 优先说明“新增了什么、改善了什么、修复了什么体验问题”。
+- 可以覆盖 1 到 3 个最重要变化，但不要塞满全部 changelog。
+- 避免使用“正式基线”“架构收口”“内部优化”等用户不关心的表达。
+
+`App note:` 的写法：
+
+- 比 `Release:` 更短，默认不超过 40 个中文字符。
+- 用于应用内更新弹窗，只提醒用户这次更新的大方向。
+- 不写安装步骤、验证信息、内部技术细节。
+
+示例：
+
+```md
+## [0.1.0] - 2026-04-12
+
+Release: 初始发布，支持自动记录前台应用使用时间，并提供今日总览、历史视图和应用映射工作台。
+
+App note: 初始发布，新增时间追踪、今日总览和历史视图。
+```
+
+### 9.4 分类规则
 
 推荐分类：
 
@@ -239,7 +280,7 @@
 - `Added / Changed / Fixed / Removed` 面向 release 读者
 - `Internal` 只用于记录确实影响发布质量判断的内部改动，不要塞满纯技术噪音
 
-### 9.4 编写规则
+### 9.5 编写规则
 
 每条 changelog 应遵循：
 
@@ -248,19 +289,21 @@
 - 不要逐条抄 commit message
 - 不要把纯目录移动、无感知重命名写成主要更新
 
-### 9.5 维护规则
+### 9.6 维护规则
 
 开发进行中：
 
 - 新变化先写进 `Unreleased`
+- `Unreleased` 的 `Release:` 和 `App note:` 可以暂时写 `待定。`
 
 准备发布时：
 
 - 将 `Unreleased` 内容整理到新的版本节
 - 填上正式版本号和发布日期
+- 将 `Release:` 和 `App note:` 改成该版本的最终短文案
 - 新建空的 `Unreleased` 节保留给后续开发
 
-### 9.6 与 GitHub Release 的分工
+### 9.7 与 GitHub Release 的分工
 
 `CHANGELOG.md` 与 GitHub Release 正文相关，但两者不应机械地逐字相同。
 
@@ -268,13 +311,15 @@
 
 - `CHANGELOG.md` 是仓库内的长期版本档案
 - GitHub Release 正文是面向用户的该版本更新说明
+- `CHANGELOG.md` 是唯一来源，但不是整段复制来源
 
 因此：
 
 - `CHANGELOG.md` 可以比 GitHub Release 更完整
 - `CHANGELOG.md` 主要服务版本追溯、后续维护与内部回顾
-- GitHub Release 应更短、更好扫读，更强调用户可感知的变化
-- GitHub Release 不应直接整段复制 `CHANGELOG.md`
+- GitHub Release 应优先使用对应版本节的 `Release:` 字段
+- GitHub Release 可从 `Added / Changed / Fixed / Removed` 中挑选 3 到 6 条用户可见变化
+- GitHub Release 不应直接整段复制完整版本节
 - GitHub Release 默认采用“简短版”写法，除非该版本确实存在必须详细解释的安装、迁移或兼容性风险
 
 ---
@@ -314,24 +359,43 @@
 
 ### 10.4 GitHub Release 内容来源
 
-GitHub Release 正文应优先来自 `CHANGELOG.md` 中对应版本节。
+GitHub Release 正文必须来自 `CHANGELOG.md` 中对应版本节，但不是完整复制该版本节。
 
 推荐结构：
 
-1. 一段简短版本摘要
-2. `Added / Changed / Fixed` 主要内容
+1. 使用对应版本节的 `Release:` 作为开头摘要
+2. 从 `Added / Changed / Fixed / Removed` 中挑选 3 到 6 条用户可见变化
 3. 验证信息
 4. 需要时补充安装包、已知注意事项或迁移提示
 5. 附件说明
 
+应用内更新弹窗使用对应版本节的 `App note:`，不使用完整 GitHub Release 正文。
+
+推荐 GitHub Release 正文格式：
+
+```md
+初始发布，支持自动记录前台应用使用时间，并提供今日总览、历史视图和应用映射工作台。
+
+### 主要变化
+
+- 新增今日总览、历史视图与应用映射工作台。
+- 支持应用重命名、分类覆盖、颜色覆盖、统计开关与历史删除。
+- 新增设置页显式保存 / 取消流程，减少误操作。
+
+### 下载
+
+- Windows 安装包：请下载本页附件中的 `.exe` 安装包。
+```
+
 补充规则：
 
-- GitHub Release 正文应从 `CHANGELOG.md` 对应版本节中提炼，而不是整段照抄
+- GitHub Release 正文应从 `CHANGELOG.md` 对应版本节中生成，而不是另建一份文档
 - GitHub Release 应优先使用面向用户的简短语言
 - GitHub Release 只保留最重要、最值得让用户知道的变化
 - 更完整的版本历史保留在 `CHANGELOG.md`
 - 默认控制为“一段短摘要 + 3 到 6 条核心变化 + 必要时的安装或附件说明”
-- 若没有明显必要，不要把 `Added / Changed / Fixed / Internal` 全部分节原样搬进 GitHub Release
+- 若没有明显必要，不要把 `Added / Changed / Fixed / Removed / Internal` 全部分节原样搬进 GitHub Release
+- 默认不把 `Internal` 写进 GitHub Release，除非它直接影响安装、升级、数据安全或用户可感知稳定性
 - GitHub Release 的首要目标是让用户在几十秒内看懂“这版是什么、值不值得更新、该下哪个包”
 
 ### 10.5 Pre-release 规则
@@ -348,17 +412,30 @@ GitHub Release 正文应优先来自 `CHANGELOG.md` 中对应版本节。
 
 ## 11. 发布流程
 
-每次正式发布前，按以下顺序执行：
+每次正式发布默认通过 GitHub Actions 完成。
+
+推荐操作入口：
+
+1. 在 `CHANGELOG.md` 准备好目标版本节，并写好 `Release:` 与 `App note:`。
+2. 打开 GitHub Actions 中的 `Prepare Release`。
+3. 点击 `Run workflow`。
+4. 输入目标版本号，例如 `0.1.1`。
+5. 等待 Actions 自动完成版本同步、校验、打 tag、构建、创建 GitHub Release 与更新通道发布。
+
+自动化流程按以下顺序执行：
 
 1. 确定本次目标版本号
 2. 同步更新 `package.json`
 3. 同步更新 `src-tauri/tauri.conf.json`
-4. 更新 `CHANGELOG.md`
-5. 运行最小发布校验
-6. 提交版本相关改动
-7. 打 Git tag
-8. 推送 commit 和 tag
-9. 在 GitHub 创建 Release 并上传产物
+4. 同步更新 `src-tauri/Cargo.toml`
+5. 检查 `CHANGELOG.md` 中是否存在对应版本节、`Release:` 与 `App note:`
+6. 运行最小发布校验
+7. 提交版本相关改动
+8. 打 Git tag
+9. 从该 tag 构建 Tauri 安装包与 updater 产物
+10. 自动创建 GitHub Release 并上传用户安装包
+11. 生成 `latest.json`
+12. 将 `latest.json` 发布到固定更新通道
 
 这个顺序不只是操作步骤，也是长期约束：
 
@@ -368,28 +445,59 @@ GitHub Release 正文应优先来自 `CHANGELOG.md` 中对应版本节。
 
 不要反过来先打 tag、先写 Release，再回头补代码版本和 changelog。
 
-### 11.1 与 Codex 的默认协作方式
+### 11.1 自动化工作流
 
-如无特殊说明，后续发布流程默认由 Codex 先完成以下工作：
+仓库长期保留两个 GitHub Actions 工作流：
 
-1. 检查并同步版本号
-2. 更新 `CHANGELOG.md`
-3. 运行最小发布校验
-4. 构建发布产物
-5. 提交版本相关改动
-6. 推送 `main`
-7. 创建或移动 Git tag
-8. 推送 tag
-9. 生成简短版 GitHub Release 正文
+1. `Prepare Release`
+2. `Release`
 
-在当前工具边界下，用户通常只需要完成最后的 GitHub 网页操作：
+`Prepare Release` 由用户手动触发，输入目标版本号后负责：
 
-- 选择正确的 tag
-- 粘贴或确认简短版 release notes
-- 上传发布附件
-- 点击 `Publish release`
+- 校验目标 tag 是否已经存在。
+- 同步 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 版本号。
+- 检查 `CHANGELOG.md` 中对应版本的 `Release:` 与 `App note:` 是否已完成。
+- 运行最小发布校验。
+- 提交 `release: vX.Y.Z` commit。
+- 创建并推送 `vX.Y.Z` tag。
 
-如果未来具备可稳定操作 GitHub Release 页面或 API 的能力，再将最后一步一并自动化；在此之前，默认采用“Codex 完成发布准备，用户完成最终发布按钮”的协作模式。
+`Release` 由 tag 推送自动触发，负责：
+
+- 从 tag 对应 commit 构建 Tauri Windows 安装包。
+- 使用 GitHub Secrets 中的 updater 私钥生成安装包签名。
+- 从 `CHANGELOG.md` 生成简短 GitHub Release 正文。
+- 自动创建 GitHub Release，只上传用户需要下载的安装包。
+- 生成 updater 使用的 `latest.json`。
+- 将 `latest.json` 发布到 `updates` 分支。
+
+Release 页面不展示 `latest.json` 或 `.sig`。用户只会看到普通安装包；签名内容会写进 `latest.json`，由应用通过固定 HTTPS 地址读取。
+
+### 11.2 自动更新通道
+
+应用内 updater 使用固定地址：
+
+```text
+https://raw.githubusercontent.com/182376/time-tracking/updates/latest.json
+```
+
+`latest.json` 由 `Release` 工作流生成，内容来自：
+
+- `version`：本次 tag 版本号。
+- `notes`：`CHANGELOG.md` 对应版本的 `App note:`。
+- `platforms.windows-x86_64.url`：GitHub Release 中的 Windows 安装包地址。
+- `platforms.windows-x86_64.signature`：Tauri updater 签名。
+
+`updates` 分支是机器读取通道，不作为用户阅读入口。普通用户只需要 GitHub Release 页面中的 Windows 安装包。
+
+启用真实自动更新前必须完成一次性配置：
+
+- 生成 Tauri updater signing key。
+- 将公钥写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- 将私钥保存在本机项目目录 `.secrets/tauri/time-tracker.key`。
+- `.secrets/` 必须保持在 `.gitignore` 中，私钥不得提交到仓库。
+- 将 `.secrets/tauri/time-tracker.key` 的完整内容保存到 GitHub Secrets：`TAURI_SIGNING_PRIVATE_KEY`。
+- 如果私钥有密码，将密码保存到 GitHub Secrets：`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+- 当前私钥未设置密码，因此暂时不需要 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
 
 ---
 

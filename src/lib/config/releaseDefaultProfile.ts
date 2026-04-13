@@ -1,7 +1,8 @@
 import type { UserAssignableAppCategory } from "./categoryTokens";
 
 export interface ReleaseDefaultSettingsProfile {
-  afk_timeout_secs: number;
+  idle_timeout_secs: number;
+  timeline_merge_gap_secs: number;
   refresh_interval_secs: number;
   min_session_secs: number;
   tracking_paused: boolean;
@@ -15,7 +16,8 @@ export interface ReleaseDefaultSettingsProfile {
 type BuiltinAssignableCategoryForDefaultColor = Exclude<UserAssignableAppCategory, "other">;
 
 export const RELEASE_DEFAULT_SETTINGS: ReleaseDefaultSettingsProfile = {
-  afk_timeout_secs: 180,
+  idle_timeout_secs: 180,
+  timeline_merge_gap_secs: 180,
   refresh_interval_secs: 3,
   min_session_secs: 60,
   tracking_paused: false,

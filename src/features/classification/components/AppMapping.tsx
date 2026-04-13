@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
 import { UI_TEXT } from "../../../lib/copy";
@@ -35,6 +35,7 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void;
   onOverridesChanged?: () => void;
   onSessionsDeleted?: () => void;
+  onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
 }
 
 const FILTER_OPTIONS: Array<{ value: CandidateFilter; label: string }> = [
@@ -103,6 +104,7 @@ export default function AppMapping({
   onDirtyChange,
   onOverridesChanged,
   onSessionsDeleted,
+  onRegisterSaveHandler,
 }: Props) {
   const { confirm, prompt, dialogs } = useQuietDialogs();
   const [loading, setLoading] = useState(true);
@@ -505,8 +507,10 @@ export default function AppMapping({
     updateOverride(candidate.exeName, nextOverride);
   };
 
-  const handleSave = async () => {
-    if (!savedState || !draftState || !hasUnsavedChanges || saving) return;
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!savedState || !draftState) return false;
+    if (!hasUnsavedChanges) return true;
+    if (saving) return false;
     setSaving(true);
     setSaveStatus("saving");
     try {
@@ -518,13 +522,22 @@ export default function AppMapping({
       onOverridesChanged?.();
       setSaveStatus("saved");
       window.setTimeout(() => setSaveStatus("idle"), 1800);
+      return true;
     } catch (error) {
       console.error("save app mapping failed", error);
       setSaveStatus("idle");
+      return false;
     } finally {
       setSaving(false);
     }
-  };
+  }, [draftState, hasUnsavedChanges, onOverridesChanged, savedState, saving]);
+
+  useEffect(() => {
+    onRegisterSaveHandler?.(handleSave);
+    return () => {
+      onRegisterSaveHandler?.(null);
+    };
+  }, [handleSave, onRegisterSaveHandler]);
 
   const handleCancel = () => {
     if (!savedState || !hasUnsavedChanges || saving) return;

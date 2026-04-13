@@ -836,6 +836,41 @@ runTest("history app summary stays on real active duration even when timeline me
   assert.equal(qqSummary.duration, 120_000);
 });
 
+runTest("history timeline merge threshold only changes timeline grouping and keeps app summary duration stable", () => {
+  const trackerHealth = resolveTrackerHealth(200_000, 200_000, 8_000);
+  const sessions = [
+    makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 60_000, duration: 60_000 }),
+    makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 60_000, end_time: 90_000, duration: 30_000 }),
+    makeSession({ id: 3, exe_name: "QQ.exe", start_time: 90_000, end_time: 150_000, duration: 60_000 }),
+  ];
+
+  const mergedView = HistoryReadModelService.buildHistoryReadModel({
+    daySessions: sessions,
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 200_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 180,
+  });
+  const splitView = HistoryReadModelService.buildHistoryReadModel({
+    daySessions: sessions,
+    weeklySessions: [],
+    selectedDate: new Date(0),
+    trackerHealth,
+    nowMs: 200_000,
+    minSessionSecs: 0,
+    mergeThresholdSecs: 10,
+  });
+
+  assert.equal(mergedView.timelineSessions.length, 1);
+  assert.equal(splitView.timelineSessions.length, 3);
+  assert.equal(
+    mergedView.appSummary.reduce((sum, item) => sum + item.duration, 0),
+    splitView.appSummary.reduce((sum, item) => sum + item.duration, 0),
+  );
+});
+
 runTest("min session threshold only affects timeline display, not real duration stats", () => {
   const trackerHealth = resolveTrackerHealth(100_000, 100_000, 8_000);
   const view = HistoryReadModelService.buildHistoryReadModel({

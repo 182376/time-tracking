@@ -1,11 +1,13 @@
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
-import { Zap, Monitor, Clock, Settings2, Sparkles } from "lucide-react";
+import { ArrowUpCircle, Zap, Monitor, Clock, Settings2, Sparkles } from "lucide-react";
 import type { View } from "../types/app";
 
 interface Props {
   currentView: View;
   onNavigate: (view: View) => void;
+  showUpdateEntry?: boolean;
+  onOpenUpdateDialog?: () => void;
 }
 
 type AppRegionStyle = CSSProperties & { WebkitAppRegion?: "drag" | "no-drag" };
@@ -18,7 +20,12 @@ const NAV_ITEMS = [
   { id: "settings" as View, icon: Settings2, label: "Settings" },
 ];
 
-export default function Sidebar({ currentView, onNavigate }: Props) {
+export default function Sidebar({
+  currentView,
+  onNavigate,
+  showUpdateEntry = false,
+  onOpenUpdateDialog,
+}: Props) {
   return (
     <motion.aside
       initial={{ x: -4, opacity: 0 }}
@@ -58,6 +65,19 @@ export default function Sidebar({ currentView, onNavigate }: Props) {
           </motion.button>
         ))}
       </nav>
+
+      <div className="mt-auto w-full px-2">
+        {showUpdateEntry ? (
+          <button
+            type="button"
+            onClick={onOpenUpdateDialog}
+            className="qp-chip h-8 w-full rounded-[8px] border border-[var(--qp-border-subtle)] text-[var(--qp-accent-default)] text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+          >
+            <ArrowUpCircle size={13} />
+            更新
+          </button>
+        ) : null}
+      </div>
     </motion.aside>
   );
 }

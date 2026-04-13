@@ -5,7 +5,8 @@ export type CloseBehavior = "exit" | "tray";
 export type MinimizeBehavior = "taskbar" | "tray";
 
 export interface AppSettings {
-  afk_timeout_secs: number;
+  idle_timeout_secs: number;
+  timeline_merge_gap_secs: number;
   refresh_interval_secs: number;
   min_session_secs: number;
   tracking_paused: boolean;
@@ -22,7 +23,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
-const AFK_TIMEOUT_SECONDS_RANGE = { min: 60, max: 1800, step: 60 } as const;
+const IDLE_TIMEOUT_SECONDS_RANGE = { min: 60, max: 1800, step: 60 } as const;
+const TIMELINE_MERGE_GAP_SECONDS_RANGE = { min: 60, max: 300, step: 60 } as const;
 const REFRESH_INTERVAL_OPTIONS = [1, 3];
 const MIN_SESSION_SECONDS_RANGE = { min: 60, max: 600, step: 60 } as const;
 const CLOSE_BEHAVIOR_OPTIONS: CloseBehavior[] = ["exit", "tray"];
@@ -104,10 +106,15 @@ export async function loadSettings(): Promise<AppSettings> {
   for (const row of rows) map[row.key] = row.value;
 
   return {
-    afk_timeout_secs: normalizeRangeStepValue(
-      map.afk_timeout_secs,
-      DEFAULT_SETTINGS.afk_timeout_secs,
-      AFK_TIMEOUT_SECONDS_RANGE,
+    idle_timeout_secs: normalizeRangeStepValue(
+      map.idle_timeout_secs,
+      DEFAULT_SETTINGS.idle_timeout_secs,
+      IDLE_TIMEOUT_SECONDS_RANGE,
+    ),
+    timeline_merge_gap_secs: normalizeRangeStepValue(
+      map.timeline_merge_gap_secs,
+      DEFAULT_SETTINGS.timeline_merge_gap_secs,
+      TIMELINE_MERGE_GAP_SECONDS_RANGE,
     ),
     refresh_interval_secs: normalizeOptionValue(map.refresh_interval_secs, DEFAULT_SETTINGS.refresh_interval_secs, REFRESH_INTERVAL_OPTIONS),
     min_session_secs: normalizeRangeStepValue(

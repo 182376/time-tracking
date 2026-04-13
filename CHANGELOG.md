@@ -1,36 +1,79 @@
 # Changelog
 
-本文件记录会进入 GitHub Release 的长期版本说明。
+本文件是版本说明的唯一来源。
 
-格式遵循仓库内的 [`docs/versioning-and-release-policy.md`](C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/versioning-and-release-policy.md)。
+格式遵循仓库内的 [`docs/versioning-and-release-policy.md`](docs/versioning-and-release-policy.md)。
+
+每个正式版本应同时维护：
+
+- `Release:` 给 GitHub Release 使用的简短摘要。
+- `App note:` 给应用内更新弹窗使用的一句话。
+- 分类条目保留完整版本记录，供后续追溯和维护使用。
 
 ## [Unreleased]
 
+Release: 待定。
+
+App note: 待定。
+
 ### Added
 
-- 预留给下一个版本的新增能力。
+- 暂无。
 
 ### Changed
 
-- 预留给下一个版本的重要行为或体验变化。
+- 暂无。
 
 ### Fixed
 
-- 预留给下一个版本的修复项。
+- 暂无。
 
 ### Removed
 
-- 预留给下一个版本的移除项。
+- 暂无。
 
 ### Internal
 
-- 预留给下一个版本中与发布质量相关的内部收口项。
+- 暂无。
 
-## [0.1.0] - 2026-04-12
+## [0.2.0] - 2026-04-13
+
+Release: 新增应用内更新检查与静默更新提示，并将挂机判定和时间流合并设置拆成独立规则。
+
+App note: 新增应用内更新检查，并拆分挂机与时间流合并设置。
 
 ### Added
 
-- 首次建立正式 GitHub Release 基线，并同步引入长期版本、changelog 与发布规范。
+- 新增设置页“关于”区块中的更新状态、检查更新入口和发现新版本后的确认弹窗。
+- 新增启动后每日一次的静默更新检查；检查失败或没有新版本时不打扰用户。
+- 新增侧边栏低干扰更新入口，仅在发现可用更新或已下载更新时显示。
+
+### Changed
+
+- 将“自动挂机判定”和“时间流合并窗口”拆成两个独立设置，分别控制无操作截断和切回同一应用后的时间流合并。
+- 时间流合并窗口最大值调整为 5 分钟。
+- 未保存设置时切换页面的确认操作改为“保存”，支持保存后继续切换。
+
+### Fixed
+
+- 修正检查更新按钮直接弹出状态弹窗的问题，改为在设置页内展示检查状态，仅在确实发现更新时显示确认弹窗。
+- 改善更新弹窗文案与按钮位置，使“稍后 / 立即更新”更符合一次明确确认。
+
+### Internal
+
+- 接入 Tauri updater 底层能力，并补齐 Rust command、runtime state、前端 gateway、hook 和更新视图模型测试。
+- 新增 GitHub Actions 自动发布流程，支持输入版本号后自动同步版本、打 tag、构建安装包、创建 GitHub Release 并生成 `latest.json`。
+- 新增 Tauri updater signing key，并将公钥写入 Tauri 配置；私钥保存在本地 `.secrets/tauri/` 并通过 GitHub Secrets 提供给 Actions。
+- 将 `CHANGELOG.md` 调整为 Release 文案唯一来源，新增 `Release:` 与 `App note:` 字段供 GitHub Release 和应用内更新弹窗复用。
+
+## [0.1.0] - 2026-04-12
+
+Release: 初始发布，支持自动记录前台应用使用时间，并提供今日总览、历史视图和应用映射工作台。
+
+App note: 初始发布，新增时间追踪、今日总览和历史视图。
+
+### Added
+
 - 初步完成本地优先的 Windows 桌面时间追踪工作流，支持自动前台应用追踪、今日概览、历史视图与应用分类管理。
 - 新增应用映射工作台，支持应用重命名、分类覆盖、颜色覆盖、统计开关、标题记录开关、恢复默认与历史删除。
 - 新增设置页显式保存 / 取消流程，补齐应用内切页未保存提示。
@@ -38,9 +81,7 @@
 
 ### Changed
 
-- 前端主路径已统一收口到 Quiet Pro 组件体系，包含对话框、下拉、开关、颜色入口、分段筛选、行内轻操作、图表 tooltip 与 toast。
-- 前端边界进一步收紧到 `app / features / shared / lib` 的目标方向，多个 legacy service 与历史壳层已退场。
-- Rust 侧继续推进 `app / engine / data / domain` 分层，tracking runtime、settings repository、sqlite pool 等边界已明显收口。
+- 统一到 Quiet Pro 界面体系，并继续收口前后端架构边界。
 - 应用映射与设置页改为更稳定的显式提交流程，减少自动持久化带来的误操作。
 
 ### Fixed
@@ -53,6 +94,10 @@
 
 ### Internal
 
+- 首次建立正式 GitHub Release 基线，并同步引入长期版本、changelog 与发布规范。
 - 建立长期架构目标文档与 Quiet Pro 规范文档，后续重构和 UI 扩展已有稳定依据。
+- 前端主路径已统一收口到 Quiet Pro 组件体系，包含对话框、下拉、开关、颜色入口、分段筛选、行内轻操作、图表 tooltip 与 toast。
+- 前端边界进一步收紧到 `app / features / shared / lib` 的目标方向，多个 legacy service 与历史壳层已退场。
+- Rust 侧继续推进 `app / engine / data / domain` 分层，tracking runtime、settings repository、sqlite pool 等边界已明显收口。
 - 为版本发布新增长期版本与 GitHub Release 规范，后续版本管理不再依赖一次性说明。
 - 调整前端读模型加载边界，将分类运行时刷新编排收回 `app/services`，保持 `shared` 层聚焦稳定共享只读能力。

@@ -16,8 +16,8 @@ export async function getCurrentWindow(): Promise<TrackingWindowSnapshot | null>
   }
 }
 
-export async function setAfkTimeout(timeoutSecs: number): Promise<void> {
-  await invoke("cmd_set_afk_timeout", { timeoutSecs });
+export async function setIdleTimeout(timeoutSecs: number): Promise<void> {
+  await invoke("cmd_set_idle_timeout", { timeoutSecs });
 }
 
 export async function onActiveWindowChanged(

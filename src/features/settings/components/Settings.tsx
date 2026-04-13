@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -25,6 +25,7 @@ import QuietDangerAction from "../../../shared/components/QuietDangerAction";
 import QuietSubpanel from "../../../shared/components/QuietSubpanel";
 import QuietActionRow from "../../../shared/components/QuietActionRow";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
+import UpdateStatusPanel from "../../update/components/UpdateStatusPanel";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
@@ -41,7 +42,8 @@ const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
 const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.close_behavior;
 const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
   CLOSE_BEHAVIOR_DEFAULT === "tray" ? "exit" : "tray";
-const AFK_MINUTES_RANGE = { min: 1, max: 30 } as const;
+const IDLE_TIMEOUT_MINUTES_RANGE = { min: 1, max: 30 } as const;
+const TIMELINE_MERGE_GAP_MINUTES_RANGE = { min: 1, max: 5 } as const;
 const MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
 
 const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -117,8 +119,14 @@ function MinuteStepperSlider({
 
 export default function Settings({
   onSettingsChanged,
+  onCheckForUpdates,
+  onOpenUpdateDialog,
+  updateSnapshot,
+  updateChecking,
+  updateInstalling,
   onDirtyChange,
   onToast,
+  onRegisterSaveHandler,
 }: SettingsPageProps) {
   const { confirm, dialogs } = useQuietDialogs();
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(null);
@@ -180,8 +188,10 @@ export default function Settings({
     });
   };
 
-  const handleSave = async () => {
-    if (!savedSettings || !draftSettings || !hasUnsavedChanges) return;
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!savedSettings || !draftSettings) return false;
+    if (!hasUnsavedChanges) return true;
+    if (saveStatus === "saving") return false;
     setSaveStatus("saving");
     try {
       const patch = SettingsRuntimeAdapterService.buildSettingsPatch(savedSettings, draftSettings);
@@ -191,12 +201,21 @@ export default function Settings({
       setSaveStatus("saved");
       window.setTimeout(() => setSaveStatus("idle"), 1800);
       notify(UI_TEXT.settings.saved, "success");
+      return true;
     } catch (error) {
       console.error("save settings failed", error);
       setSaveStatus("idle");
       notify(UI_TEXT.settings.saveFailed, "warning");
+      return false;
     }
-  };
+  }, [draftSettings, hasUnsavedChanges, notify, onSettingsChanged, saveStatus, savedSettings]);
+
+  useEffect(() => {
+    onRegisterSaveHandler?.(handleSave);
+    return () => {
+      onRegisterSaveHandler?.(null);
+    };
+  }, [handleSave, onRegisterSaveHandler]);
 
   const handleCancel = () => {
     if (!savedSettings || !hasUnsavedChanges) return;
@@ -314,16 +333,29 @@ export default function Settings({
     );
   }
 
-  const afkMinutes = secondsToMinute(
-    draftSettings.afk_timeout_secs,
-    AFK_MINUTES_RANGE.min,
-    AFK_MINUTES_RANGE.max,
+  const idleTimeoutMinutes = secondsToMinute(
+    draftSettings.idle_timeout_secs,
+    IDLE_TIMEOUT_MINUTES_RANGE.min,
+    IDLE_TIMEOUT_MINUTES_RANGE.max,
+  );
+  const timelineMergeGapMinutes = secondsToMinute(
+    draftSettings.timeline_merge_gap_secs,
+    TIMELINE_MERGE_GAP_MINUTES_RANGE.min,
+    TIMELINE_MERGE_GAP_MINUTES_RANGE.max,
   );
   const minSessionMinutes = secondsToMinute(
     draftSettings.min_session_secs,
     MIN_SESSION_MINUTES_RANGE.min,
     MIN_SESSION_MINUTES_RANGE.max,
   );
+  const effectiveUpdateSnapshot = updateSnapshot ?? {
+    current_version: appVersion,
+    status: "idle",
+    latest_version: null,
+    release_notes: null,
+    release_date: null,
+    error_message: null,
+  };
 
   return (
     <motion.div
@@ -391,15 +423,29 @@ export default function Settings({
 
             <div className="mt-5 space-y-5">
               <div>
-                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.afkLabel}</label>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.idleTimeoutLabel}</label>
                 <div className="mt-2 grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,260px)] md:gap-4">
-                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.afkHint}</p>
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.idleTimeoutHint}</p>
                   <MinuteStepperSlider
-                    ariaLabel={UI_TEXT.settings.afkLabel}
-                    minutes={afkMinutes}
-                    minMinutes={AFK_MINUTES_RANGE.min}
-                    maxMinutes={AFK_MINUTES_RANGE.max}
-                    onMinutesChange={(nextMinutes) => handleChange("afk_timeout_secs", nextMinutes * 60)}
+                    ariaLabel={UI_TEXT.settings.idleTimeoutLabel}
+                    minutes={idleTimeoutMinutes}
+                    minMinutes={IDLE_TIMEOUT_MINUTES_RANGE.min}
+                    maxMinutes={IDLE_TIMEOUT_MINUTES_RANGE.max}
+                    onMinutesChange={(nextMinutes) => handleChange("idle_timeout_secs", nextMinutes * 60)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[var(--qp-text-tertiary)] uppercase tracking-[0.06em]">{UI_TEXT.settings.timelineMergeGapLabel}</label>
+                <div className="mt-2 grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,260px)] md:gap-4">
+                  <p className="text-sm text-[var(--qp-text-secondary)] leading-relaxed">{UI_TEXT.settings.timelineMergeGapHint}</p>
+                  <MinuteStepperSlider
+                    ariaLabel={UI_TEXT.settings.timelineMergeGapLabel}
+                    minutes={timelineMergeGapMinutes}
+                    minMinutes={TIMELINE_MERGE_GAP_MINUTES_RANGE.min}
+                    maxMinutes={TIMELINE_MERGE_GAP_MINUTES_RANGE.max}
+                    onMinutesChange={(nextMinutes) => handleChange("timeline_merge_gap_secs", nextMinutes * 60)}
                   />
                 </div>
               </div>
@@ -595,21 +641,23 @@ export default function Settings({
               <p className="mt-0.5 text-xs text-[var(--qp-text-tertiary)]">
                 查看最新发布说明，或提交使用反馈。
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleOpenReleaseNotes()}
-                  className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
-                >
-                  更新说明
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleOpenFeedback()}
-                  className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold"
-                >
-                  问题反馈
-                </button>
+              <div className="mt-4">
+                <UpdateStatusPanel
+                  snapshot={effectiveUpdateSnapshot}
+                  checking={updateChecking ?? false}
+                  installing={updateInstalling ?? false}
+                  onCheckUpdates={() => {
+                    if (!onCheckForUpdates) return;
+                    void onCheckForUpdates();
+                  }}
+                  onOpenConfirmDialog={() => onOpenUpdateDialog?.()}
+                  onOpenReleaseNotes={() => {
+                    void handleOpenReleaseNotes();
+                  }}
+                  onOpenFeedback={() => {
+                    void handleOpenFeedback();
+                  }}
+                />
               </div>
             </QuietSubpanel>
           </section>

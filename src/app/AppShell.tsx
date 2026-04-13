@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../lib/copy";
 import Sidebar from "../shared/components/Sidebar";
@@ -14,13 +14,34 @@ import {
 import type { View } from "../shared/types/app";
 import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
 import { useQuietDialogs } from "../shared/hooks/useQuietDialogs";
+import UpdateDialogProvider from "./providers/UpdateDialogProvider";
+import { useUpdateDialog } from "./hooks/useUpdateDialog";
 
 const History = lazy(() => import("../features/history/components/History"));
 const Settings = lazy(() => import("../features/settings/components/Settings"));
 const AppMapping = lazy(() => import("../features/classification/components/AppMapping"));
 
 export default function AppShell() {
+  return (
+    <UpdateDialogProvider>
+      <AppShellContent />
+    </UpdateDialogProvider>
+  );
+}
+
+function AppShellContent() {
   const { confirm, dialogs } = useQuietDialogs();
+  const {
+    snapshot: updateSnapshot,
+    isChecking: isUpdateChecking,
+    isInstalling: isUpdateInstalling,
+    shouldShowSidebarEntry,
+    openUpdateDialog,
+    checkForUpdates,
+  } = useUpdateDialog();
+  const settingsSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
+  const mappingSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
+  const autoCheckScheduledRef = useRef(false);
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [viewDirtyState, setViewDirtyState] = useState<{ settings: boolean; mapping: boolean }>({
     settings: false,
@@ -74,44 +95,73 @@ export default function AppShell() {
 
   const handleNavigate = useCallback((nextView: View) => {
     void (async () => {
-    if (nextView === currentView) {
-      return;
-    }
+      if (nextView === currentView) {
+        return;
+      }
 
-    const hasUnsavedChanges = viewDirtyState.settings || viewDirtyState.mapping;
-    if (!hasUnsavedChanges) {
+      const hasUnsavedChanges = viewDirtyState.settings || viewDirtyState.mapping;
+      if (!hasUnsavedChanges) {
+        setCurrentView(nextView);
+        return;
+      }
+
+      const confirmed = await confirm({
+        title: UI_TEXT.app.unsavedConfirmTitle,
+        description: UI_TEXT.app.unsavedConfirmBody,
+        confirmLabel: UI_TEXT.app.unsavedConfirmSave,
+      });
+      if (!confirmed) {
+        return;
+      }
+
+      const saveHandler = currentView === "settings"
+        ? settingsSaveHandlerRef.current
+        : currentView === "mapping"
+          ? mappingSaveHandlerRef.current
+          : null;
+      const didSave = saveHandler ? await saveHandler() : false;
+      if (!didSave) {
+        return;
+      }
+
+      setViewDirtyState((current) => {
+        if (currentView === "settings") {
+          return { ...current, settings: false };
+        }
+        if (currentView === "mapping") {
+          return { ...current, mapping: false };
+        }
+        return current;
+      });
       setCurrentView(nextView);
-      return;
-    }
-
-    const confirmed = await confirm({
-      title: UI_TEXT.app.unsavedConfirmTitle,
-      description: UI_TEXT.app.unsavedConfirmBody,
-      confirmLabel: UI_TEXT.dialog.confirmDanger,
-      danger: true,
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    setViewDirtyState((current) => {
-      if (currentView === "settings") {
-        return { ...current, settings: false };
-      }
-      if (currentView === "mapping") {
-        return { ...current, mapping: false };
-      }
-      return current;
-    });
-    setCurrentView(nextView);
     })();
   }, [confirm, currentView, viewDirtyState]);
+
+  useEffect(() => {
+    if (!classificationReady || autoCheckScheduledRef.current) {
+      return;
+    }
+    autoCheckScheduledRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      void checkForUpdates(true);
+    }, 3_500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [checkForUpdates, classificationReady]);
 
   return (
     <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">
       <ToastStack toasts={toasts} />
       {dialogs}
-      <Sidebar currentView={currentView} onNavigate={handleNavigate} />
+      <Sidebar
+        currentView={currentView}
+        onNavigate={handleNavigate}
+        showUpdateEntry={shouldShowSidebarEntry}
+        onOpenUpdateDialog={openUpdateDialog}
+      />
 
       <main className="qp-canvas flex-1 min-h-0 flex flex-col gap-4 md:gap-5 p-4 md:p-5 relative overflow-hidden">
         <Suspense
@@ -138,7 +188,7 @@ export default function AppShell() {
                 icons={icons}
                 refreshKey={refreshSignal}
                 refreshIntervalSecs={appSettings.refresh_interval_secs}
-                mergeThresholdSecs={appSettings.afk_timeout_secs}
+                mergeThresholdSecs={appSettings.timeline_merge_gap_secs}
                 minSessionSecs={appSettings.min_session_secs}
                 onMinSessionSecsChange={handleMinSessionSecsChange}
                 trackerHealth={trackerHealth}
@@ -150,6 +200,16 @@ export default function AppShell() {
               <Settings
                 key="settings"
                 onSettingsChanged={setAppSettings}
+                updateSnapshot={updateSnapshot}
+                updateChecking={isUpdateChecking}
+                updateInstalling={isUpdateInstalling}
+                onCheckForUpdates={async () => {
+                  await checkForUpdates(false);
+                }}
+                onOpenUpdateDialog={openUpdateDialog}
+                onRegisterSaveHandler={(handler) => {
+                  settingsSaveHandlerRef.current = handler;
+                }}
                 onDirtyChange={(dirty) => {
                   setViewDirtyState((current) => ({ ...current, settings: dirty }));
                 }}
@@ -160,6 +220,9 @@ export default function AppShell() {
               <AppMapping
                 key="mapping"
                 icons={icons}
+                onRegisterSaveHandler={(handler) => {
+                  mappingSaveHandlerRef.current = handler;
+                }}
                 onDirtyChange={(dirty) => {
                   setViewDirtyState((current) => ({ ...current, mapping: dirty }));
                 }}

@@ -12,6 +12,7 @@
     "core:event:allow-emit",
     "core:window:default",
     "core:app:default",
+    "updater:default",
     {
       "identifier": "sql:allow-load",
       "args": {

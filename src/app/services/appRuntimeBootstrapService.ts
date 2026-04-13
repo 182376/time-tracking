@@ -7,7 +7,7 @@ import {
 } from "../../shared/lib/settingsPersistenceAdapter";
 import {
   getCurrentWindow,
-  setAfkTimeout,
+  setIdleTimeout,
 } from "./trackingRuntimeGateway";
 import { initializeProcessMapperRuntime } from "./processMapperRuntimeService";
 
@@ -31,7 +31,7 @@ export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Pro
 
 export async function loadAppRuntimeBootstrapSnapshot(): Promise<AppRuntimeBootstrapSnapshot> {
   const settings = await loadSettings();
-  await setAfkTimeout(settings.afk_timeout_secs).catch(console.warn);
+  await setIdleTimeout(settings.idle_timeout_secs).catch(console.warn);
 
   await initializeProcessMapperRuntime();
 

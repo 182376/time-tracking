@@ -1,0 +1,82 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, for example 0.1.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Prepare release commit and tag
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check tag
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $existingTag = git ls-remote --tags origin "refs/tags/v$version"
+          if ($existingTag) {
+            throw "Tag v$version already exists."
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync version files
+        run: node scripts/release.mjs sync-version ${{ inputs.version }}
+
+      - name: Validate changelog
+        run: node scripts/release.mjs validate-changelog ${{ inputs.version }}
+
+      - name: Verify release notes generation
+        run: node scripts/release.mjs write-release-notes ${{ inputs.version }} dist-release/release-notes.md
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run tests
+        run: |
+          npm test
+          npm run test:replay
+
+      - name: Check Rust
+        working-directory: src-tauri
+        run: cargo check
+
+      - name: Commit version changes and tag
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml CHANGELOG.md
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "release: v$version"
+          } else {
+            Write-Host "No version file changes to commit; tagging current commit."
+          }
+          git tag "v$version"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$version"

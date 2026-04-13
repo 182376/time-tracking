@@ -8,6 +8,10 @@
     "build": "tsc && vite build",
     "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/trackingLifecycle.test.ts",
     "test:replay": "node --experimental-strip-types --experimental-specifier-resolution=node tests/trackingReplay.test.ts",
+    "release:sync-version": "node scripts/release.mjs sync-version",
+    "release:validate-changelog": "node scripts/release.mjs validate-changelog",
+    "release:notes": "node scripts/release.mjs write-release-notes",
+    "release:latest": "node scripts/release.mjs write-latest-json",
     "preview": "vite preview",
     "tauri": "tauri"
   },
