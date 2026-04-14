@@ -19,7 +19,12 @@ export async function checkForUpdates(silent: boolean): Promise<UpdateSnapshot> 
   return assertSnapshot(payload);
 }
 
-export async function downloadAndInstallUpdate(): Promise<UpdateSnapshot> {
-  const payload = await invoke<unknown>("cmd_download_and_install_update");
+export async function downloadUpdate(): Promise<UpdateSnapshot> {
+  const payload = await invoke<unknown>("cmd_download_update");
+  return assertSnapshot(payload);
+}
+
+export async function installUpdate(): Promise<UpdateSnapshot> {
+  const payload = await invoke<unknown>("cmd_install_update");
   return assertSnapshot(payload);
 }

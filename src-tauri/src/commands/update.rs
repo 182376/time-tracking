@@ -18,9 +18,17 @@ pub async fn cmd_check_for_updates(
 }
 
 #[tauri::command]
-pub async fn cmd_download_and_install_update(
+pub async fn cmd_download_update(
     app: AppHandle,
     update_state: State<'_, UpdaterRuntimeState>,
 ) -> Result<UpdateSnapshot, String> {
-    updater::download_and_install_pending(&app, &update_state).await
+    updater::download_pending(&app, &update_state).await
+}
+
+#[tauri::command]
+pub async fn cmd_install_update(
+    app: AppHandle,
+    update_state: State<'_, UpdaterRuntimeState>,
+) -> Result<UpdateSnapshot, String> {
+    updater::install_downloaded(&app, &update_state).await
 }

@@ -3,6 +3,7 @@ use crate::app::tray::{apply_tray_visibility, setup_tray, MAIN_WINDOW_LABEL};
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::data::repositories::app_settings;
 use crate::engine::tracking_runtime;
+use crate::engine::updater::{self, UpdaterRuntimeState};
 use crate::platform::windows::power;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
@@ -95,6 +96,15 @@ pub fn setup(
         {
             eprintln!("[tray] failed to sync desktop behavior from storage: {error}");
         }
+    });
+
+    let updater_handle = app.handle().clone();
+    let updater_state: UpdaterRuntimeState = {
+        let state = updater_handle.state::<UpdaterRuntimeState>();
+        (*state).clone()
+    };
+    tauri::async_runtime::spawn(async move {
+        updater::run_startup_auto_check(updater_handle, updater_state).await;
     });
 
     let app_handle = app.handle().clone();
