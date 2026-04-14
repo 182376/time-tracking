@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../lib/copy";
 import Sidebar from "../shared/components/Sidebar";
@@ -41,7 +41,6 @@ function AppShellContent() {
   } = useUpdateDialog();
   const settingsSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
   const mappingSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
-  const autoCheckScheduledRef = useRef(false);
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [viewDirtyState, setViewDirtyState] = useState<{ settings: boolean; mapping: boolean }>({
     settings: false,
@@ -136,21 +135,6 @@ function AppShellContent() {
       setCurrentView(nextView);
     })();
   }, [confirm, currentView, viewDirtyState]);
-
-  useEffect(() => {
-    if (!classificationReady || autoCheckScheduledRef.current) {
-      return;
-    }
-    autoCheckScheduledRef.current = true;
-
-    const timer = window.setTimeout(() => {
-      void checkForUpdates(true);
-    }, 3_500);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [checkForUpdates, classificationReady]);
 
   return (
     <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">

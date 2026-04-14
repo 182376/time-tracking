@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { UpdateSnapshot } from "../../shared/types/update";
 import {
   checkForUpdates,
-  downloadAndInstallUpdate,
+  downloadUpdate,
   getUpdateSnapshot,
+  installUpdate,
 } from "../services/updateRuntimeGateway";
 import { shouldShowSidebarUpdateEntry } from "../../features/update/services/updateViewModel";
 
@@ -70,11 +71,14 @@ export function useUpdateState() {
     }
   }, [isChecking, snapshot]);
 
-  const runDownloadAndInstall = useCallback(async () => {
+  const runConfirmAction = useCallback(async () => {
     if (isInstalling) return snapshot;
+    if (snapshot.status !== "available" && snapshot.status !== "downloaded") return snapshot;
     setIsInstalling(true);
     try {
-      const nextSnapshot = await downloadAndInstallUpdate();
+      const nextSnapshot = snapshot.status === "downloaded"
+        ? await installUpdate()
+        : await downloadUpdate();
       setSnapshot(nextSnapshot);
       return nextSnapshot;
     } catch (error) {
@@ -104,6 +108,6 @@ export function useUpdateState() {
     openDialog: () => setDialogOpen(true),
     closeDialog: () => setDialogOpen(false),
     checkForUpdates: runUpdateCheck,
-    downloadAndInstall: runDownloadAndInstall,
+    confirmUpdateAction: runConfirmAction,
   };
 }

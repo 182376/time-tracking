@@ -2,10 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use tokio::time::{sleep, Duration};
 
 use crate::data::repositories::update_state;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::update::{UpdateSnapshot, UpdateStatus};
+
+const STARTUP_AUTO_CHECK_DELAYS_MS: [u64; 3] = [3_500, 15_000, 60_000];
 
 #[derive(Clone)]
 pub struct UpdaterRuntimeState {
@@ -15,6 +18,7 @@ pub struct UpdaterRuntimeState {
 struct UpdaterStateInner {
     snapshot: UpdateSnapshot,
     pending_update: Option<Update>,
+    downloaded_bytes: Option<Vec<u8>>,
 }
 
 impl UpdaterRuntimeState {
@@ -23,6 +27,7 @@ impl UpdaterRuntimeState {
             inner: Arc::new(Mutex::new(UpdaterStateInner {
                 snapshot: UpdateSnapshot::idle(current_version),
                 pending_update: None,
+                downloaded_bytes: None,
             })),
         }
     }
@@ -46,6 +51,7 @@ impl UpdaterRuntimeState {
             inner.snapshot.release_date = update.date.map(|value| value.to_string());
             inner.snapshot.error_message = None;
             inner.pending_update = Some(update);
+            inner.downloaded_bytes = None;
             inner.snapshot.clone()
         })
     }
@@ -58,6 +64,7 @@ impl UpdaterRuntimeState {
             inner.snapshot.release_date = None;
             inner.snapshot.error_message = None;
             inner.pending_update = None;
+            inner.downloaded_bytes = None;
             inner.snapshot.clone()
         })
     }
@@ -77,11 +84,13 @@ impl UpdaterRuntimeState {
         });
     }
 
-    fn set_downloaded(&self) {
+    fn set_downloaded(&self, bytes: Vec<u8>) -> UpdateSnapshot {
         self.with_guard(|inner| {
             inner.snapshot.status = UpdateStatus::Downloaded;
             inner.snapshot.error_message = None;
-        });
+            inner.downloaded_bytes = Some(bytes);
+            inner.snapshot.clone()
+        })
     }
 
     fn set_installing(&self) {
@@ -91,13 +100,23 @@ impl UpdaterRuntimeState {
         });
     }
 
-    fn take_pending_update(&self) -> Option<Update> {
-        self.with_guard(|inner| inner.pending_update.take())
+    fn pending_update(&self) -> Option<Update> {
+        self.with_guard(|inner| inner.pending_update.clone())
     }
 
-    fn restore_pending_update(&self, update: Update) {
+    fn set_pending_update(&self, update: Update) {
         self.with_guard(|inner| {
             inner.pending_update = Some(update);
+        });
+    }
+
+    fn take_downloaded_bytes(&self) -> Option<Vec<u8>> {
+        self.with_guard(|inner| inner.downloaded_bytes.take())
+    }
+
+    fn set_downloaded_bytes(&self, bytes: Vec<u8>) {
+        self.with_guard(|inner| {
+            inner.downloaded_bytes = Some(bytes);
         });
     }
 
@@ -117,7 +136,7 @@ pub async fn check_for_updates<R: Runtime>(
     state: &UpdaterRuntimeState,
     silent: bool,
 ) -> Result<UpdateSnapshot, String> {
-    if silent {
+    let silent_context = if silent {
         let pool = wait_for_sqlite_pool(app).await?;
         let today = update_state::current_local_day();
         let last_day = update_state::load_last_auto_check_day(&pool)
@@ -126,10 +145,10 @@ pub async fn check_for_updates<R: Runtime>(
         if last_day.as_deref() == Some(today.as_str()) {
             return Ok(state.snapshot());
         }
-        update_state::save_last_auto_check_day(&pool, &today)
-            .await
-            .map_err(|error| format!("failed to persist auto update check state: {error}"))?;
-    }
+        Some((pool, today))
+    } else {
+        None
+    };
 
     state.set_checking();
 
@@ -140,40 +159,81 @@ pub async fn check_for_updates<R: Runtime>(
         .await
         .map_err(|error| format!("failed to check updates: {error}"))?;
 
-    Ok(match update {
+    let snapshot = match update {
         Some(update) => state.set_available(update),
         None => state.set_up_to_date(),
-    })
+    };
+
+    if let Some((pool, today)) = silent_context {
+        if let Err(error) = update_state::save_last_auto_check_day(&pool, &today).await {
+            eprintln!("[updater] failed to persist auto update check state: {error}");
+        }
+    }
+
+    Ok(snapshot)
 }
 
-pub async fn download_and_install_pending<R: Runtime>(
+pub async fn run_startup_auto_check<R: Runtime>(app: AppHandle<R>, state: UpdaterRuntimeState) {
+    for (attempt, delay_ms) in STARTUP_AUTO_CHECK_DELAYS_MS.iter().enumerate() {
+        sleep(Duration::from_millis(*delay_ms)).await;
+
+        match check_for_updates(&app, &state, true).await {
+            Ok(_) => return,
+            Err(error) => {
+                eprintln!(
+                    "[updater] startup auto-check attempt {} failed: {error}",
+                    attempt + 1
+                );
+            }
+        }
+    }
+
+    eprintln!("[updater] startup auto-check exhausted retry budget");
+}
+
+pub async fn download_pending<R: Runtime>(
     _app: &AppHandle<R>,
     state: &UpdaterRuntimeState,
 ) -> Result<UpdateSnapshot, String> {
-    let Some(update) = state.take_pending_update() else {
+    let Some(update) = state.pending_update() else {
         return Ok(state.set_error("there is no pending update".to_string()));
     };
 
     state.set_downloading();
-    let callback_state = state.clone();
 
     let download_result = update
-        .download_and_install(
-            move |_chunk_length, _content_length| {},
-            move || {
-                callback_state.set_downloaded();
-            },
-        )
+        .download(move |_chunk_length, _content_length| {}, move || {})
         .await;
 
     match download_result {
+        Ok(bytes) => Ok(state.set_downloaded(bytes)),
+        Err(error) => Ok(state.set_error(format!("failed to download update: {error}"))),
+    }
+}
+
+pub async fn install_downloaded<R: Runtime>(
+    _app: &AppHandle<R>,
+    state: &UpdaterRuntimeState,
+) -> Result<UpdateSnapshot, String> {
+    let Some(update) = state.pending_update() else {
+        return Ok(state.set_error("there is no pending update".to_string()));
+    };
+    let Some(downloaded_bytes) = state.take_downloaded_bytes() else {
+        return Ok(state.set_error("update package has not been downloaded".to_string()));
+    };
+
+    state.set_installing();
+    let install_result = update.install(&downloaded_bytes);
+
+    match install_result {
         Ok(()) => {
-            state.set_installing();
+            state.set_pending_update(update);
             Ok(state.snapshot())
         }
         Err(error) => {
-            state.restore_pending_update(update);
-            Ok(state.set_error(format!("failed to download/install update: {error}")))
+            state.set_pending_update(update);
+            state.set_downloaded_bytes(downloaded_bytes);
+            Ok(state.set_error(format!("failed to install update: {error}")))
         }
     }
 }

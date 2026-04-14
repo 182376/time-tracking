@@ -14,9 +14,9 @@ export interface UpdateStatusPanelModel {
 }
 
 export interface UpdateConfirmDialogModel {
-  title: "发现新版本" | "更新已下载";
+  title: string;
   versionCompareLabel: string;
-  confirmLabel: "立即更新" | "重启安装";
+  confirmLabel: string;
   confirmDescription: string;
   notesPreview: string | null;
 }
@@ -50,9 +50,9 @@ export function buildUpdateStatusPanelModel(
   if (snapshot.status === "available") {
     return {
       statusTitle: `发现新版本：${latestVersion ?? "未知版本"}`,
-      statusDetail: "新版本已准备好，可以现在下载并安装。",
+      statusDetail: "新版本已就绪，确认后将先下载更新包。",
       primaryAction: {
-        label: "立即更新",
+        label: "立即下载",
         action: "open_confirm",
         disabled: isInstalling,
         loading: isInstalling,
@@ -63,7 +63,7 @@ export function buildUpdateStatusPanelModel(
   if (snapshot.status === "downloaded") {
     return {
       statusTitle: `更新已下载：${latestVersion ?? "未知版本"}`,
-      statusDetail: "更新已准备安装，重启应用后生效。",
+      statusDetail: "更新包已下载完成，确认后将重启并安装。",
       primaryAction: {
         label: "重启安装",
         action: "open_confirm",
@@ -78,7 +78,7 @@ export function buildUpdateStatusPanelModel(
       statusTitle: "正在下载更新...",
       statusDetail: latestVersion ? `目标版本：${latestVersion}` : null,
       primaryAction: {
-        label: "检查中...",
+        label: "处理中...",
         action: "check",
         disabled: true,
         loading: true,
@@ -91,7 +91,7 @@ export function buildUpdateStatusPanelModel(
       statusTitle: "正在安装更新...",
       statusDetail: latestVersion ? `目标版本：${latestVersion}` : null,
       primaryAction: {
-        label: "检查中...",
+        label: "处理中...",
         action: "check",
         disabled: true,
         loading: true,
@@ -127,7 +127,7 @@ export function buildUpdateStatusPanelModel(
 
   if (snapshot.status === "error") {
     return {
-      statusTitle: "检查更新失败",
+      statusTitle: "更新失败",
       statusDetail: snapshot.error_message,
       primaryAction: {
         label: "重新检查",
@@ -157,11 +157,11 @@ export function buildUpdateConfirmDialogModel(snapshot: UpdateSnapshot): UpdateC
 
   return {
     title: isDownloaded ? "更新已下载" : "发现新版本",
-    versionCompareLabel: `${currentVersion} → ${latestVersion}`,
-    confirmLabel: isDownloaded ? "重启安装" : "立即更新",
+    versionCompareLabel: `${currentVersion} -> ${latestVersion}`,
+    confirmLabel: isDownloaded ? "重启安装" : "立即下载",
     confirmDescription: isDownloaded
-      ? "更新已准备安装，确认后将重启并完成安装。"
-      : "新版本已准备好，确认后将下载并安装更新。",
+      ? "更新包已准备好，确认后将重启并完成安装。"
+      : "新版本已就绪，确认后将先下载更新包，下载完成后需再次确认安装。",
     notesPreview: getReleaseNotesPreview(snapshot.release_notes),
   };
 }
