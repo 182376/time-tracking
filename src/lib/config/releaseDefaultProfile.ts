@@ -16,10 +16,10 @@ export interface ReleaseDefaultSettingsProfile {
 type BuiltinAssignableCategoryForDefaultColor = Exclude<UserAssignableAppCategory, "other">;
 
 export const RELEASE_DEFAULT_SETTINGS: ReleaseDefaultSettingsProfile = {
-  idle_timeout_secs: 180,
+  idle_timeout_secs: 900,
   timeline_merge_gap_secs: 180,
-  refresh_interval_secs: 3,
-  min_session_secs: 60,
+  refresh_interval_secs: 2,
+  min_session_secs: 120,
   tracking_paused: false,
   close_behavior: "exit",
   minimize_behavior: "taskbar",
