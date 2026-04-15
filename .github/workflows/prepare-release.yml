@@ -18,12 +18,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -145,7 +145,7 @@ jobs:
           node --experimental-strip-types scripts/release.ts write-latest-json $version $assetUrl $signature dist-release/latest.json windows-x86_64
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ inputs.version }}
           name: Time Tracker v${{ inputs.version }}
