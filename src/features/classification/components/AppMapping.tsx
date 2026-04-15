@@ -28,6 +28,10 @@ import QuietBadge from "../../../shared/components/QuietBadge";
 import QuietResetAction from "../../../shared/components/QuietResetAction";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
+import {
+  getClassificationBootstrapCache,
+  setClassificationBootstrapCache,
+} from "../services/classificationBootstrapCache";
 
 interface Props {
   icons: Record<string, string>;
@@ -48,11 +52,6 @@ const APP_MAPPING_COLLATOR = new Intl.Collator("zh-CN", {
   numeric: true,
   sensitivity: "base",
 });
-interface AppMappingSnapshotCache {
-  observed: ObservedAppCandidate[];
-  savedState: ClassificationDraftState;
-}
-let APP_MAPPING_SNAPSHOT_CACHE: AppMappingSnapshotCache | null = null;
 
 function cloneDraftState(state: ClassificationDraftState): ClassificationDraftState {
   const overrides: Record<string, AppOverride> = {};
@@ -69,16 +68,6 @@ function cloneDraftState(state: ClassificationDraftState): ClassificationDraftSt
 
 function cloneObservedCandidates(observed: ObservedAppCandidate[]): ObservedAppCandidate[] {
   return observed.map((candidate) => ({ ...candidate }));
-}
-
-function updateAppMappingCache(params: {
-  observed: ObservedAppCandidate[];
-  savedState: ClassificationDraftState;
-}) {
-  APP_MAPPING_SNAPSHOT_CACHE = {
-    observed: cloneObservedCandidates(params.observed),
-    savedState: cloneDraftState(params.savedState),
-  };
 }
 
 function normalizeHexColor(colorValue: string | undefined): string | undefined {
@@ -138,15 +127,27 @@ export default function AppMapping({
   onRegisterSaveHandler,
 }: Props) {
   const { confirm, prompt, dialogs } = useQuietDialogs();
-  const [loading, setLoading] = useState(() => !APP_MAPPING_SNAPSHOT_CACHE);
+  const initialBootstrap = getClassificationBootstrapCache();
+  const initialBootstrapRef = useRef(initialBootstrap);
+  const [loading, setLoading] = useState(() => !initialBootstrap);
   const [candidates, setCandidates] = useState<ObservedAppCandidate[]>(
-    () => cloneObservedCandidates(APP_MAPPING_SNAPSHOT_CACHE?.observed ?? []),
+    () => cloneObservedCandidates(initialBootstrap?.observed ?? []),
   );
   const [savedState, setSavedState] = useState<ClassificationDraftState | null>(
-    () => (APP_MAPPING_SNAPSHOT_CACHE ? cloneDraftState(APP_MAPPING_SNAPSHOT_CACHE.savedState) : null),
+    () => (initialBootstrap ? cloneDraftState({
+      overrides: initialBootstrap.loadedOverrides,
+      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
+      customCategories: initialBootstrap.loadedCustomCategories,
+      deletedCategories: initialBootstrap.loadedDeletedCategories,
+    }) : null),
   );
   const [draftState, setDraftState] = useState<ClassificationDraftState | null>(
-    () => (APP_MAPPING_SNAPSHOT_CACHE ? cloneDraftState(APP_MAPPING_SNAPSHOT_CACHE.savedState) : null),
+    () => (initialBootstrap ? cloneDraftState({
+      overrides: initialBootstrap.loadedOverrides,
+      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
+      customCategories: initialBootstrap.loadedCustomCategories,
+      deletedCategories: initialBootstrap.loadedDeletedCategories,
+    }) : null),
   );
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [nameEditSnapshots, setNameEditSnapshots] = useState<Record<string, AppOverride | null>>({});
@@ -164,7 +165,7 @@ export default function AppMapping({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const hadCacheAtStart = Boolean(APP_MAPPING_SNAPSHOT_CACHE);
+      const hadCacheAtStart = Boolean(initialBootstrapRef.current);
       if (!hadCacheAtStart) {
         setLoading(true);
       }
@@ -172,10 +173,7 @@ export default function AppMapping({
         const bootstrap = await ClassificationService.loadClassificationBootstrap();
         const nextObserved = cloneObservedCandidates(bootstrap.observed);
         const nextState = createDraftState(bootstrap);
-        updateAppMappingCache({
-          observed: nextObserved,
-          savedState: nextState,
-        });
+        setClassificationBootstrapCache(bootstrap);
         if (cancelled) return;
         setCandidates(nextObserved);
         if (!hasUnsavedChangesRef.current) {
@@ -334,9 +332,12 @@ export default function AppMapping({
     const observed = await ClassificationService.loadObservedAppCandidates();
     setCandidates(observed);
     if (savedState) {
-      updateAppMappingCache({
-        observed,
-        savedState,
+      setClassificationBootstrapCache({
+        observed: cloneObservedCandidates(observed),
+        loadedOverrides: { ...savedState.overrides },
+        loadedCategoryColorOverrides: { ...savedState.categoryColorOverrides },
+        loadedCustomCategories: [...savedState.customCategories],
+        loadedDeletedCategories: [...savedState.deletedCategories],
       });
     }
   };
@@ -581,9 +582,12 @@ export default function AppMapping({
     try {
       await ClassificationService.commitDraftChanges(savedState, draftState);
       setSavedState(draftState);
-      updateAppMappingCache({
-        observed: candidates,
-        savedState: draftState,
+      setClassificationBootstrapCache({
+        observed: cloneObservedCandidates(candidates),
+        loadedOverrides: { ...draftState.overrides },
+        loadedCategoryColorOverrides: { ...draftState.categoryColorOverrides },
+        loadedCustomCategories: [...draftState.customCategories],
+        loadedDeletedCategories: [...draftState.deletedCategories],
       });
       setNameEditSnapshots({});
       setEditingNameExe(null);

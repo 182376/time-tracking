@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../lib/copy";
 import Sidebar from "../shared/components/Sidebar";
@@ -11,6 +11,10 @@ import {
   loadDashboardRuntimeSnapshot,
   loadHistoryRuntimeSnapshot,
 } from "./services/readModelRuntimeService";
+import {
+  prewarmStartupBootstrapCaches,
+  prewarmStartupSnapshotCaches,
+} from "./services/startupPrewarmService";
 import type { View } from "../shared/types/app";
 import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
 import { useQuietDialogs } from "../shared/hooks/useQuietDialogs";
@@ -49,6 +53,8 @@ function AppShellContent() {
   const [mappingVersion, setMappingVersion] = useState(0);
   const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const didPrewarmBootstrapCachesRef = useRef(false);
+  const didPrewarmSnapshotCachesRef = useRef(false);
   const {
     activeWindow,
     appSettings,
@@ -75,6 +81,18 @@ function AppShellContent() {
     && AppClassificationFacade.shouldTrackApp(activeExeName)
     ? AppClassificationFacade.mapApp(activeExeName)
     : null;
+
+  useEffect(() => {
+    if (didPrewarmBootstrapCachesRef.current) return;
+    didPrewarmBootstrapCachesRef.current = true;
+    void prewarmStartupBootstrapCaches();
+  }, []);
+
+  useEffect(() => {
+    if (!classificationReady || didPrewarmSnapshotCachesRef.current) return;
+    didPrewarmSnapshotCachesRef.current = true;
+    void prewarmStartupSnapshotCaches(new Date());
+  }, [classificationReady]);
 
   const handleMinSessionSecsChange = useCallback((nextValue: number) => {
     setAppSettings((current) => ({

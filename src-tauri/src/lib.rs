@@ -27,7 +27,16 @@ pub fn run() {
         eprintln!("[sql] failed to repair legacy migration history: {error}");
     }
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            app::tray::show_main_window(app);
+        }));
+    }
+
+    builder
         .manage(DesktopBehaviorState::default())
         .manage(UpdaterRuntimeState::new(app_version))
         .plugin(

@@ -25,7 +25,7 @@ import QuietSubpanel from "../../../shared/components/QuietSubpanel";
 import QuietActionRow from "../../../shared/components/QuietActionRow";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 import UpdateStatusPanel from "../../update/components/UpdateStatusPanel";
-import type { SettingsPageBootstrapData } from "../services/settingsRuntimeAdapterService";
+import { getSettingsBootstrapCache, setSettingsBootstrapCache } from "../services/settingsBootstrapCache";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 180, label: UI_TEXT.settings.cleanupRangeLabels[180] },
@@ -45,8 +45,6 @@ const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
 const IDLE_TIMEOUT_MINUTES_RANGE = { min: 1, max: 30 } as const;
 const TIMELINE_MERGE_GAP_MINUTES_RANGE = { min: 1, max: 5 } as const;
 const MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
-let SETTINGS_BOOTSTRAP_CACHE: SettingsPageBootstrapData | null = null;
-
 const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const secondsToMinute = (seconds: number, min: number, max: number) =>
   clampMinute(Math.round(seconds / 60), min, max);
@@ -130,13 +128,15 @@ export default function Settings({
   onRegisterSaveHandler,
 }: SettingsPageProps) {
   const { confirm, dialogs } = useQuietDialogs();
+  const initialBootstrap = getSettingsBootstrapCache();
+  const initialBootstrapRef = useRef(initialBootstrap);
   const [savedSettings, setSavedSettings] = useState<AppSettings | null>(
-    () => (SETTINGS_BOOTSTRAP_CACHE ? { ...SETTINGS_BOOTSTRAP_CACHE.settings } : null),
+    () => (initialBootstrap ? { ...initialBootstrap.settings } : null),
   );
   const [draftSettings, setDraftSettings] = useState<AppSettings | null>(
-    () => (SETTINGS_BOOTSTRAP_CACHE ? { ...SETTINGS_BOOTSTRAP_CACHE.settings } : null),
+    () => (initialBootstrap ? { ...initialBootstrap.settings } : null),
   );
-  const [loading, setLoading] = useState(() => !SETTINGS_BOOTSTRAP_CACHE);
+  const [loading, setLoading] = useState(() => !initialBootstrap);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [cleanupRange, setCleanupRange] = useState<CleanupRange>(30);
   const [isCleaning, setIsCleaning] = useState(false);
@@ -144,7 +144,7 @@ export default function Settings({
   const [restorePath, setRestorePath] = useState("");
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
-  const [appVersion, setAppVersion] = useState(() => SETTINGS_BOOTSTRAP_CACHE?.appVersion ?? "-");
+  const [appVersion, setAppVersion] = useState(() => initialBootstrap?.appVersion ?? "-");
   const hasUnsavedChangesRef = useRef(false);
 
   const notify = (message: string, tone: ToastTone = "info") => {
@@ -154,16 +154,16 @@ export default function Settings({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const hadCacheAtStart = Boolean(SETTINGS_BOOTSTRAP_CACHE);
+      const hadCacheAtStart = Boolean(initialBootstrapRef.current);
       if (!hadCacheAtStart) {
         setLoading(true);
       }
       try {
         const bootstrap = await SettingsRuntimeAdapterService.loadBootstrap();
-        SETTINGS_BOOTSTRAP_CACHE = {
+        setSettingsBootstrapCache({
           settings: { ...bootstrap.settings },
           appVersion: bootstrap.appVersion,
-        };
+        });
         if (cancelled) return;
         if (!hasUnsavedChangesRef.current) {
           setSavedSettings({ ...bootstrap.settings });
@@ -224,10 +224,10 @@ export default function Settings({
       const patch = SettingsRuntimeAdapterService.buildSettingsPatch(savedSettings, draftSettings);
       await SettingsRuntimeAdapterService.commitSettingsPatch(patch);
       setSavedSettings(draftSettings);
-      SETTINGS_BOOTSTRAP_CACHE = {
+      setSettingsBootstrapCache({
         settings: { ...draftSettings },
         appVersion,
-      };
+      });
       onSettingsChanged(draftSettings);
       setSaveStatus("saved");
       window.setTimeout(() => setSaveStatus("idle"), 1800);

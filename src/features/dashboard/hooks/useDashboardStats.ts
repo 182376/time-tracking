@@ -5,6 +5,7 @@ import {
   type DashboardReadModel,
   type DashboardSnapshot,
 } from "../../../shared/lib/historyReadModelService";
+import { getDashboardRuntimeSnapshotCache } from "../../../app/services/readModelRuntimeService";
 import type { TrackerHealthSnapshot } from "../../../types/tracking";
 
 export interface UseStatsResult {
@@ -20,9 +21,14 @@ export function useDashboardStats(
   mappingVersion: number = 0,
   classificationReady: boolean = true,
 ): UseStatsResult {
-  const [rawSessions, setRawSessions] = useState<HistorySession[]>([]);
-  const [icons, setIcons] = useState<Record<string, string>>({});
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const initialSnapshot = getDashboardRuntimeSnapshotCache();
+  const [rawSessions, setRawSessions] = useState<HistorySession[]>(
+    () => initialSnapshot?.sessions ?? [],
+  );
+  const [icons, setIcons] = useState<Record<string, string>>(
+    () => initialSnapshot?.icons ?? {},
+  );
+  const [nowMs, setNowMs] = useState(() => initialSnapshot?.fetchedAtMs ?? Date.now());
 
   const fetchData = useCallback(async () => {
     if (!classificationReady) return;

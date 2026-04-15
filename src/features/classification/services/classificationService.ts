@@ -8,6 +8,10 @@ import {
 } from "../../../lib/config/categoryTokens";
 import * as classificationPersistence from "../../../shared/lib/classificationPersistence";
 import type { ObservedAppCandidate } from "../../../shared/lib/classificationPersistence";
+import {
+  getClassificationBootstrapCache,
+  setClassificationBootstrapCache,
+} from "./classificationBootstrapCache";
 
 export type { AppOverride } from "../../../lib/ProcessMapper.ts";
 
@@ -103,13 +107,25 @@ export class ClassificationService {
 
     const sanitizedDeletedCategories = sanitizeDeletedCategories(loadedDeletedCategories ?? []);
 
-    return {
+    const bootstrap = {
       observed,
       loadedOverrides,
       loadedCategoryColorOverrides: loadedCategoryColorOverrides ?? {},
       loadedCustomCategories,
       loadedDeletedCategories: sanitizedDeletedCategories,
     };
+    setClassificationBootstrapCache(bootstrap);
+    return bootstrap;
+  }
+
+  static getBootstrapCache(): ClassificationBootstrapData | null {
+    return getClassificationBootstrapCache();
+  }
+
+  static async prewarmBootstrapCache(): Promise<ClassificationBootstrapData> {
+    const bootstrap = await this.loadClassificationBootstrap();
+    setClassificationBootstrapCache(bootstrap);
+    return bootstrap;
   }
 
   static async saveAppOverride(exeName: string, override: AppOverride | null) {
@@ -229,4 +245,8 @@ export class ClassificationService {
     ProcessMapper.setCategoryColorOverrides(draft.categoryColorOverrides);
     ProcessMapper.setDeletedCategories(draftDeletedCategories);
   }
+}
+
+export async function prewarmClassificationBootstrapCache(): Promise<ClassificationBootstrapData> {
+  return ClassificationService.prewarmBootstrapCache();
 }

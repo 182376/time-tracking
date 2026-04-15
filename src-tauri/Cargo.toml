@@ -1,6 +1,6 @@
 [package]
 name = "time_tracker"
-version = "0.2.2"
+version = "0.2.3"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -32,3 +32,6 @@ tokio = { version = "1.50.0", features = ["rt-multi-thread", "time"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 rfd = "0.15.4"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"

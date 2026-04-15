@@ -15,6 +15,10 @@ import {
 } from "../../../shared/lib/backupRuntimeAdapter";
 import { setIdleTimeout } from "../../../app/services/trackingRuntimeGateway";
 import type { CleanupRange } from "../types";
+import {
+  getSettingsBootstrapCache,
+  setSettingsBootstrapCache,
+} from "./settingsBootstrapCache";
 
 export type { BackupPreview } from "../../../shared/lib/backupRuntimeAdapter";
 
@@ -57,10 +61,22 @@ export class SettingsRuntimeAdapterService {
       getVersion().catch(() => "unknown"),
     ]);
 
-    return {
+    const bootstrap = {
       settings,
       appVersion,
     };
+    setSettingsBootstrapCache(bootstrap);
+    return bootstrap;
+  }
+
+  static getBootstrapCache(): SettingsPageBootstrapData | null {
+    return getSettingsBootstrapCache();
+  }
+
+  static async prewarmBootstrapCache(): Promise<SettingsPageBootstrapData> {
+    const bootstrap = await this.loadBootstrap();
+    setSettingsBootstrapCache(bootstrap);
+    return bootstrap;
   }
 
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
@@ -138,4 +154,8 @@ export class SettingsRuntimeAdapterService {
       }
     }
   }
+}
+
+export async function prewarmSettingsBootstrapCache(): Promise<SettingsPageBootstrapData> {
+  return SettingsRuntimeAdapterService.prewarmBootstrapCache();
 }

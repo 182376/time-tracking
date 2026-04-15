@@ -23,6 +23,10 @@ import type { TrackerHealthSnapshot } from "../../../types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
+import {
+  getHistorySnapshotCache,
+  setHistorySnapshotCache,
+} from "../services/historySnapshotCache";
 
 interface Props {
   icons: Record<string, string>;
@@ -36,21 +40,8 @@ interface Props {
   mappingVersion?: number;
 }
 
-interface HistorySnapshotCacheItem {
-  daySessions: HistorySession[];
-  weeklySessions: HistorySession[];
-  fetchedAtMs: number;
-}
-
-const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshotCacheItem>();
 const TIMELINE_MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
 const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-function formatHistoryCacheKey(date: Date) {
-  const localDate = new Date(date);
-  localDate.setHours(0, 0, 0, 0);
-  return `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
-}
 
 export default function History({
   icons,
@@ -64,8 +55,7 @@ export default function History({
   mappingVersion = 0,
 }: Props) {
   const initialDate = new Date();
-  const initialCacheKey = formatHistoryCacheKey(initialDate);
-  const initialCachedSnapshot = HISTORY_SNAPSHOT_CACHE.get(initialCacheKey);
+  const initialCachedSnapshot = getHistorySnapshotCache(initialDate);
   const iconThemeColors = useIconThemeColors(icons);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [rawDaySessions, setRawDaySessions] = useState<HistorySession[]>(
@@ -80,8 +70,7 @@ export default function History({
   const hasLoadedRef = useRef(false);
 
   const loadData = useCallback(async (showLoading: boolean = false) => {
-    const cacheKey = formatHistoryCacheKey(selectedDate);
-    const cachedSnapshot = HISTORY_SNAPSHOT_CACHE.get(cacheKey);
+    const cachedSnapshot = getHistorySnapshotCache(selectedDate);
 
     if (cachedSnapshot) {
       setRawDaySessions(cachedSnapshot.daySessions);
@@ -97,11 +86,7 @@ export default function History({
 
     try {
       const snapshot = await loadHistorySnapshot(selectedDate);
-      HISTORY_SNAPSHOT_CACHE.set(cacheKey, {
-        daySessions: snapshot.daySessions,
-        weeklySessions: snapshot.weeklySessions,
-        fetchedAtMs: snapshot.fetchedAtMs,
-      });
+      setHistorySnapshotCache(snapshot, selectedDate);
 
       setRawDaySessions(snapshot.daySessions);
       setRawWeeklySessions(snapshot.weeklySessions);
@@ -389,5 +374,3 @@ export default function History({
     </div>
   );
 }
-
-
