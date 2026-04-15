@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Time Tracker",
+  "productName": "Time Tracker Dev",
   "version": "0.2.2",
-  "identifier": "com.timetracker",
+  "identifier": "com.timetracker.dev",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Time Tracker",
+        "title": "Time Tracker Dev",
         "width": 1100,
         "height": 700,
         "minWidth": 900,

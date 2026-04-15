@@ -12,10 +12,20 @@ use engine::updater::UpdaterRuntimeState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(debug_assertions)]
+    let context = tauri::generate_context!("tauri.dev.conf.json");
+    #[cfg(not(debug_assertions))]
     let context = tauri::generate_context!();
     let runtime_health = Arc::new(engine::tracking_runtime::RuntimeHealthState::default());
     let launched_by_autostart = app::runtime::was_launched_by_autostart();
     let app_version = context.package_info().version.to_string();
+    let app_identifier = context.config().identifier.clone();
+
+    if let Err(error) = tauri::async_runtime::block_on(
+        data::sqlite_pool::repair_legacy_migration_history(&app_identifier),
+    ) {
+        eprintln!("[sql] failed to repair legacy migration history: {error}");
+    }
 
     tauri::Builder::default()
         .manage(DesktopBehaviorState::default())

@@ -30,6 +30,18 @@ pub(crate) fn apply_autostart<R: Runtime>(
     let autostart_manager = app.autolaunch();
 
     if launch_at_login {
+        #[cfg(all(debug_assertions, target_os = "windows"))]
+        {
+            let executable_path = std::env::current_exe()
+                .ok()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
+            return Err(format!(
+                "autostart enable blocked in debug build on Windows to avoid registering a debug executable path ({executable_path}). Please enable launch-at-login from the installed release build."
+            ));
+        }
+
+        #[cfg(not(all(debug_assertions, target_os = "windows")))]
         autostart_manager
             .enable()
             .map_err(|error| format!("failed to enable autostart: {error}"))?;
@@ -55,7 +67,9 @@ pub(crate) async fn sync_desktop_behavior_from_storage<R: Runtime>(
     state.update_desktop(loaded.close_behavior, loaded.minimize_behavior);
     let next = state.update_launch(loaded.launch_at_login, loaded.start_minimized);
 
-    apply_autostart(&app, next.launch_at_login)?;
+    if let Err(error) = apply_autostart(&app, next.launch_at_login) {
+        eprintln!("[tray] failed to apply autostart setting: {error}");
+    }
     apply_tray_visibility(&app, next);
 
     if launched_by_autostart {
