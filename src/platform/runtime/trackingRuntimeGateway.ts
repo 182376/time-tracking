@@ -5,7 +5,7 @@ import {
   type TrackingWindowSnapshot,
   parseTrackingDataChangedPayload,
   parseTrackingWindowSnapshot,
-} from "../../types/tracking";
+} from "../../shared/types/tracking";
 
 export async function getCurrentWindow(): Promise<TrackingWindowSnapshot | null> {
   try {

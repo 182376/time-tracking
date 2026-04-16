@@ -20,12 +20,12 @@ import {
   isTrackingWindowSnapshot,
   type TrackedWindow,
 } from "../src/types/tracking.ts";
-import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
+import { ProcessMapper } from "../src/features/classification/services/ProcessMapper.ts";
 import {
   resolveCanonicalDisplayName,
   resolveCanonicalExecutable,
   shouldTrackProcess,
-} from "../src/lib/processNormalization.ts";
+} from "../src/features/classification/services/processNormalization.ts";
 
 const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
 

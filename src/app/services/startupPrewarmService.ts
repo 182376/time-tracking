@@ -1,10 +1,15 @@
-import { loadDashboardRuntimeSnapshot, loadHistoryRuntimeSnapshot } from "./readModelRuntimeService";
 import {
   prewarmSettingsBootstrapCache,
 } from "../../features/settings/services/settingsRuntimeAdapterService";
 import {
   prewarmClassificationBootstrapCache,
 } from "../../features/classification/services/classificationService";
+import {
+  prewarmDashboardSnapshotCache,
+} from "../../features/dashboard/services/dashboardSnapshotCache";
+import {
+  prewarmHistorySnapshotCache,
+} from "../../features/history/services/historySnapshotCache";
 
 export async function prewarmStartupBootstrapCaches(): Promise<void> {
   const results = await Promise.allSettled([
@@ -21,8 +26,8 @@ export async function prewarmStartupBootstrapCaches(): Promise<void> {
 
 export async function prewarmStartupSnapshotCaches(date: Date = new Date()): Promise<void> {
   const results = await Promise.allSettled([
-    loadDashboardRuntimeSnapshot(date),
-    loadHistoryRuntimeSnapshot(date),
+    prewarmDashboardSnapshotCache(date),
+    prewarmHistorySnapshotCache(date),
   ]);
 
   for (const result of results) {

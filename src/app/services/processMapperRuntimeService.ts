@@ -1,10 +1,39 @@
-import { ProcessMapper } from "../../lib/ProcessMapper.ts";
-import * as classificationPersistence from "../../shared/lib/classificationPersistence";
+import { ProcessMapper, type AppOverride } from "../../features/classification/services/ProcessMapper.ts";
+import type { AppCategory } from "../../features/classification/config/categoryTokens.ts";
+import {
+  loadAppOverrides,
+  loadCategoryColorOverrides,
+  loadCategoryDefaultColorAssignments,
+  loadDeletedCategories,
+  saveCategoryDefaultColorAssignment,
+} from "../../features/classification/services/classificationStore.ts";
 
-export type ProcessMapperRuntimeSnapshot = classificationPersistence.ProcessMapperClassificationSnapshot;
+export interface ProcessMapperRuntimeSnapshot {
+  overrides: Record<string, AppOverride>;
+  categoryColorOverrides: Record<string, string>;
+  categoryDefaultColorAssignments: Record<string, string>;
+  deletedCategories: AppCategory[];
+}
 
 export async function loadProcessMapperRuntimeSnapshot(): Promise<ProcessMapperRuntimeSnapshot> {
-  return classificationPersistence.loadProcessMapperClassificationSnapshot();
+  const [
+    overrides,
+    categoryColorOverrides,
+    categoryDefaultColorAssignments,
+    deletedCategories,
+  ] = await Promise.all([
+    loadAppOverrides(),
+    loadCategoryColorOverrides(),
+    loadCategoryDefaultColorAssignments(),
+    loadDeletedCategories(),
+  ]);
+
+  return {
+    overrides,
+    categoryColorOverrides: categoryColorOverrides ?? {},
+    categoryDefaultColorAssignments: categoryDefaultColorAssignments ?? {},
+    deletedCategories: deletedCategories ?? [],
+  };
 }
 
 export function applyProcessMapperRuntimeSnapshot(snapshot: ProcessMapperRuntimeSnapshot): void {
@@ -13,7 +42,7 @@ export function applyProcessMapperRuntimeSnapshot(snapshot: ProcessMapperRuntime
   ProcessMapper.setCategoryDefaultColorAssignments(snapshot.categoryDefaultColorAssignments);
   ProcessMapper.setDeletedCategories(snapshot.deletedCategories);
   ProcessMapper.setCategoryDefaultColorAssignmentPersistence(
-    classificationPersistence.saveCategoryDefaultColorAssignment,
+    saveCategoryDefaultColorAssignment,
   );
 }
 

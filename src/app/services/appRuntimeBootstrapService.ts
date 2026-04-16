@@ -1,5 +1,5 @@
-import type { TrackerHealthSnapshot, TrackingWindowSnapshot } from "../../types/tracking";
-import { resolveTrackerHealth } from "../../types/tracking";
+import type { TrackerHealthSnapshot, TrackingWindowSnapshot } from "../../shared/types/tracking";
+import { resolveTrackerHealth } from "../../shared/types/tracking";
 import {
   loadSettings,
   loadTrackerHealthTimestamp,
@@ -8,7 +8,7 @@ import {
 import {
   getCurrentWindow,
   setIdleTimeout,
-} from "./trackingRuntimeGateway";
+} from "../../platform/runtime/trackingRuntimeGateway";
 import { initializeProcessMapperRuntime } from "./processMapperRuntimeService";
 
 export const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;

@@ -1,12 +1,12 @@
-﻿import {
+import {
   buildCustomCategory,
   getCategoryToken,
   isCustomCategory,
   USER_ASSIGNABLE_CATEGORIES,
   type AppCategory,
   type UserAssignableAppCategory,
-} from "./config/categoryTokens.ts";
-import { DEFAULT_APP_MAPPINGS } from "./config/defaultMappings.ts";
+} from "../config/categoryTokens.ts";
+import { DEFAULT_APP_MAPPINGS } from "../config/defaultMappings.ts";
 import { resolveCanonicalExecutable, shouldTrackProcess } from "./processNormalization.ts";
 import { CategoryColorRegistry } from "./categoryColorRegistry.ts";
 export type MappingConfidence = "high" | "medium" | "low";
@@ -387,5 +387,3 @@ export class ProcessMapper {
     }
   }
 }
-
-

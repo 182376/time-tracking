@@ -5,7 +5,7 @@ import {
   downloadUpdate,
   getUpdateSnapshot,
   installUpdate,
-} from "../services/updateRuntimeGateway";
+} from "../../platform/runtime/updateRuntimeGateway";
 import { shouldShowSidebarUpdateEntry } from "../../features/update/services/updateViewModel";
 
 function createFallbackSnapshot(): UpdateSnapshot {

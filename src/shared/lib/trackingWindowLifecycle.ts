@@ -1,4 +1,4 @@
-import type { TrackedWindow } from "../../types/tracking";
+import type { TrackedWindow } from "../types/tracking";
 
 export interface WindowTransitionDecision {
   didChange: boolean;

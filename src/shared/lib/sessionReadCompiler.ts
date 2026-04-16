@@ -1,12 +1,12 @@
-import type { AppStat } from "../../types/app";
+import type { AppStat } from "../types/app";
 import type { DailySummary, HistorySession } from "./sessionReadRepository";
-import { ProcessMapper } from "../../lib/ProcessMapper.ts";
+import { ProcessMapper } from "../../features/classification/services/ProcessMapper.ts";
 import {
   normalizeExecutable,
   resolveCanonicalDisplayName,
   resolveCanonicalExecutable,
   shouldTrackProcess,
-} from "../../lib/processNormalization.ts";
+} from "../../features/classification/services/processNormalization.ts";
 import { cleanWindowTitle } from "./windowTitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;

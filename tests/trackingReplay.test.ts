@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { HistoryReadModelService } from "../src/shared/lib/historyReadModelService.ts";
 import { buildTopApplications } from "../src/features/dashboard/services/dashboardFormatting.ts";
-import { ProcessMapper } from "../src/lib/ProcessMapper.ts";
+import { ProcessMapper } from "../src/features/classification/services/ProcessMapper.ts";
 import type { HistorySession } from "../src/shared/lib/sessionReadRepository.ts";
 import { resolveTrackerHealth } from "../src/types/tracking.ts";
 

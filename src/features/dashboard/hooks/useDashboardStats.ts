@@ -1,12 +1,13 @@
 ﻿import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import type { HistorySession } from "../../../shared/lib/sessionReadRepository";
 import {
-  HistoryReadModelService,
+  buildDashboardReadModel,
+  loadIconSnapshot,
   type DashboardReadModel,
   type DashboardSnapshot,
-} from "../../../shared/lib/historyReadModelService";
-import { getDashboardRuntimeSnapshotCache } from "../../../app/services/readModelRuntimeService";
-import type { TrackerHealthSnapshot } from "../../../types/tracking";
+} from "../services/dashboardReadModel";
+import { getDashboardSnapshotCache } from "../services/dashboardSnapshotCache";
+import type { TrackerHealthSnapshot } from "../../../shared/types/tracking";
 
 export interface UseStatsResult {
   dashboard: DashboardReadModel;
@@ -21,7 +22,7 @@ export function useDashboardStats(
   mappingVersion: number = 0,
   classificationReady: boolean = true,
 ): UseStatsResult {
-  const initialSnapshot = getDashboardRuntimeSnapshotCache();
+  const initialSnapshot = getDashboardSnapshotCache();
   const [rawSessions, setRawSessions] = useState<HistorySession[]>(
     () => initialSnapshot?.sessions ?? [],
   );
@@ -67,7 +68,7 @@ export function useDashboardStats(
       setNowMs(Date.now());
 
       if (hasMissingIcons) {
-        void HistoryReadModelService.loadIconSnapshot()
+        void loadIconSnapshot()
           .then((snapshot) => {
             startTransition(() => {
               setIcons(snapshot.icons);
@@ -85,7 +86,7 @@ export function useDashboardStats(
   }, [classificationReady, icons, rawSessions, refreshIntervalSecs, trackerHealth.status]);
 
   const dashboard = useMemo(
-    () => HistoryReadModelService.buildDashboardReadModel(
+    () => buildDashboardReadModel(
       classificationReady ? rawSessions : [],
       trackerHealth,
       nowMs,

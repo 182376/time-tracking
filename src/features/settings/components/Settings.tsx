@@ -12,8 +12,8 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
-import { UI_TEXT } from "../../../lib/copy";
-import { DEFAULT_SETTINGS, type AppSettings } from "../../../lib/settings-store";
+import { UI_TEXT } from "../../../shared/copy/uiText";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../../shared/settings/appSettings";
 import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
 import type { SettingsPageProps, CleanupRange } from "../types";
 import type { ToastTone } from "../../../shared/components/ToastStack";

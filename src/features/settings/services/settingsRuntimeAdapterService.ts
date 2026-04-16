@@ -12,15 +12,15 @@ import {
   previewBackup,
   restoreBackup,
   type BackupPreview,
-} from "../../../shared/lib/backupRuntimeAdapter";
-import { setIdleTimeout } from "../../../app/services/trackingRuntimeGateway";
+} from "../../../platform/backup/backupRuntimeGateway";
+import { setIdleTimeout } from "../../../platform/runtime/trackingRuntimeGateway";
 import type { CleanupRange } from "../types";
 import {
   getSettingsBootstrapCache,
   setSettingsBootstrapCache,
 } from "./settingsBootstrapCache";
 
-export type { BackupPreview } from "../../../shared/lib/backupRuntimeAdapter";
+export type { BackupPreview } from "../../../platform/backup/backupRuntimeGateway";
 
 export interface SettingsPageBootstrapData {
   settings: AppSettings;

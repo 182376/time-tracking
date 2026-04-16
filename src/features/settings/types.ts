@@ -1,4 +1,4 @@
-import type { AppSettings } from "../../lib/settings-store";
+import type { AppSettings } from "../../shared/settings/appSettings";
 import type { ToastTone } from "../../shared/components/ToastStack";
 import type { UpdateSnapshot } from "../../shared/types/update";
 

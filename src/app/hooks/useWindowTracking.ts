@@ -1,27 +1,24 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_SETTINGS } from "../../lib/settings-store";
-import type { AppSettings } from "../../lib/settings-store";
+import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings/appSettings";
 import type {
   TrackerHealthSnapshot,
   TrackingWindowSnapshot,
-} from "../../types/tracking";
-import { resolveTrackerHealth } from "../../types/tracking";
+} from "../../shared/types/tracking";
+import { resolveTrackerHealth } from "../../shared/types/tracking";
 import {
   loadAppRuntimeBootstrapSnapshot,
-  loadTrackerHealthSnapshot,
   TRACKER_HEARTBEAT_STALE_AFTER_MS,
 } from "../services/appRuntimeBootstrapService";
 import {
-  onActiveWindowChanged,
-  onTrackingDataChanged,
-} from "../services/trackingRuntimeGateway";
+  subscribeActiveWindowChanged,
+  subscribeTrackingDataChanged,
+} from "../services/appRuntimeTrackingService";
 import {
-  setDesktopBehavior,
-  setLaunchBehavior,
-} from "../services/desktopBehaviorRuntimeAdapter";
-import { AppSettingsRuntimeService } from "../services/appSettingsRuntimeService";
-
-const TRACKER_HEARTBEAT_POLL_MS = 1_000;
+  loadLatestTrackingPauseSetting,
+  shouldSyncTrackingPause,
+} from "../services/trackingPauseSettingsSyncService";
+import { startTrackerHealthPolling } from "../services/trackerHealthPollingService";
+import { useDesktopLaunchBehaviorSync } from "./useDesktopLaunchBehaviorSync";
 
 export function useWindowTracking() {
   const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
@@ -31,18 +28,12 @@ export function useWindowTracking() {
   const [trackerHealth, setTrackerHealth] = useState<TrackerHealthSnapshot>(() => (
     resolveTrackerHealth(null, Date.now(), TRACKER_HEARTBEAT_STALE_AFTER_MS)
   ));
+  useDesktopLaunchBehaviorSync(appSettings);
 
   useEffect(() => {
     let cancelled = false;
     const unlisteners: Array<() => void> = [];
-    let heartbeatTimer: number | null = null;
-
-    const refreshTrackerHealth = async () => {
-      const snapshot = await loadTrackerHealthSnapshot(Date.now());
-      if (!cancelled) {
-        setTrackerHealth(snapshot);
-      }
-    };
+    let stopTrackerHealthPolling: (() => void) | null = null;
 
     const init = async () => {
       try {
@@ -61,7 +52,7 @@ export function useWindowTracking() {
 
       if (cancelled) return;
 
-      const activeWindowUnlisten = await onActiveWindowChanged((window) => {
+      const activeWindowUnlisten = await subscribeActiveWindowChanged((window) => {
         if (cancelled) return;
         setActiveWindow(window);
       });
@@ -71,17 +62,17 @@ export function useWindowTracking() {
       }
       unlisteners.push(activeWindowUnlisten);
 
-      const trackingDataUnlisten = await onTrackingDataChanged(
+      const trackingDataUnlisten = await subscribeTrackingDataChanged(
         (payload) => {
           if (cancelled) return;
 
-          if (payload.reason === "tracking-paused" || payload.reason === "tracking-resumed") {
-            void AppSettingsRuntimeService.loadLatestSettings()
-              .then((latestSettings) => {
+          if (shouldSyncTrackingPause(payload.reason)) {
+            void loadLatestTrackingPauseSetting()
+              .then((trackingPaused) => {
                 if (cancelled) return;
                 setAppSettings((current) => ({
                   ...current,
-                  tracking_paused: latestSettings.tracking_paused,
+                  tracking_paused: trackingPaused,
                 }));
               })
               .catch((error) => {
@@ -100,9 +91,11 @@ export function useWindowTracking() {
       }
       unlisteners.push(trackingDataUnlisten);
 
-      heartbeatTimer = window.setInterval(() => {
-        void refreshTrackerHealth();
-      }, TRACKER_HEARTBEAT_POLL_MS);
+      stopTrackerHealthPolling = startTrackerHealthPolling((snapshot) => {
+        if (!cancelled) {
+          setTrackerHealth(snapshot);
+        }
+      });
     };
 
     void init();
@@ -112,25 +105,11 @@ export function useWindowTracking() {
       for (const off of unlisteners) {
         off();
       }
-      if (heartbeatTimer !== null) {
-        window.clearInterval(heartbeatTimer);
+      if (stopTrackerHealthPolling) {
+        stopTrackerHealthPolling();
       }
     };
   }, []);
-
-  useEffect(() => {
-    void setDesktopBehavior(
-      appSettings.close_behavior,
-      appSettings.minimize_behavior,
-    ).catch(console.warn);
-  }, [appSettings.close_behavior, appSettings.minimize_behavior]);
-
-  useEffect(() => {
-    void setLaunchBehavior(
-      appSettings.launch_at_login,
-      appSettings.start_minimized,
-    ).catch(console.warn);
-  }, [appSettings.launch_at_login, appSettings.start_minimized]);
 
   return {
     activeWindow,

@@ -1,4 +1,4 @@
-import type { HistorySnapshot } from "../../../shared/lib/historyReadModelService";
+import { loadHistorySnapshot, type HistorySnapshot } from "./historyReadModel";
 
 const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshot>();
 
@@ -21,4 +21,13 @@ export function setHistorySnapshotCache(
   rollingDayCount: number = 7,
 ): void {
   HISTORY_SNAPSHOT_CACHE.set(formatHistorySnapshotCacheKey(date, rollingDayCount), snapshot);
+}
+
+export async function prewarmHistorySnapshotCache(
+  date: Date = new Date(),
+  rollingDayCount: number = 7,
+): Promise<HistorySnapshot> {
+  const snapshot = await loadHistorySnapshot(date, rollingDayCount);
+  setHistorySnapshotCache(snapshot, date, rollingDayCount);
+  return snapshot;
 }

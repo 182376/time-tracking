@@ -1,19 +1,19 @@
-import { ProcessMapper } from "../../../lib/ProcessMapper.ts";
-import type { AppOverride } from "../../../lib/ProcessMapper.ts";
+import { ProcessMapper } from "./ProcessMapper.ts";
+import type { AppOverride } from "./ProcessMapper.ts";
 import {
   USER_ASSIGNABLE_CATEGORIES,
   isCustomCategory,
   type AppCategory,
   type CustomAppCategory,
-} from "../../../lib/config/categoryTokens";
-import * as classificationPersistence from "../../../shared/lib/classificationPersistence";
-import type { ObservedAppCandidate } from "../../../shared/lib/classificationPersistence";
+} from "../config/categoryTokens";
+import * as classificationStore from "./classificationStore";
+import type { ObservedAppCandidate } from "./classificationStore";
 import {
   getClassificationBootstrapCache,
   setClassificationBootstrapCache,
 } from "./classificationBootstrapCache";
 
-export type { AppOverride } from "../../../lib/ProcessMapper.ts";
+export type { AppOverride } from "./ProcessMapper.ts";
 
 export interface ClassificationBootstrapData {
   observed: ObservedAppCandidate[];
@@ -87,7 +87,7 @@ function areStringArraysEqual(left: string[], right: string[]): boolean {
 
 export class ClassificationService {
   static async loadObservedAppCandidates(days: number = 30, limit: number = 120): Promise<ObservedAppCandidate[]> {
-    return classificationPersistence.loadObservedAppCandidates(days, limit);
+    return classificationStore.loadObservedAppCandidates(days, limit);
   }
 
   static async loadClassificationBootstrap(): Promise<ClassificationBootstrapData> {
@@ -99,10 +99,10 @@ export class ClassificationService {
       loadedDeletedCategories,
     ] = await Promise.all([
       this.loadObservedAppCandidates(),
-      classificationPersistence.loadAppOverrides(),
-      classificationPersistence.loadCategoryColorOverrides(),
-      classificationPersistence.loadCustomCategories(),
-      classificationPersistence.loadDeletedCategories(),
+      classificationStore.loadAppOverrides(),
+      classificationStore.loadCategoryColorOverrides(),
+      classificationStore.loadCustomCategories(),
+      classificationStore.loadDeletedCategories(),
     ]);
 
     const sanitizedDeletedCategories = sanitizeDeletedCategories(loadedDeletedCategories ?? []);
@@ -129,12 +129,12 @@ export class ClassificationService {
   }
 
   static async saveAppOverride(exeName: string, override: AppOverride | null) {
-    await classificationPersistence.saveAppOverride(exeName, override);
+    await classificationStore.saveAppOverride(exeName, override);
     ProcessMapper.setUserOverride(exeName, override);
   }
 
   static async saveCategoryColorOverride(category: AppCategory, colorValue: string | null) {
-    await classificationPersistence.saveCategoryColorOverride(category, colorValue);
+    await classificationStore.saveCategoryColorOverride(category, colorValue);
     ProcessMapper.setCategoryColorOverride(category, colorValue);
   }
 
@@ -147,19 +147,19 @@ export class ClassificationService {
   }
 
   static async saveCustomCategory(category: CustomAppCategory) {
-    await classificationPersistence.saveCustomCategory(category);
+    await classificationStore.saveCustomCategory(category);
   }
 
   static async deleteCustomCategory(category: CustomAppCategory) {
-    await classificationPersistence.deleteCustomCategory(category);
+    await classificationStore.deleteCustomCategory(category);
   }
 
   static async saveDeletedCategory(category: AppCategory, deleted: boolean) {
-    await classificationPersistence.saveDeletedCategory(category, deleted);
+    await classificationStore.saveDeletedCategory(category, deleted);
   }
 
   static async deleteObservedAppSessions(exeName: string, scope: "today" | "all" = "all") {
-    await classificationPersistence.deleteObservedAppSessions(exeName, scope);
+    await classificationStore.deleteObservedAppSessions(exeName, scope);
   }
 
   static hasDraftChanges(saved: ClassificationDraftState, draft: ClassificationDraftState): boolean {
@@ -199,7 +199,7 @@ export class ClassificationService {
       const savedOverride = saved.overrides[exeName] ?? null;
       const draftOverride = draft.overrides[exeName] ?? null;
       if (!areOverridesEqual(savedOverride, draftOverride)) {
-        await classificationPersistence.saveAppOverride(exeName, draftOverride);
+        await classificationStore.saveAppOverride(exeName, draftOverride);
       }
     }
 
@@ -211,23 +211,23 @@ export class ClassificationService {
       const savedColor = saved.categoryColorOverrides[category];
       const draftColor = draft.categoryColorOverrides[category];
       if (savedColor === draftColor) continue;
-      await classificationPersistence.saveCategoryColorOverride(category as AppCategory, draftColor ?? null);
+      await classificationStore.saveCategoryColorOverride(category as AppCategory, draftColor ?? null);
     }
 
     const savedCustom = new Set(saved.customCategories);
     const draftCustom = new Set(draft.customCategories);
     for (const category of draftCustom) {
       if (!savedCustom.has(category)) {
-        await classificationPersistence.saveCustomCategory(category);
+        await classificationStore.saveCustomCategory(category);
       }
-      await classificationPersistence.saveDeletedCategory(category, false);
+      await classificationStore.saveDeletedCategory(category, false);
     }
     for (const category of savedCustom) {
       if (draftCustom.has(category)) continue;
       await ProcessMapper.removeCategoryDefaultColorAssignment(category);
-      await classificationPersistence.deleteCustomCategory(category);
-      await classificationPersistence.saveDeletedCategory(category, false);
-      await classificationPersistence.saveCategoryColorOverride(category, null);
+      await classificationStore.deleteCustomCategory(category);
+      await classificationStore.saveDeletedCategory(category, false);
+      await classificationStore.saveCategoryColorOverride(category, null);
     }
 
     const assignableCategories = USER_ASSIGNABLE_CATEGORIES.filter((category) => (
@@ -237,7 +237,7 @@ export class ClassificationService {
       const savedDeleted = savedDeletedCategories.includes(category);
       const draftDeleted = draftDeletedCategories.includes(category);
       if (savedDeleted !== draftDeleted) {
-        await classificationPersistence.saveDeletedCategory(category, draftDeleted);
+        await classificationStore.saveDeletedCategory(category, draftDeleted);
       }
     }
 

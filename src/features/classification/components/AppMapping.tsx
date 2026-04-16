@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
-import { UI_TEXT } from "../../../lib/copy";
+import { UI_TEXT } from "../../../shared/copy/uiText";
 import {
   ClassificationService,
   type AppOverride,
   type ClassificationDraftState,
 } from "../services/classificationService";
 import type { CandidateFilter, ObservedAppCandidate } from "../types";
-import type { AppCategory } from "../../../lib/config/categoryTokens";
+import type { AppCategory } from "../config/categoryTokens";
 import {
   buildCustomCategory,
   isCustomCategory,
   USER_ASSIGNABLE_CATEGORIES,
   type UserAssignableAppCategory,
-} from "../../../lib/config/categoryTokens";
+} from "../config/categoryTokens";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import CategoryColorControls from "./CategoryColorControls";

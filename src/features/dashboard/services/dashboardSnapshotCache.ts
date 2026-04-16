@@ -1,4 +1,4 @@
-import type { DashboardSnapshot } from "../../../shared/lib/historyReadModelService";
+import { loadDashboardSnapshot, type DashboardSnapshot } from "./dashboardReadModel";
 
 const DASHBOARD_SNAPSHOT_CACHE = new Map<string, DashboardSnapshot>();
 
@@ -14,4 +14,10 @@ export function getDashboardSnapshotCache(date: Date = new Date()): DashboardSna
 
 export function setDashboardSnapshotCache(snapshot: DashboardSnapshot, date: Date = new Date()): void {
   DASHBOARD_SNAPSHOT_CACHE.set(formatDashboardSnapshotCacheKey(date), snapshot);
+}
+
+export async function prewarmDashboardSnapshotCache(date: Date = new Date()): Promise<DashboardSnapshot> {
+  const snapshot = await loadDashboardSnapshot(date);
+  setDashboardSnapshotCache(snapshot, date);
+  return snapshot;
 }

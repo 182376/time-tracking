@@ -1,11 +1,21 @@
-import { getDB } from "./db.ts";
+import {
+  deleteSessionsByExeNames,
+  deleteSessionsByExeNamesBetween,
+  deleteSettingsByKeyPrefix,
+  deleteSettingValue,
+  loadDistinctSessionExeNames,
+  loadObservedSessionStats,
+  loadSettingKeysByKeyPrefix,
+  loadSettingRowsByKeyPrefix,
+  upsertSettingValue,
+} from "../../../platform/persistence/classificationPersistence.ts";
 import { ProcessMapper, type AppOverride } from "./ProcessMapper.ts";
 import {
   isAppCategory,
   isCustomCategory,
   type AppCategory,
   type CustomAppCategory,
-} from "./config/categoryTokens.ts";
+} from "../config/categoryTokens.ts";
 import { resolveCanonicalExecutable, shouldTrackProcess } from "./processNormalization.ts";
 
 const APP_OVERRIDE_KEY_PREFIX = "__app_override::";
@@ -49,20 +59,8 @@ function normalizeHexColor(colorValue: string | undefined): string | null {
   return normalized.toUpperCase();
 }
 
-async function upsertSettingValue(key: string, value: string) {
-  const db = await getDB();
-  await db.execute(
-    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    [key, value],
-  );
-}
-
 export async function loadAppOverrides(): Promise<Record<string, AppOverride>> {
-  const db = await getDB();
-  const rows = await db.select<{ key: string; value: string }[]>(
-    "SELECT key, value FROM settings WHERE key LIKE ?",
-    [`${APP_OVERRIDE_KEY_PREFIX}%`],
-  );
+  const rows = await loadSettingRowsByKeyPrefix(APP_OVERRIDE_KEY_PREFIX);
 
   const overrides: Record<string, AppOverride> = {};
   for (const row of rows) {
@@ -84,10 +82,9 @@ export async function saveAppOverride(exeName: string, override: AppOverride | n
   }
 
   const key = `${APP_OVERRIDE_KEY_PREFIX}${canonicalExe}`;
-  const db = await getDB();
 
   if (!override || override.enabled === false) {
-    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    await deleteSettingValue(key);
     return;
   }
 
@@ -95,16 +92,11 @@ export async function saveAppOverride(exeName: string, override: AppOverride | n
 }
 
 export async function clearAllAppOverrides(): Promise<void> {
-  const db = await getDB();
-  await db.execute("DELETE FROM settings WHERE key LIKE ?", [`${APP_OVERRIDE_KEY_PREFIX}%`]);
+  await deleteSettingsByKeyPrefix(APP_OVERRIDE_KEY_PREFIX);
 }
 
 export async function loadCategoryColorOverrides(): Promise<Record<string, string>> {
-  const db = await getDB();
-  const rows = await db.select<{ key: string; value: string }[]>(
-    "SELECT key, value FROM settings WHERE key LIKE ?",
-    [`${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}%`],
-  );
+  const rows = await loadSettingRowsByKeyPrefix(CATEGORY_COLOR_OVERRIDE_KEY_PREFIX);
 
   const overrides: Record<string, string> = {};
   for (const row of rows) {
@@ -127,10 +119,9 @@ export async function saveCategoryColorOverride(
   colorValue: string | null,
 ): Promise<void> {
   const key = `${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}${category}`;
-  const db = await getDB();
   const normalizedColor = normalizeHexColor(colorValue ?? undefined);
   if (!normalizedColor) {
-    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    await deleteSettingValue(key);
     return;
   }
 
@@ -138,16 +129,11 @@ export async function saveCategoryColorOverride(
 }
 
 export async function clearAllCategoryColorOverrides(): Promise<void> {
-  const db = await getDB();
-  await db.execute("DELETE FROM settings WHERE key LIKE ?", [`${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}%`]);
+  await deleteSettingsByKeyPrefix(CATEGORY_COLOR_OVERRIDE_KEY_PREFIX);
 }
 
 export async function loadCategoryDefaultColorAssignments(): Promise<Record<string, string>> {
-  const db = await getDB();
-  const rows = await db.select<{ key: string; value: string }[]>(
-    "SELECT key, value FROM settings WHERE key LIKE ?",
-    [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}%`],
-  );
+  const rows = await loadSettingRowsByKeyPrefix(CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX);
 
   const assignments: Record<string, string> = {};
   for (const row of rows) {
@@ -170,10 +156,9 @@ export async function saveCategoryDefaultColorAssignment(
   colorValue: string | null,
 ): Promise<void> {
   const key = `${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`;
-  const db = await getDB();
   const normalizedColor = normalizeHexColor(colorValue ?? undefined);
   if (!normalizedColor) {
-    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    await deleteSettingValue(key);
     return;
   }
 
@@ -181,11 +166,7 @@ export async function saveCategoryDefaultColorAssignment(
 }
 
 export async function loadCustomCategories(): Promise<CustomAppCategory[]> {
-  const db = await getDB();
-  const rows = await db.select<{ key: string }[]>(
-    "SELECT key FROM settings WHERE key LIKE ?",
-    [`${CUSTOM_CATEGORY_KEY_PREFIX}%`],
-  );
+  const rows = await loadSettingKeysByKeyPrefix(CUSTOM_CATEGORY_KEY_PREFIX);
 
   const categories = new Set<CustomAppCategory>();
   for (const row of rows) {
@@ -205,24 +186,19 @@ export async function saveCustomCategory(category: CustomAppCategory): Promise<v
 }
 
 export async function deleteCustomCategory(category: CustomAppCategory): Promise<void> {
-  const db = await getDB();
-  await db.execute("DELETE FROM settings WHERE key = ?", [`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`]);
-  await db.execute("DELETE FROM settings WHERE key = ?", [`${DELETED_CATEGORY_KEY_PREFIX}${category}`]);
-  await db.execute("DELETE FROM settings WHERE key = ?", [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`]);
+  await deleteSettingValue(`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`);
+  await deleteSettingValue(`${DELETED_CATEGORY_KEY_PREFIX}${category}`);
+  await deleteSettingValue(`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`);
 }
 
 export async function loadDeletedCategories(): Promise<AppCategory[]> {
-  const db = await getDB();
-  const rows = await db.select<{ key: string }[]>(
-    "SELECT key FROM settings WHERE key LIKE ?",
-    [`${DELETED_CATEGORY_KEY_PREFIX}%`],
-  );
+  const rows = await loadSettingKeysByKeyPrefix(DELETED_CATEGORY_KEY_PREFIX);
 
   const categories = new Set<AppCategory>();
   for (const row of rows) {
     const category = row.key.slice(DELETED_CATEGORY_KEY_PREFIX.length);
     if (!isPersistableDeletedCategory(category)) {
-      await db.execute("DELETE FROM settings WHERE key = ?", [row.key]);
+      await deleteSettingValue(row.key);
       continue;
     }
     categories.add(category);
@@ -233,17 +209,16 @@ export async function loadDeletedCategories(): Promise<AppCategory[]> {
 
 export async function saveDeletedCategory(category: AppCategory, deleted: boolean): Promise<void> {
   const key = `${DELETED_CATEGORY_KEY_PREFIX}${category}`;
-  const db = await getDB();
   if (!isPersistableDeletedCategory(category)) {
-    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    await deleteSettingValue(key);
     return;
   }
   if (!deleted) {
-    await db.execute("DELETE FROM settings WHERE key = ?", [key]);
+    await deleteSettingValue(key);
     return;
   }
   await upsertSettingValue(key, String(Date.now()));
-  await db.execute("DELETE FROM settings WHERE key = ?", [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`]);
+  await deleteSettingValue(`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`);
 }
 
 export async function loadOtherCategoryCandidates(
@@ -261,24 +236,9 @@ export async function loadObservedAppCandidates(
   days: number = 30,
   limit: number = 120,
 ): Promise<ObservedAppCandidate[]> {
-  const db = await getDB();
   const sinceMs = Date.now() - (Math.max(1, days) * 24 * 60 * 60 * 1000);
   const nowMs = Date.now();
-  const rows = await db.select<Array<{
-    exe_name: string;
-    app_name: string;
-    total_duration: number;
-    last_seen_ms: number;
-  }>>(
-    `SELECT exe_name,
-            MAX(COALESCE(app_name, '')) AS app_name,
-            SUM(COALESCE(duration, MAX(0, ? - start_time))) AS total_duration,
-            MAX(start_time) AS last_seen_ms
-     FROM sessions
-     WHERE start_time >= ?
-     GROUP BY exe_name`,
-    [nowMs, sinceMs],
-  );
+  const rows = await loadObservedSessionStats(sinceMs, nowMs);
 
   const merged = new Map<string, ObservedAppCandidate>();
 
@@ -328,10 +288,7 @@ export async function deleteObservedAppSessions(
     return 0;
   }
 
-  const db = await getDB();
-  const rows = await db.select<Array<{ exe_name: string }>>(
-    "SELECT DISTINCT exe_name FROM sessions",
-  );
+  const rows = await loadDistinctSessionExeNames();
   const matchedExeNames = rows
     .map((row) => row.exe_name)
     .filter((rawExeName) => resolveCanonicalExecutable(rawExeName) === canonicalExe);
@@ -340,7 +297,6 @@ export async function deleteObservedAppSessions(
     return 0;
   }
 
-  const placeholders = matchedExeNames.map(() => "?").join(", ");
   const now = new Date();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
@@ -348,19 +304,14 @@ export async function deleteObservedAppSessions(
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   if (scope === "all") {
-    await db.execute(
-      `DELETE FROM sessions WHERE exe_name IN (${placeholders})`,
-      matchedExeNames,
-    );
+    await deleteSessionsByExeNames(matchedExeNames);
     return matchedExeNames.length;
   }
 
-  await db.execute(
-    `DELETE FROM sessions
-     WHERE exe_name IN (${placeholders})
-       AND start_time >= ?
-       AND start_time < ?`,
-    [...matchedExeNames, dayStart.getTime(), dayEnd.getTime()],
+  await deleteSessionsByExeNamesBetween(
+    matchedExeNames,
+    dayStart.getTime(),
+    dayEnd.getTime(),
   );
 
   return matchedExeNames.length;

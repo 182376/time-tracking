@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, Clock, Minus, Plus } from "lucide-react";
 import { type HistorySession } from "../../../shared/lib/sessionReadRepository";
-import { UI_TEXT } from "../../../lib/copy";
+import { UI_TEXT } from "../../../shared/copy/uiText";
 import {
   formatDuration,
   formatTime,
@@ -18,8 +18,11 @@ import {
   formatChartHours,
 } from "../services/historyFormatting";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
-import { HistoryReadModelService, type HistorySnapshot } from "../../../shared/lib/historyReadModelService";
-import type { TrackerHealthSnapshot } from "../../../types/tracking";
+import {
+  buildHistoryReadModel,
+  type HistorySnapshot,
+} from "../services/historyReadModel";
+import type { TrackerHealthSnapshot } from "../../../shared/types/tracking";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
@@ -134,7 +137,7 @@ export default function History({
   const isToday = selectedDate.toDateString() === new Date().toDateString();
   const showInitialLoading = loading && !hasFetchedOnce;
   const historyView = useMemo(
-    () => HistoryReadModelService.buildHistoryReadModel({
+    () => buildHistoryReadModel({
       daySessions: rawDaySessions,
       weeklySessions: rawWeeklySessions,
       selectedDate,

@@ -1,4 +1,4 @@
-import { DEFAULT_APP_MAPPINGS } from "./config/defaultMappings.ts";
+import { DEFAULT_APP_MAPPINGS } from "../config/defaultMappings.ts";
 
 const DERIVED_ALIAS_SUFFIXES = [
   "webhelper",
@@ -150,10 +150,10 @@ function hasLifecycleMetadataSignal(value: string) {
   }
 
   if (
-    normalized.includes("安装")
-    || normalized.includes("卸载")
-    || normalized.includes("更新")
-    || normalized.includes("维护工具")
+    normalized.includes("瀹夎")
+    || normalized.includes("鍗歌浇")
+    || normalized.includes("鏇存柊")
+    || normalized.includes("缁存姢宸ュ叿")
   ) {
     return true;
   }

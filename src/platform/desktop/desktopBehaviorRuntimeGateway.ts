@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CloseBehavior, MinimizeBehavior } from "../../lib/settings-store";
+import type { CloseBehavior, MinimizeBehavior } from "../../shared/settings/appSettings";
 
 export async function setDesktopBehavior(
   closeBehavior: CloseBehavior,
