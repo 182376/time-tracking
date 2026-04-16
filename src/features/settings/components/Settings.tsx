@@ -11,7 +11,7 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
-import { UI_TEXT } from "../../../shared/copy/uiText";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../../shared/settings/appSettings";
 import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
 import type { SettingsPageProps, CleanupRange } from "../types";

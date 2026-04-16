@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { UI_TEXT } from "../shared/copy/uiText";
+import { UI_TEXT } from "../shared/copy/uiText.ts";
 import Sidebar from "../shared/components/Sidebar";
 import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack from "../shared/components/ToastStack";

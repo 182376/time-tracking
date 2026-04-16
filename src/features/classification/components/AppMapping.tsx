@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
-import { UI_TEXT } from "../../../shared/copy/uiText";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import {
   ClassificationService,
   type AppOverride,

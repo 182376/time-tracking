@@ -2,13 +2,20 @@
 
 This repository uses `Quiet Pro` as the only long-term UI design baseline.
 
+This file is the top-level collaboration entry point for repository-aware agents.
+
 These instructions apply to all UI work unless the user gives an explicit task-specific override.
 
 ## Always Read First
 
+- Product direction and scope must follow `docs/product-principles-and-scope.md`.
+- Roadmap and priority decisions must follow `docs/roadmap-and-prioritization.md`.
+- Engineering quality direction should follow `docs/engineering-quality-target.md`.
 - UI work must follow `docs/quiet-pro-component-guidelines.md`.
-- Architecture refactors and new modules should align with `docs/architecture-target.md`.
-- Treat `docs/architecture-target.md` and `docs/quiet-pro-component-guidelines.md` as the current authoritative long-lived documents, even if older/generated variants once existed.
+- Architecture refactors, boundary decisions, and new modules must align with `docs/architecture.md`.
+- Stable-period issue fixes and boundary triage must follow `docs/issue-fix-boundary-guardrails.md`.
+- Versioning, changelog, and release work must follow `docs/versioning-and-release-policy.md`.
+- Treat the top-level long-lived docs under `docs/` as the current source of truth.
 
 ## Quiet Pro Baseline
 
@@ -47,18 +54,45 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 
 ## Architecture Direction
 
-- Prefer gradual migration toward the target architecture instead of big-bang rewrites.
-- Frontend should move toward feature-first structure with shared code explicitly separated.
-- Rust backend should move toward clear layers: app, commands, platform, engine, data, domain.
-- Keep Tauri command handlers thin; move business logic out of entry and command wiring files.
-- Avoid introducing new cross-feature utilities in ad hoc locations when they belong in a feature module or shared layer.
+- Follow `docs/architecture.md` as the architecture mother document.
+- Frontend long-term structure is `app / features / shared / platform`.
+- Rust long-term structure is `lib.rs + app / commands / platform / engine / data / domain`.
+- Keep Tauri command handlers thin; do not let `commands/*` or `lib.rs` regrow thick business logic.
+- Prefer owner-first placement: decide the real owner before deciding the file or layer.
+- `shared/*` is only for stable shared capability, not a temporary bucket.
+- `platform/*` is for explicit external-environment boundaries, not a generic dump for hard problems.
+- Do not reintroduce exited root layers such as `src/lib/` or `src/types/`.
+- Treat compatibility shells and forwarding layers as explicit exceptions that should stay thin.
 - Treat files under `docs/archive/` as historical context, not the default source of truth.
+
+## Product And Priority Direction
+
+- Keep the product centered on personal, local-first, Windows desktop time tracking.
+- Prioritize trust, readability, control, and long-term usability over feature count.
+- Do not quietly expand the product toward team SaaS, cloud-first workflows, mobile-first usage, or gamified productivity unless the user explicitly changes product direction.
+- When multiple directions compete, prefer correctness, data safety, and high-frequency core flows before expansion work.
+
+## Stable-Period Fixing
+
+- In the stable period, fix problems by deciding owner first and implementation second.
+- Use the lightest mode that fits the issue: small fix, boundary judgment, or execution plan.
+- If a fix requires a new shared abstraction, cross-layer relocation, or a new compatibility shell, stop and reassess before implementing.
+- Keep `app/*`, `shared/*`, `platform/*`, `lib.rs`, and `commands/*` under extra scrutiny because they are high-attraction layers.
+
+## Release And Validation
+
+- For release work, keep version files, Git tags, GitHub Release titles, and updater artifacts consistent.
+- Do not skip the minimum validation bar for architecture-affecting or release-affecting changes.
+- The default minimum frontend validation bar is `npm test`, `npm run test:replay`, and `npm run build`.
+- Treat code quality, software performance, and reliability/validation as related but different concerns; do not optimize one by accidentally damaging the others.
 
 ## Documentation Hygiene
 
 - Top-level `docs/` is for active long-lived reference documents only.
 - One-off execution plans, temporary fix plans, and completed task documents should not stay in top-level `docs/`.
+- Temporary execution plans may live under a dedicated subdirectory such as `docs/working/`, but should be archived once they stop being the active execution basis.
 - When a one-off document is no longer the current source of truth, move it to `docs/archive/`.
+- When a long-lived rule changes, update the relevant top-level doc instead of scattering the new rule across temporary notes.
 - Do not update or rely on `docs/archive/*` as the default execution basis unless the user explicitly asks for historical context.
 - Do not try to reconstruct long-lived docs from old mojibake terminal output or archived one-off plans when a current top-level source-of-truth document already exists.
 

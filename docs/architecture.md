@@ -1,0 +1,562 @@
+# 架构规范
+
+## 1. 文档定位
+
+本文件定义 `Time Tracker` 当前阶段的长期架构基线。
+
+它不是迁移记录、执行清单或某一轮重构计划，而是以后新增代码、调整边界、评估结构风险时都应默认遵循的母规则。
+
+本文件主要回答 5 件事：
+
+- 这套系统当前稳定的长期结构是什么
+- 前端与 Rust 各层分别负责什么、不负责什么
+- 前后端、运行时、SQLite、IPC 的所有权如何划分
+- 新增代码默认应该落在哪一层
+- 什么行为属于架构回流或越界
+
+如果一次性执行单、临时修复方案或局部实现习惯与本文件冲突，以本文件为准。
+
+历史迁移背景与上一轮收口记录保留在：
+
+- [`archive/architecture-target.md`](./archive/architecture-target.md)
+- [`archive/architecture-migration-checklist.md`](./archive/architecture-migration-checklist.md)
+
+---
+
+## 2. 系统现实
+
+`Time Tracker` 不是普通 Web 应用，而是一个：
+
+- `Tauri v2` 桌面应用
+- `Rust + React + TypeScript` 双栈工程
+- 本地优先、SQLite 驱动的数据产品
+- 强依赖 Windows 前台窗口、图标、锁屏、休眠等平台能力的时间追踪工具
+
+这意味着长期架构设计优先服务于：
+
+- 稳定运行时
+- 清晰所有权
+- 可验证行为
+- 渐进演进
+- 对本地数据与平台细节的可控性
+
+而不是服务于：
+
+- 目录表面整齐
+- 一次性“大重构完成感”
+- 为抽象而抽象的分层模板
+
+---
+
+## 3. 架构原则
+
+### 3.1 所有权优先于方便修改
+
+代码应该落在真正拥有该能力的层，而不是“当前最顺手改”的层。
+
+### 3.2 运行时写侧归 Rust，界面与读模型归前端
+
+Rust 拥有运行时主链和写侧副作用；前端拥有 UI、交互编排和读模型组织。
+
+### 3.3 平台细节必须显式收口
+
+与 Tauri、SQLite、本地桌面环境、Windows API 打交道的能力必须有明确边界，不应散落在页面、壳层或临时 util 中。
+
+### 3.4 共享层只承接稳定共享能力
+
+`shared/*` 不是“多个地方都可能会用”的暂存区，只容纳稳定、低上下文依赖、跨 feature 的能力。
+
+### 3.5 入口层保持薄
+
+前端 `app/*`、Rust `lib.rs` 与 `commands/*` 都属于高吸力层。它们可以编排，但不应沉淀厚业务实现。
+
+### 3.6 渐进重构优先于大爆炸
+
+允许在真实任务中顺手推进一小步边界收敛，但不为了“目录更整齐”做无收益搬迁。
+
+### 3.7 例外必须显式且尽量变薄
+
+稳定期允许存在少量兼容壳、转发层或历史适配层，但前提是：
+
+- 它确实在服务兼容或平滑迁移
+- 它不承接新的厚逻辑
+- 它有明确 owner
+- 它不会重新把边界变模糊
+
+如果一个“临时例外”开始承接新功能，它就不再是例外，而是在制造新的遗留层。
+
+---
+
+## 4. 系统边界与所有权
+
+当前系统存在 3 条明确协作通道：
+
+### 4.1 Rust 运行时通道
+
+Rust 负责：
+
+- 前台窗口采样
+- session 生命周期
+- 锁屏 / 休眠 / AFK 等时序处理
+- updater / tray / autostart 等桌面行为
+
+这条通道是产品最关键的运行时主链。
+
+### 4.2 Tauri IPC 通道
+
+前端通过 command / event 与 Rust 协作，用于：
+
+- 获取活动窗口与 tracker 状态
+- 同步运行时事件
+- 修改桌面行为
+- 调用更新与备份能力
+
+IPC 契约应保持稳定、可解析、可测试。
+
+### 4.3 前端本地 SQLite 通道
+
+前端当前保留受控的本地 SQLite 访问，用于：
+
+- settings 读写
+- classification 读写
+- history / dashboard 读模型查询
+
+这条通道不是默认自由边界，而是显式受控边界。规则如下：
+
+- 页面组件不能直接写 SQL
+- feature 不能直接跳过边界访问底层 DB
+- SQLite 访问应通过 `platform/persistence/*` 暴露的明确出口
+- 涉及运行时写侧和平台副作用的操作，优先迁往 Rust command
+
+---
+
+## 5. 前端长期结构
+
+当前前端长期结构为：
+
+```text
+src/
+  app/
+  features/
+    classification/
+    dashboard/
+    history/
+    settings/
+    update/
+  shared/
+  platform/
+```
+
+前端终局结构中不再保留：
+
+- 根层 `src/lib/`
+- 根层 `src/types/`
+
+### 5.1 `app/`
+
+`app/*` 负责：
+
+- 应用入口与壳层
+- 启动 bootstrap
+- 全局 provider
+- 页面切换与全局对话框
+- 跨 feature 运行时编排
+
+`app/*` 不负责：
+
+- feature 私有规则
+- feature 私有格式化
+- 直接写 SQL
+- 平台网关实现
+- 持续膨胀成新的全局业务中心
+
+### 5.2 `features/`
+
+`features/*` 负责产品能力闭环。
+
+每个 feature 优先拥有自己的：
+
+- `components/`
+- `hooks/`
+- `services/`
+- `types.ts`
+
+页面型 feature 当前包括：
+
+- `dashboard`
+- `history`
+- `classification`
+- `settings`
+
+支持型 feature 当前包括：
+
+- `update`
+
+### 5.3 `shared/`
+
+`shared/*` 只放稳定的跨 feature 能力，例如：
+
+- Quiet Pro 组件原型
+- 共享 hooks
+- 共享类型
+- 纯展示格式化
+- 低上下文依赖的共享只读模型能力
+
+判断一个能力是否应该进入 `shared/*`，至少满足：
+
+- 已脱离单一 feature
+- 语义稳定
+- 不依赖页面局部状态
+- 不直接承担平台细节
+
+`shared/*` 不应成为：
+
+- 新的 runtime adapter 桶
+- 新的 persistence adapter 桶
+- 新的兼容层垃圾桶
+
+当前仓库中保留 `shared/lib/*` 这一历史子目录形态，但它的含义应理解为：
+
+- 当前稳定共享逻辑的具体存放位置
+- 不是新的“临时公共能力桶”
+- 不是平台适配或持久化实现的默认落点
+
+### 5.4 `platform/`
+
+`platform/*` 是前端外部环境边界层，负责：
+
+- runtime gateway
+- persistence gateway
+- 备份 / 更新适配
+- 桌面运行时能力包装
+
+子目录优先按能力边界命名，例如：
+
+- `runtime/`
+- `persistence/`
+- `desktop/`
+- `backup/`
+
+而不是优先按技术名命名。
+
+新增前端外部环境适配默认优先进入 `platform/*`。
+
+当前仓库中存在少量历史例外（例如 `platform/tauri/` 这类技术名目录痕迹）时，应理解为迁移遗留或占位痕迹，而不是新的命名先例；后续不应继续扩张这类目录。
+
+### 5.5 前端兼容壳规则
+
+前端允许保留少量兼容壳，例如：
+
+- 为旧调用方保留的薄转发入口
+- 逐步迁移中的服务形状兼容层
+
+但这些兼容壳必须满足：
+
+- 自身不新增 feature 私有规则
+- 自身不直接承担平台实现
+- 优先做转发、组合、类型兼容
+- 一旦真实 owner 已清晰，新逻辑直接落到真实 owner，而不是继续堆在兼容壳上
+
+---
+
+## 6. Rust 长期结构
+
+当前 Rust 长期结构为：
+
+```text
+src-tauri/src/
+  main.rs
+  lib.rs
+  app/
+  commands/
+  platform/
+  engine/
+  domain/
+  data/
+```
+
+### 6.1 `main.rs` 与 `lib.rs`
+
+它们负责应用入口与总装配。
+
+允许承担：
+
+- context 获取
+- builder 组装
+- plugin 注册
+- invoke handler 汇总
+- setup 链路接入
+
+不应承担：
+
+- 厚业务逻辑
+- 仓储实现
+- 平台细节
+- 核心 tracking 规则
+
+### 6.2 `app/`
+
+`app/*` 负责：
+
+- Tauri 应用装配
+- runtime state
+- tray / window 生命周期协调
+- 应用级启动链路
+
+`app/*` 不负责：
+
+- 仓储细节
+- 厚领域判断
+- 第二套业务中心
+
+### 6.3 `commands/`
+
+`commands/*` 只做：
+
+- `#[tauri::command]` 入口
+- 参数接收
+- DTO 映射
+- 转发到 `app / engine / data`
+
+`commands/*` 不做：
+
+- 大段业务判断
+- 复杂时序编排
+- 平台 API 细节
+- 仓储实现细节
+
+### 6.4 `platform/`
+
+`platform/*` 负责：
+
+- Windows API 细节
+- 前台窗口、图标、电源事件等平台能力
+- 未来其他平台的隔离落点
+
+目标是：
+
+- 隔离平台实现
+- 避免平台细节泄漏到 `engine`
+- 避免平台语义污染 `domain`
+
+### 6.5 `engine/`
+
+`engine/*` 是产品核心行为层，负责：
+
+- tracking 主链
+- session 生命周期与时序
+- watchdog / self-heal / updater 等核心流程
+- 与平台事件、数据边界对接的行为编排
+
+tracking 相关逻辑应继续在：
+
+```text
+engine/tracking/
+  runtime.rs
+  transition.rs
+  watchdog.rs
+  startup.rs
+  metadata.rs
+```
+
+这一结构中演进，而不是回流到单个超厚文件或入口层。
+
+### 6.6 `domain/`
+
+`domain/*` 负责：
+
+- 领域名词
+- 共享实体
+- 值对象
+- 不变量
+- 状态转换语义
+- 跨层稳定契约
+
+它不应只是：
+
+- DTO 仓库
+- 临时 struct 存放点
+
+### 6.7 `data/`
+
+`data/*` 负责：
+
+- sqlite pool
+- migrations
+- repositories
+- backup / restore 数据读写
+- 数据边界与仓储实现
+
+它必须持续拦住这些细节回流到：
+
+- `commands/*`
+- `app/*`
+- `engine/*`
+
+### 6.8 Rust 兼容与演进规则
+
+Rust 侧允许为了稳定演进保留少量入口协调或兼容封装，但规则是：
+
+- 新增核心逻辑优先进入 `engine / domain / data`
+- `app/*` 只保留装配与 runtime 协调，不吸收厚业务
+- `commands/*` 只保留 IPC 边界适配，不吸收流程编排
+- 如果某段逻辑未来还会继续增长，优先先给它一个真实 owner，而不是暂挂在入口层
+
+---
+
+## 7. 新增代码决策顺序
+
+新增代码时，先不要问“放哪里最方便”，而是按下面顺序判断 owner。
+
+### 7.1 前端 owner 判断顺序
+
+1. 它是不是某个 feature 私有的 UI、状态或服务？
+2. 如果不是，它是不是稳定的跨 feature 共享能力？
+3. 如果不是，它是不是前端与外部环境打交道的边界适配？
+4. 如果不是，它是不是应用壳层或跨 feature 编排？
+
+默认映射：
+
+- feature 私有能力：进 `features/*`
+- 稳定共享能力：进 `shared/*`
+- 外部环境适配：进 `platform/*`
+- 壳层 / 编排：进 `app/*`
+
+### 7.2 Rust owner 判断顺序
+
+1. 它是不是 Tauri 命令入口或参数映射？
+2. 如果不是，它是不是应用装配或 runtime 协调？
+3. 如果不是，它是不是平台 API 细节？
+4. 如果不是，它是不是核心行为流程？
+5. 如果不是，它是不是领域语义或稳定契约？
+6. 如果不是，它是不是数据边界与仓储实现？
+
+默认映射：
+
+- 命令入口：进 `commands/*`
+- 装配 / 协调：进 `app/*`
+- 平台细节：进 `platform/*`
+- 核心行为：进 `engine/*`
+- 领域语义：进 `domain/*`
+- 数据细节：进 `data/*`
+
+---
+
+## 8. 新增代码落点规则
+
+### 8.1 前端
+
+- 页面私有 UI：进对应 `features/*/components`
+- 页面私有状态编排：进对应 `features/*/hooks`
+- 页面私有服务与读模型入口：进对应 `features/*/services`
+- 应用壳层、启动链路、跨 feature 协调：进 `app/*`
+- 共享组件、共享类型、共享纯函数：进 `shared/*`
+- Tauri / SQLite / 本地桌面环境适配：优先进 `platform/*`
+
+### 8.2 Rust
+
+- Tauri 命令入口：进 `commands/*`
+- 应用装配与 runtime 协调：进 `app/*`
+- 平台 API 细节：进 `platform/*`
+- 核心行为流程：进 `engine/*`
+- 领域模型与语义：进 `domain/*`
+- sqlite 与仓储：进 `data/*`
+
+不确定时，优先放在最小作用域，而不是优先抽公共层。
+
+---
+
+## 9. 禁止事项
+
+- 不为了目录整齐做大规模无收益迁移
+- 不恢复根层 `src/lib/*`
+- 不恢复根层 `src/types/*`
+- 不让 `shared/*` 重新变成跨层垃圾桶
+- 不让 `platform/*` 变成万能目录
+- 不让页面组件直接依赖 DB 或平台细节
+- 不让 `app/*` 长成新的全局业务中心
+- 不让 `commands/*` 回胖成业务中心
+- 不让 `engine/*` 重新收缩为单个超厚文件
+- 不把“文件位置看起来对了”误判为“职责已经收口”
+
+---
+
+## 10. 当前重点防守区
+
+当前稳定期最需要防止回流的高风险区域包括：
+
+- 前端 `app/*`
+- 前端 `shared/*`，尤其是 `shared/lib/*`
+- 前端 `platform/*`
+- Rust `lib.rs`
+- Rust `app/*`
+- Rust `commands/*`
+
+这些区域不是不能改，而是默认应带着更强的警惕心修改：
+
+- 先确认 owner
+- 先确认是不是在吸收本不属于它的逻辑
+- 先确认有没有把真实 owner 延后
+
+如果一个改动会让这些高吸力层明显变厚，应优先暂停并重新判断边界。
+
+---
+
+## 11. 如何判断架构在健康落地
+
+当下面这些现象稳定存在时，可以认为架构在健康落地：
+
+- 新增前端代码默认落在 `app / features / shared / platform`
+- 新增 Rust 核心逻辑默认进入 `engine / domain / data`
+- 页面组件不再自然碰基础设施
+- 平台适配不再散落在多个层级
+- `commands/*` 与 `lib.rs` 没有重新变厚
+- `shared/*` 没有新增明显的过渡职责
+- 新问题默认先判断 owner，再实现
+- 关键路径变更可以通过固定验证快速回归
+
+---
+
+## 12. 最低验证门槛
+
+稳定期不是要求每次都做最重验证，而是要求对关键边界变化至少做与风险匹配的最小验证。
+
+默认规则：
+
+- 改动页面展示、读模型、分类映射、tracking 前端边界时，至少运行当前仓库已有的前端验证链
+- 改动运行时主链、IPC 契约、Rust 核心行为时，至少运行能覆盖该链路的现有验证，而不是只看类型通过
+- 只改文档时，不要求运行构建或测试，但不能让文档与仓库现状失真
+
+当前仓库里，前端关键路径变更的默认最小验证可参考：
+
+- `npm test`
+- `npm run test:replay`
+- `npm run build`
+
+如果某次结构性改动无法通过这些最小验证之一，应优先解释风险或补验证，而不是直接跳过。
+
+---
+
+## 13. 与其他长期文档的关系
+
+本文件回答“代码结构应该如何长期收敛”。
+
+它与其他长期文档的关系如下：
+
+- 与 [`product-principles-and-scope.md`](./product-principles-and-scope.md) 互补：产品原则决定“什么值得做”，本文件决定“代码应该怎么承接”。
+- 与 [`roadmap-and-prioritization.md`](./roadmap-and-prioritization.md) 互补：路线图决定“什么先做”，本文件决定“做的时候落在哪一层”。
+- 与 [`quiet-pro-component-guidelines.md`](./quiet-pro-component-guidelines.md) 互补：Quiet Pro 约束视觉与组件边界，本文件约束代码与所有权边界。
+- 与 [`issue-fix-boundary-guardrails.md`](./issue-fix-boundary-guardrails.md) 互补：边界守则决定具体问题如何分流，本文件提供分流时依赖的长期结构基线。
+- 与 [`versioning-and-release-policy.md`](./versioning-and-release-policy.md) 互补：发布规范决定什么样的变更可以形成正式版本，本文件决定这些变更如何稳定落地。
+
+---
+
+## 14. 给 Codex 与后续协作者的执行约束
+
+- 按本文件方向收敛，但不要做一次性全仓库重构
+- 优先在当前任务真正触及的区域里推进一小步
+- 新增前端外部环境适配时，优先判断是否应落到 `platform/*`
+- 新增 Rust 核心逻辑时，优先判断是否应落到 `engine / domain / data`
+- 如果某次任务涉及边界归属不清，先按 [`issue-fix-boundary-guardrails.md`](./issue-fix-boundary-guardrails.md) 做分流，再决定是否直接实现
+- 如果需要历史迁移背景或上一轮收口记录，再回看归档架构文档，而不是把本文件重新写回迁移清单
+- 如果某次任务需要引入兼容壳或临时例外，必须优先证明它不会成为新的长期落点

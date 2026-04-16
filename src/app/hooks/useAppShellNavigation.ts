@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { UI_TEXT } from "../../shared/copy/uiText";
+import { UI_TEXT } from "../../shared/copy/uiText.ts";
 import type { View } from "../../shared/types/app";
 
 type SaveHandler = (() => Promise<boolean>) | null;

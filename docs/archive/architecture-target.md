@@ -1,4 +1,9 @@
-# 架构目标文档
+# 架构目标文档（归档）
+
+> 归档说明（2026-04-16）
+>
+> 本文档已从顶层 `docs/` 退役并归档，保留为下一版长期架构文档开始构思前的最近一轮架构基线与历史背景。
+> 它不再作为当前顶层长期架构 source of truth，但仍可作为近期架构收敛结果、边界演进脉络和迁移背景的参考。
 
 ## 1. 文档定位
 
@@ -22,9 +27,9 @@
 
 当前最重要的变化有 3 个：
 
-- 前端的 `feature-first` 骨架已经基本成立，但运行时适配、共享读模型、遗留基础设施仍然交织。
-- Rust 侧的层级已经拉开，但 `tracking` 核心链路仍然偏厚，`domain` 仍偏轻。
-- 前后端之间实际上已经形成了“Rust 运行时 + 前端本地读写 + Tauri IPC”三条协作通道，长期必须把这三条通道的边界讲清楚。
+- 前端的 `feature-first + platform` 基线已经成立，重点从“补骨架”转为“守边界，防止 `app / shared / platform` 再次混层”。
+- Rust 侧的 `app / commands / platform / engine / data / domain` 基线已经成立，重点从“拆目录”转为“让新增逻辑持续进入正确 owner，而不是回流到入口层”。
+- 前后端之间的“Rust 运行时 + 前端本地读写 + Tauri IPC”三条协作通道已经基本讲清楚，后续重点是稳定契约、验证行为，而不是重新模糊所有权。
 
 也就是说，当前的长期架构问题已经不是“有没有目标结构”，而是：
 
@@ -59,7 +64,7 @@
 
 ### 4.1 前端现状
 
-当前前端已经明显收敛到下面这个现实形态：
+当前前端已经稳定在下面这个现实形态：
 
 ```text
 src/
@@ -71,8 +76,7 @@ src/
     settings/
     update/
   shared/
-  lib/
-  types/
+  platform/
 ```
 
 它已经具备这些积极信号：
@@ -83,7 +87,7 @@ src/
 - settings / history / dashboard / classification 的主落点已经比较清楚
 - `update` 已经作为一个支持型 feature 出现，而不再散落为页面局部逻辑
 
-但当前前端也存在 5 个明确压力点：
+但当前前端仍有 5 个需要持续守住的压力点：
 
 #### 4.1.1 `app/` 仍承担较重的跨 feature 编排
 
@@ -98,17 +102,16 @@ src/
 
 这说明 `app/` 方向是对的，但仍需要继续向“壳层与运行时编排”收敛，而不是继续长成新的全局业务层。
 
-#### 4.1.2 前端还没有一个明确的 `platform` 落点
+#### 4.1.2 前端 `platform` 已建立，但仍要持续守住边界
 
-当前与 Tauri / 本地运行时 / 本地存储打交道的能力散落在：
+当前与 Tauri / 本地运行时 / 本地存储打交道的前端能力已经有明确落点，例如：
 
-- `app/services/*Runtime*`
-- `shared/lib/*Adapter*`
-- `src/lib/db.ts`
-- `src/lib/settings-store.ts`
-- `src/lib/classification-store.ts`
+- `platform/runtime/*`
+- `platform/persistence/*`
+- `platform/desktop/*`
+- `platform/backup/*`
 
-这意味着“平台适配”“持久化细节”“共享只读能力”还没有被完全区分开。
+当前重点不再是“有没有 `platform`”，而是继续避免平台适配重新回流到 `app/services`、`shared/lib` 或新的根层公共目录。
 
 #### 4.1.3 `shared/lib/*` 同时承接了多种角色
 
@@ -122,32 +125,29 @@ src/
 
 这层已经有价值，但如果不继续收敛，很容易再次变成“新的过渡桶”。
 
-#### 4.1.4 `src/lib/*` 仍是遗留基础设施带
+#### 4.1.4 `src/lib/*` 已退出，重点转为防止遗留层回流
 
-当前 `src/lib/*` 中仍保留了较多历史核心能力，例如：
+前端根层 `src/lib/*` 已经退出，原先的历史核心能力已经分别归位到：
 
-- `ProcessMapper`
-- `classification-store`
-- `settings-store`
-- `db`
-- `config/*`
+- `features/classification/*`
+- `shared/*`
+- `platform/*`
 
-这说明 `src/lib/*` 仍是前端最主要的遗留压力来源。它不是错误目录，但它必须继续缩小，而不是继续接收新职责。
+当前重点不再是继续迁空 `src/lib/*`，而是明确：以后不应为了图省事重新恢复一个“历史基础设施桶”。
 
-#### 4.1.5 类型边界尚未完全收敛
+#### 4.1.5 根层类型已退出，但类型所有权仍需持续守住
 
-当前类型分散在：
+当前前端类型主要分散在：
 
 - `features/*/types.ts`
 - `shared/types/*`
-- `src/types/*`
-- 部分 `lib/*`
+- 少量稳定共享模块的就近类型定义
 
-这在迁移阶段可以接受，但长期上需要继续收口为：
+当前重点不再是清空根层 `src/types/*`，而是继续守住：
 
-- feature 私有类型回 feature
-- 跨 feature 契约回 `shared/types`
-- 暂未归位的历史类型逐步退出根层 `src/types`
+- feature 私有类型留在 feature
+- 跨 feature 契约留在 `shared/types`
+- 不再为临时兼容需求重新恢复根层 `src/types/*`
 
 ---
 
@@ -177,9 +177,9 @@ src-tauri/src/
 - `data/*` 已经形成了清晰的仓储与 migration 落点
 - `domain/*` 已经不再完全空心
 
-但当前 Rust 仍有 4 个关键压力点：
+但当前 Rust 仍有 4 个需要持续守住的压力点：
 
-#### 4.2.1 `lib.rs` 仍然承担较重的总装配责任
+#### 4.2.1 `lib.rs` 已完成一轮瘦身，但仍要防止回胖
 
 当前 `lib.rs` 中仍集中着：
 
@@ -189,9 +189,9 @@ src-tauri/src/
 - invoke handler 汇总
 - setup 链路接入
 
-这本身不一定错误，但长期需要避免继续把更多业务流程塞回 `lib.rs`。
+这本身不一定错误，但长期重点已经从“先拆出来”转为“避免把更多业务流程重新塞回 `lib.rs`”。
 
-#### 4.2.2 `app/runtime.rs` 仍然偏厚
+#### 4.2.2 `app/runtime.rs` 已回到 runtime 协调层，但仍要防止重新混层
 
 它当前同时承担了：
 
@@ -201,36 +201,29 @@ src-tauri/src/
 - updater 启动检查
 - tracking runtime 守护与拉起
 
-这说明 `app/` 已经在承担真正的应用装配职责，但还需要继续避免变成“第二个业务中心”。
+这说明 `app/` 已经在承担真正的应用装配职责，但仍要继续避免变成“第二个业务中心”。
 
-#### 4.2.3 `engine/tracking_runtime.rs` 仍然是最重的核心模块
+#### 4.2.3 `engine/tracking/*` 已多模块化，但仍要防止重新收缩回单文件
 
-当前 tracking runtime 里仍然混合了多种职责：
+当前 tracking engine 已经拆分为：
 
-- 前台窗口轮询
-- session 切换规则
-- 看门狗逻辑
-- 启动自愈
-- 图标/元数据提取
-- 事件发射
-- 大量 tracking 规则与测试
+- `engine/tracking/runtime.rs`
+- `engine/tracking/transition.rs`
+- `engine/tracking/watchdog.rs`
+- `engine/tracking/startup.rs`
+- `engine/tracking/metadata.rs`
 
-这说明 `engine/` 是对的，但 tracking engine 还需要继续纵向拆分，而不是让核心逻辑长期停留在单个超厚文件里。
+这说明 `engine/` 方向已经成立，后续重点是继续在该子模块结构中演进，而不是把新增核心逻辑重新堆回单个超厚文件。
 
-#### 4.2.4 `domain/` 仍偏 DTO 化
+#### 4.2.4 `domain/` 已承接稳定语义，但仍要继续沉淀领域表达
 
-当前 `domain/*` 里已经有：
+当前 `domain/*` 已经承接了：
 
-- tracking 相关载荷和身份类型
-- settings 解析
-- backup / update 相关模型
+- tracking 相关载荷、身份类型与规则
+- settings 解析与行为语义
+- backup / update 相关契约
 
-但长期上它不能只承担“放共享 struct 的地方”，还要逐步承接：
-
-- 领域名词
-- 不变量
-- 状态转换语义
-- 跨层稳定契约
+后续重点不再是证明 `domain/` 是否存在，而是继续把跨层稳定语义、不变量与状态转换表达沉淀在这里，而不是散回 `commands / app / data`。
 
 ---
 
@@ -621,59 +614,48 @@ Rust `commands/*` 只做：
 
 ---
 
-## 8. 后续 4 个长期优先级
+## 8. 维护期 4 个长期优先级
 
-### 8.1 前端优先级一：把平台适配从散点收敛到 `platform/`
+### 8.1 前端优先级一：持续守住 `platform/` 边界
 
-这是当前前端最值得新增的清晰边界。
+`platform/` 已经建立，当前优先级不再是“把东西搬进去”，而是继续守住：
 
-优先收口对象包括：
-
-- Tauri command / event gateway
-- backup / update adapter
-- SQLite adapter
-- 桌面运行时适配
+- 新增 Tauri command / event gateway 默认进入 `platform/*`
+- 新增 SQLite 访问入口默认进入 `platform/*`
+- 新增桌面运行时适配默认进入 `platform/*`
+- 不让平台细节重新回流到 `app/*`、`shared/*` 或新的根层公共目录
 
 ---
 
-### 8.2 前端优先级二：推动 `src/lib/*` 走向清零
+### 8.2 前端优先级二：保持 `src/lib/*` 已退出且不回流
 
-这依然是最明确的遗留收口任务。
+这项迁移已经完成，当前优先级转为：
 
-重点不是一次性硬删目录，而是：
-
-- 新代码不再流入
-- 触及时迁一小步
-- 能归位到 `features / shared / platform / app` 的，就不要继续堆在根层
-- 持续把目录里的职责迁空，直到它可以被删除
+- 新代码不再恢复 `src/lib/*`
+- 如出现历史兼容需求，优先落到明确 owner 周边的最小兼容层
+- 能归位到 `features / shared / platform / app` 的，就不要新造根层过渡目录
 
 ---
 
-### 8.3 Rust 优先级一：继续拆分 `engine/tracking_runtime.rs`
+### 8.3 Rust 优先级一：继续在 `engine/tracking/*` 内演进
 
-这是当前 Rust 架构里最显眼的收口目标。
+tracking 多模块拆分已经完成，当前优先级转为：
 
-长期上应逐步把其中的：
-
-- 生命周期规则
-- transition 规则
-- watchdog
-- startup self-heal
-- metadata / icon 处理
-
-拆成更清晰的 engine 子模块。
+- 新增 tracking 核心逻辑优先进入对应子模块
+- 继续把生命周期、transition、watchdog、startup、metadata 的 owner 守清楚
+- 不让 tracking 核心行为重新回流到 `lib.rs`、`app/*` 或 `commands/*`
 
 ---
 
 ### 8.4 Rust 优先级二：继续充实 `domain/`
 
-这不是为了多建几个文件，而是为了让：
+这项工作已经从“补空壳”进入“持续沉淀语义”的阶段，重点是让：
 
 - tracking 规则
 - settings 语义
 - update / backup 契约
 
-拥有更稳定的领域表达，而不是长期散落在 command、engine、repository 的细节中。
+继续拥有稳定的领域表达，而不是散回 command、engine、repository 的细节中。
 
 ---
 
@@ -689,7 +671,7 @@ Rust `commands/*` 只做：
 - 应用壳层、启动链路、跨 feature 协调：进 `app/*`
 - 共享组件、共享类型、共享纯函数：进 `shared/*`
 - Tauri / SQLite / 本地桌面环境适配：优先进 `platform/*`
-- 无法立刻归位的历史底层能力：仅在迁移阶段暂留 `src/lib/*`
+- 如出现暂时无法立刻归位的历史底层能力，优先在明确 owner 周边建立最小兼容层，不要重新恢复 `src/lib/*`
 
 ### Rust
 
@@ -722,8 +704,7 @@ Rust `commands/*` 只做：
 当下面这些现象越来越稳定时，可以认为长期方向正在健康落地：
 
 - 新增前端代码默认落在 `app / features / shared / platform`
-- `src/lib/*` 不再自然膨胀
-- `src/lib/*` 持续减少并最终可以整体删除
+- `src/lib/*` 已退出且没有回流迹象
 - 平台适配不再散落在多个层级
 - 页面组件默认不再直接碰基础设施
 - Rust 新增业务逻辑默认进入 `engine / domain / data`
@@ -738,9 +719,9 @@ Rust `commands/*` 只做：
 - 按本文件方向收敛，但不要做一次性全仓库重构
 - 优先在当前任务真正触及的区域里推进一小步
 - 如果某次任务会新增前端外部环境适配，优先考虑是否该落到 `platform/*`
-- 如果某次任务触及 `src/lib/*`，优先判断能否顺手迁到更明确的 owner 层
+- 如果某次任务需要安置历史兼容层，优先判断能否直接落到更明确的 owner 层，而不是恢复根层过渡目录
 - 如果某次任务触及 tracking 核心链路，优先考虑是否应向 `engine/*` 拆分
-- 如果某次任务涉及边界归属不清，先按 [`issue-fix-boundary-guardrails.md`](./issue-fix-boundary-guardrails.md) 做分流，再决定是否直接实现
+- 如果某次任务涉及边界归属不清，先按 [`issue-fix-boundary-guardrails.md`](../issue-fix-boundary-guardrails.md) 做分流，再决定是否直接实现
 > 维护期注记（2026-04-16）
 >
 > 本文件最初包含一轮迁移期的“架构体检 + 目标收敛”描述。自 2026-04-16 起，下列事项已经完成并应视为当前长期基线：
@@ -749,4 +730,4 @@ Rust `commands/*` 只做：
 > - Rust `domain/` 已承接 `tracking / settings / backup / update` 的稳定语义契约。
 > - Rust `lib.rs`、`commands/*` 与 `app/runtime.rs` 已完成一轮瘦身。
 >
-> 因此，下文 4.x、8.x、11.x 中仍以“待迁移 / 待拆分 / 待退出”表述的段落，应视为迁移期历史背景，而不是当前执行清单。当前执行基线以本注记、[`AGENTS.md`](../AGENTS.md)、[`architecture-migration-checklist.md`](./architecture-migration-checklist.md) 的已完成状态，以及仓库现状为准。
+> 因此，下文 4.x、8.x、11.x 中仍以“待迁移 / 待拆分 / 待退出”表述的段落，应视为迁移期历史背景，而不是当前执行清单。归档前的最后一轮执行基线以本注记、[`AGENTS.md`](../../AGENTS.md)、[`architecture-migration-checklist.md`](./architecture-migration-checklist.md) 的已完成状态，以及归档时仓库现状为准。

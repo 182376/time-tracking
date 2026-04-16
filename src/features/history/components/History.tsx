@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { ChevronLeft, ChevronRight, Clock, Minus, Plus } from "lucide-react";
 import { type HistorySession } from "../../../shared/lib/sessionReadRepository";
-import { UI_TEXT } from "../../../shared/copy/uiText";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import {
   formatDuration,
   formatTime,

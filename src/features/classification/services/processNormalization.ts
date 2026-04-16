@@ -150,10 +150,10 @@ function hasLifecycleMetadataSignal(value: string) {
   }
 
   if (
-    normalized.includes("瀹夎")
-    || normalized.includes("鍗歌浇")
-    || normalized.includes("鏇存柊")
-    || normalized.includes("缁存姢宸ュ叿")
+    normalized.includes("\u5b89\u88c5")
+    || normalized.includes("\u5378\u8f7d")
+    || normalized.includes("\u66f4\u65b0")
+    || normalized.includes("\u7ef4\u62a4\u5de5\u5177")
   ) {
     return true;
   }

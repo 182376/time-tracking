@@ -1,5 +1,5 @@
 import type { DailySummary } from "../../../shared/lib/sessionReadRepository.ts";
-import { UI_TEXT } from "../../../shared/copy/uiText";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 
 export interface HistoryChartPoint {
   day: string;

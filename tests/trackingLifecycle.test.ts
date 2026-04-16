@@ -19,7 +19,7 @@ import {
   resolveTrackerHealth,
   isTrackingWindowSnapshot,
   type TrackedWindow,
-} from "../src/types/tracking.ts";
+} from "../src/shared/types/tracking.ts";
 import { ProcessMapper } from "../src/features/classification/services/ProcessMapper.ts";
 import {
   resolveCanonicalDisplayName,

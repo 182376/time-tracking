@@ -1,7 +1,7 @@
 ﻿import { motion } from "framer-motion";
 import { Monitor, BarChart3 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
-import { UI_TEXT } from "../../../shared/copy/uiText";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { formatDashboardDuration } from "../services/dashboardFormatting";
 import type { DashboardReadModel } from "../services/dashboardReadModel";

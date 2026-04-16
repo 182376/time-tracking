@@ -1,27 +1,30 @@
 # Time Tracker
 
-Time Tracker is a local-first Windows desktop app that automatically records the app you are actively using and turns that activity into a clear dashboard, a readable history view, and a calm focus timeline.
+Time Tracker is a local-first Windows desktop app that automatically records the app you are actively using, then turns that activity into a readable dashboard, a clear history view, and a calmer picture of how your work time is actually spent.
 
 Built with **Rust**, **Tauri v2**, **React**, and **TypeScript**.
 
-## What this project is
+## Why this exists
 
-Many time trackers either depend on manual start/stop timers or record foreground windows in a way that quickly stops feeling trustworthy.
+Many time trackers fall into one of two traps:
 
-Time Tracker is built around a simpler promise:
+- they depend on manual start/stop timers
+- they record foreground activity in a way that quickly stops feeling trustworthy
+
+Time Tracker is built around a narrower promise:
 
 - track activity automatically
 - keep the data local
 - handle real desktop boundaries more carefully
 - make the result readable enough to use every day
 
-It is designed as a personal desktop tool first, not a team SaaS product or a gamified productivity app.
+It is designed as a **personal desktop tool first**, not a team SaaS product, a cloud-first workflow, or a gamified productivity app.
 
-## Current features
+## What you get
 
-- Automatically tracks the foreground app you are actively using
+- Automatic foreground app tracking
 - Daily dashboard with top apps, category distribution, and hourly activity
-- History view for reviewing the selected day and the past 7 days
+- History view for reviewing the selected day and the recent past
 - App mapping workspace with support for:
   - renaming apps
   - overriding categories
@@ -29,14 +32,14 @@ It is designed as a personal desktop tool first, not a team SaaS product or a ga
   - excluding apps from stats
   - disabling title capture per app
   - deleting historical sessions
-- Explicit save / cancel flow in settings
+- Explicit save/cancel flow in settings
 - Local backup export and restore
 - History retention cleanup
 - Desktop behaviors such as tray, minimize, and launch-at-login options
 
 ## Why the numbers feel trustworthy
 
-Time tracking only matters if the numbers feel believable. The project currently leans on a few core behaviors to protect that trust:
+Time tracking only matters if the result feels believable. The project currently leans on a few core behaviors to protect that trust:
 
 - **Native window tracking** through Rust and the Windows API
 - **AFK-aware timing** so idle time is not silently counted as active time
@@ -45,26 +48,9 @@ Time tracking only matters if the numbers feel believable. The project currently
 - **System app filtering** so user-facing stats stay cleaner
 - **Real-duration stats** so totals are based on active time, not just visual spans
 
-## How to read the dashboard and timeline
-
-When comparing dashboard totals with the focus timeline, three rules matter:
-
-1. Stats use real active duration.
-2. The history timeline may merge short interruptions for readability.
-3. The minimum timeline segment filter only affects display, not totals.
-
-That means the timeline can look visually simplified while the totals remain accurate.
-
-## Privacy and data
-
-- Core data is stored locally in **SQLite**
-- No account, cloud sync, or server dependency is required for normal use
-- Title capture can be disabled per app
-- Backups currently include `sessions`, `settings`, and `icon_cache`
-
 ## Current scope
 
-Time Tracker is currently focused on a narrow but intentional scope:
+Time Tracker is intentionally narrow right now:
 
 - **Windows 10/11 first**
 - **Personal use first**
@@ -77,7 +63,22 @@ It is not currently aimed at:
 - mobile-first usage
 - multi-platform parity
 
-## Quick start
+## Download
+
+Prebuilt releases are published on GitHub:
+
+- Releases: <https://github.com/182376/time-tracking/releases>
+
+If you just want to use the app, start there.
+
+## Privacy and data
+
+- Core data is stored locally in **SQLite**
+- No account, cloud sync, or server dependency is required for normal use
+- Title capture can be disabled per app
+- Backups currently include `sessions`, `settings`, and `icon_cache`
+
+## Build from source
 
 ### Requirements
 
@@ -98,7 +99,7 @@ npm install
 npm run tauri dev
 ```
 
-### Run tests
+### Run checks
 
 ```bash
 npm test
@@ -133,15 +134,16 @@ src-tauri/target/release/bundle/
 
 ## Project docs
 
-For long-lived project references, see:
+If you are contributing or reviewing the project direction, start with:
 
 - [`docs/product-principles-and-scope.md`](docs/product-principles-and-scope.md)
 - [`docs/roadmap-and-prioritization.md`](docs/roadmap-and-prioritization.md)
-- [`docs/architecture-target.md`](docs/architecture-target.md)
+- [`docs/engineering-quality-target.md`](docs/engineering-quality-target.md)
+- [`docs/architecture.md`](docs/architecture.md)
 - [`docs/quiet-pro-component-guidelines.md`](docs/quiet-pro-component-guidelines.md)
 - [`docs/versioning-and-release-policy.md`](docs/versioning-and-release-policy.md)
 
-## Feedback and releases
+## Feedback
 
 - Releases: <https://github.com/182376/time-tracking/releases>
 - Issues: <https://github.com/182376/time-tracking/issues/new/choose>

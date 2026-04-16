@@ -3,7 +3,7 @@ import { HistoryReadModelService } from "../src/shared/lib/historyReadModelServi
 import { buildTopApplications } from "../src/features/dashboard/services/dashboardFormatting.ts";
 import { ProcessMapper } from "../src/features/classification/services/ProcessMapper.ts";
 import type { HistorySession } from "../src/shared/lib/sessionReadRepository.ts";
-import { resolveTrackerHealth } from "../src/types/tracking.ts";
+import { resolveTrackerHealth } from "../src/shared/types/tracking.ts";
 
 function makeSession(overrides: Partial<HistorySession>): HistorySession {
   return {

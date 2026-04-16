@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import QuietConfirmDialog from "../components/QuietConfirmDialog";
 import QuietPromptDialog from "../components/QuietPromptDialog";
-import { UI_TEXT } from "../copy/uiText";
+import { UI_TEXT } from "../copy/uiText.ts";
 
 interface ConfirmDialogOptions {
   title: string;
