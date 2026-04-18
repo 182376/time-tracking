@@ -27,8 +27,6 @@ dist-ssr
 # Agent and System Files
 .agents/
 skills-lock.json
-src-tauri/err.txt
-src-tauri/check.json
 timetracker.db
 timetracker.db-shm
 timetracker.db-wal
