@@ -117,8 +117,7 @@ export function buildHistoryReadModel(params: {
   const liveDaySessions = materializeLiveSessions(daySessions, trackerHealth, nowMs);
   const liveWeeklySessions = materializeLiveSessions(weeklySessions, trackerHealth, nowMs);
   const compiledSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
-  const timelineSourceSessions = compileForRange(liveDaySessions, selectedDayRange, 0);
-  const mergedTimelineSessions = buildTimelineSessions(timelineSourceSessions, mergeThresholdSecs);
+  const mergedTimelineSessions = buildTimelineSessions(compiledSessions, mergeThresholdSecs);
   const timelineSessions = filterTimelineSessionsForDisplay(
     mergedTimelineSessions,
     minSessionSecs,

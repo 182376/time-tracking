@@ -15,9 +15,9 @@ import {
 } from "../services/appRuntimeTrackingService";
 import {
   loadLatestTrackingPauseSetting,
-  shouldSyncTrackingPause,
-} from "../services/trackingPauseSettingsSyncService";
+} from "../services/trackingPauseSettingsRuntimeService";
 import { startTrackerHealthPolling } from "../services/trackerHealthPollingService";
+import { applyTrackingDataChangedPayload } from "./trackingDataChangedRuntime";
 import { useDesktopLaunchBehaviorSync } from "./useDesktopLaunchBehaviorSync";
 
 export function useWindowTracking() {
@@ -63,26 +63,26 @@ export function useWindowTracking() {
       unlisteners.push(activeWindowUnlisten);
 
       const trackingDataUnlisten = await subscribeTrackingDataChanged(
-        (payload) => {
+        async (payload) => {
           if (cancelled) return;
-
-          if (shouldSyncTrackingPause(payload.reason)) {
-            void loadLatestTrackingPauseSetting()
-              .then((trackingPaused) => {
-                if (cancelled) return;
-                setAppSettings((current) => ({
-                  ...current,
-                  tracking_paused: trackingPaused,
-                }));
-              })
-              .catch((error) => {
-                if (!cancelled) {
-                  console.warn("Failed to sync tracking pause setting", error);
-                }
-              });
-          }
-
-          setSyncTick((tick) => tick + 1);
+          await applyTrackingDataChangedPayload(payload, {
+            loadLatestTrackingPauseSetting,
+            setAppSettings: (updater) => {
+              if (!cancelled) {
+                setAppSettings(updater);
+              }
+            },
+            bumpSyncTick: () => {
+              if (!cancelled) {
+                setSyncTick((tick) => tick + 1);
+              }
+            },
+            warn: (message, error) => {
+              if (!cancelled) {
+                console.warn(message, error);
+              }
+            },
+          });
         },
       );
       if (cancelled) {

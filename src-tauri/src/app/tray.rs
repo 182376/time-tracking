@@ -4,6 +4,7 @@ use crate::data::repositories::tracker_settings;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::settings::{CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior};
 use crate::engine::tracking::runtime as tracking_runtime;
+use sqlx::{Pool, Sqlite};
 use tauri::{
     menu::{Menu, MenuEvent, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -37,24 +38,29 @@ pub(crate) fn apply_tray_visibility<R: Runtime>(
 
 async fn toggle_tracking_paused<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let pool = wait_for_sqlite_pool(&app).await?;
-    let current = tracker_settings::load_tracking_paused_setting(&pool)
+    let reason = toggle_tracking_paused_in_pool(&pool)
         .await
-        .map_err(|error| format!("failed to load tracking pause setting: {error}"))?;
-    let next = !current;
+        .map_err(|error| format!("failed to toggle tracking pause setting: {error}"))?;
 
-    tracker_settings::save_tracking_paused_setting(&pool, next)
-        .await
-        .map_err(|error| format!("failed to save tracking pause setting: {error}"))?;
-
-    let reason = if next {
-        "tracking-paused"
-    } else {
-        "tracking-resumed"
-    };
     tracking_runtime::emit_tracking_data_changed(&app, reason, now_ms())
         .map_err(|error| format!("failed to emit tracking pause event: {error}"))?;
 
     Ok(())
+}
+
+pub(crate) async fn toggle_tracking_paused_in_pool(
+    pool: &Pool<Sqlite>,
+) -> Result<&'static str, sqlx::Error> {
+    let current = tracker_settings::load_tracking_paused_setting(pool).await?;
+    let next = !current;
+
+    tracker_settings::save_tracking_paused_setting(pool, next).await?;
+
+    Ok(if next {
+        "tracking-paused"
+    } else {
+        "tracking-resumed"
+    })
 }
 
 pub(crate) fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
@@ -155,4 +161,40 @@ pub(crate) fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     builder.build(app)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::migrations as db_schema;
+    use sqlx::{Executor, SqlitePool};
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        pool.execute(db_schema::MIGRATION_1_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_2_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_3_SQL).await.unwrap();
+        pool
+    }
+
+    #[test]
+    fn toggle_tracking_paused_in_pool_flips_setting_and_reason() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            let first_reason = toggle_tracking_paused_in_pool(&pool).await.unwrap();
+            let first_value = tracker_settings::load_tracking_paused_setting(&pool)
+                .await
+                .unwrap();
+            let second_reason = toggle_tracking_paused_in_pool(&pool).await.unwrap();
+            let second_value = tracker_settings::load_tracking_paused_setting(&pool)
+                .await
+                .unwrap();
+
+            assert_eq!(first_reason, "tracking-paused");
+            assert!(first_value);
+            assert_eq!(second_reason, "tracking-resumed");
+            assert!(!second_value);
+        });
+    }
 }

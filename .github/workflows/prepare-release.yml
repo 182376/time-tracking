@@ -118,31 +118,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist-release | Out-Null
           $version = "${{ inputs.version }}"
-          $tagName = "v$version"
-          $bundleDir = "src-tauri/target/release/bundle"
-          $signatureFile = Get-ChildItem -Path $bundleDir -Recurse -File -Filter "*.sig" |
-            Where-Object { $_.Name -like "*.exe.sig" } |
-            Select-Object -First 1
-
-          if (-not $signatureFile) {
-            throw "Could not find updater .exe.sig artifact under $bundleDir."
-          }
-
-          $installerFilePath = $signatureFile.FullName -replace "\.sig$", ""
-          if (-not (Test-Path -LiteralPath $installerFilePath)) {
-            throw "Could not find installer matching $($signatureFile.FullName)."
-          }
-
-          $installerFile = Get-Item -LiteralPath $installerFilePath
-          $signature = (Get-Content -Raw -Encoding UTF8 -LiteralPath $signatureFile.FullName).Trim()
-          $releaseInstallerName = "TimeTracker_$($version)_x64-setup.exe"
-          $releaseInstallerPath = Join-Path "dist-release" $releaseInstallerName
-          Copy-Item -LiteralPath $installerFile.FullName -Destination $releaseInstallerPath -Force
-
-          $encodedName = [System.Uri]::EscapeDataString($releaseInstallerName)
-          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$tagName/$encodedName"
-
-          node --experimental-strip-types scripts/release.ts write-latest-json $version $assetUrl $signature dist-release/latest.json windows-x86_64
+          npm run release:prepare-assets -- $version src-tauri/target/release/bundle dist-release ${{ github.repository }} windows-x86_64
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3

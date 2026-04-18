@@ -1,7 +1,9 @@
 use super::{metadata, startup, transition, watchdog};
 use crate::data::repositories::{sessions, tracker_settings};
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
-use crate::domain::tracking::TrackingDataChangedPayload;
+use crate::domain::tracking::{
+    TrackingDataChangedPayload, TRACKING_REASON_TRACKING_PAUSED_SEALED,
+};
 use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
@@ -9,6 +11,11 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tokio::task::spawn_blocking;
 use tokio::time::{sleep, timeout, Duration};
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
+
+struct TrackingLoopState {
+    tracking_paused: bool,
+    tracked_window: tracker::WindowInfo,
+}
 
 pub async fn run<R: Runtime>(
     app: AppHandle<R>,
@@ -26,68 +33,16 @@ pub async fn run<R: Runtime>(
         let window_info = poll_active_window_with_timeout().await?;
         let now_ms = now_ms();
         health_state.note_successful_sample(now_ms);
+        persist_tracker_runtime_timestamps(&pool, now_ms).await;
+        let tracking_state = load_tracking_loop_state(&pool, &window_info).await;
+        let tracked_window = tracking_state.tracked_window;
 
-        if let Err(error) = tracker_settings::save_tracker_timestamp(
-            &pool,
-            tracker_settings::TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY,
-            now_ms,
-        )
-        .await
-        {
-            log_tracker_error(format!("failed to save tracker sample timestamp: {error}"));
-        }
-
-        if let Err(error) = tracker_settings::save_tracker_timestamp(
-            &pool,
-            tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
-            now_ms,
-        )
-        .await
-        {
-            log_tracker_error(format!("failed to save tracker heartbeat: {error}"));
-        }
-
-        let tracking_paused = match tracker_settings::load_tracking_paused_setting(&pool).await {
-            Ok(value) => value,
-            Err(error) => {
-                log_tracker_error(format!("failed to load tracking pause setting: {error}"));
-                false
-            }
-        };
-
-        let capture_window_title =
-            match tracker_settings::load_capture_window_title_setting_for_app(
-                &pool,
-                &window_info.exe_name,
-            )
-            .await
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    log_tracker_error(format!(
-                        "failed to load app capture title setting for {}: {error}",
-                        window_info.exe_name
-                    ));
-                    true
+        if tracking_state.tracking_paused {
+            match seal_active_sessions_for_tracking_pause(&pool, now_ms).await {
+                Ok(Some(reason)) => {
+                    let _ = emit_tracking_data_changed(&app, reason, now_ms as u64);
                 }
-            };
-
-        let mut tracked_window = window_info.clone();
-        if !capture_window_title {
-            tracked_window.title.clear();
-        }
-
-        if tracking_paused {
-            match sessions::end_active_sessions(&pool, now_ms).await {
-                Ok(did_seal) => {
-                    if did_seal {
-                        let _ = emit_tracking_data_changed(
-                            &app,
-                            "tracking-paused-sealed",
-                            now_ms as u64,
-                        );
-                    }
-                }
+                Ok(None) => {}
                 Err(error) => {
                     log_tracker_error(format!("failed to seal session while paused: {error}"));
                 }
@@ -143,6 +98,65 @@ pub async fn handle_power_lifecycle_event<R: Runtime>(
     Ok(())
 }
 
+async fn persist_tracker_runtime_timestamps(pool: &Pool<Sqlite>, now_ms: i64) {
+    for (setting_key, error_context) in [
+        (
+            tracker_settings::TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY,
+            "sample timestamp",
+        ),
+        (
+            tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+            "heartbeat",
+        ),
+    ] {
+        if let Err(error) = tracker_settings::save_tracker_timestamp(pool, setting_key, now_ms).await
+        {
+            log_tracker_error(format!(
+                "failed to save tracker {error_context}: {error}"
+            ));
+        }
+    }
+}
+
+async fn load_tracking_loop_state(
+    pool: &Pool<Sqlite>,
+    window_info: &tracker::WindowInfo,
+) -> TrackingLoopState {
+    let tracking_paused = match tracker_settings::load_tracking_paused_setting(pool).await {
+        Ok(value) => value,
+        Err(error) => {
+            log_tracker_error(format!("failed to load tracking pause setting: {error}"));
+            false
+        }
+    };
+
+    let capture_window_title = match tracker_settings::load_capture_window_title_setting_for_app(
+        pool,
+        &window_info.exe_name,
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => {
+            log_tracker_error(format!(
+                "failed to load app capture title setting for {}: {error}",
+                window_info.exe_name
+            ));
+            true
+        }
+    };
+
+    let mut tracked_window = window_info.clone();
+    if !capture_window_title {
+        tracked_window.title.clear();
+    }
+
+    TrackingLoopState {
+        tracking_paused,
+        tracked_window,
+    }
+}
+
 async fn poll_active_window_with_timeout() -> Result<tracker::WindowInfo, String> {
     match timeout(
         Duration::from_secs(WINDOW_POLL_TIMEOUT_SECS),
@@ -176,6 +190,17 @@ async fn apply_power_lifecycle_event(
             "suspend" => "session-ended-suspend",
             _ => "session-ended-system",
         }));
+    }
+
+    Ok(None)
+}
+
+async fn seal_active_sessions_for_tracking_pause(
+    pool: &Pool<Sqlite>,
+    timestamp_ms: i64,
+) -> Result<Option<&'static str>, sqlx::Error> {
+    if sessions::end_active_sessions(pool, timestamp_ms).await? {
+        return Ok(Some(TRACKING_REASON_TRACKING_PAUSED_SEALED));
     }
 
     Ok(None)
@@ -668,6 +693,209 @@ mod tests {
 
             assert_eq!(reason, None);
             assert_eq!(active_count, 0);
+        });
+    }
+
+    #[test]
+    fn tracking_pause_seals_active_session_and_returns_pause_reason() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+
+            let reason = seal_active_sessions_for_tracking_pause(&pool, 5_000)
+                .await
+                .unwrap();
+
+            let ended: Option<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL LIMIT 1",
+            )
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(reason, Some(TRACKING_REASON_TRACKING_PAUSED_SEALED));
+            assert_eq!(ended, Some((5_000, 4_000)));
+        });
+    }
+
+    #[test]
+    fn tracking_pause_without_active_session_is_a_noop() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            let reason = seal_active_sessions_for_tracking_pause(&pool, 5_000)
+                .await
+                .unwrap();
+
+            let active_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE end_time IS NULL")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+
+            assert_eq!(reason, None);
+            assert_eq!(active_count, 0);
+        });
+    }
+
+    #[test]
+    fn lock_after_tracking_pause_does_not_double_seal_closed_session() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+            let pause_reason = seal_active_sessions_for_tracking_pause(&pool, 5_000)
+                .await
+                .unwrap();
+            let lock_reason = apply_power_lifecycle_event(&pool, "lock", 8_000)
+                .await
+                .unwrap();
+
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(pause_reason, Some(TRACKING_REASON_TRACKING_PAUSED_SEALED));
+            assert_eq!(lock_reason, None);
+            assert_eq!(ended_sessions, vec![(5_000, 4_000)]);
+        });
+    }
+
+    #[test]
+    fn tracking_pause_after_lock_is_a_noop_for_already_closed_session() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+            let lock_reason = apply_power_lifecycle_event(&pool, "lock", 5_000)
+                .await
+                .unwrap();
+            let pause_reason = seal_active_sessions_for_tracking_pause(&pool, 8_000)
+                .await
+                .unwrap();
+
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(lock_reason, Some("session-ended-lock"));
+            assert_eq!(pause_reason, None);
+            assert_eq!(ended_sessions, vec![(5_000, 4_000)]);
+        });
+    }
+
+    #[test]
+    fn lock_after_startup_seal_is_a_noop_for_already_closed_session() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+            tracker_settings::save_tracker_timestamp(
+                &pool,
+                tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+                8_000,
+            )
+            .await
+            .unwrap();
+
+            let startup_reason = startup::seal_startup_active_session_in_pool(&pool, 20_000)
+                .await
+                .unwrap();
+            let lock_reason = apply_power_lifecycle_event(&pool, "lock", 25_000)
+                .await
+                .unwrap();
+
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(startup_reason, Some(8_000));
+            assert_eq!(lock_reason, None);
+            assert_eq!(ended_sessions, vec![(8_000, 7_000)]);
+        });
+    }
+
+    #[test]
+    fn suspend_after_startup_seal_is_a_noop_for_already_closed_session() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+            tracker_settings::save_tracker_timestamp(
+                &pool,
+                tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+                8_000,
+            )
+            .await
+            .unwrap();
+
+            let startup_reason = startup::seal_startup_active_session_in_pool(&pool, 20_000)
+                .await
+                .unwrap();
+            let suspend_reason = apply_power_lifecycle_event(&pool, "suspend", 25_000)
+                .await
+                .unwrap();
+
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(startup_reason, Some(8_000));
+            assert_eq!(suspend_reason, None);
+            assert_eq!(ended_sessions, vec![(8_000, 7_000)]);
+        });
+    }
+
+    #[test]
+    fn tracking_pause_after_startup_seal_is_a_noop_for_already_closed_session() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let window = make_window(&[]);
+
+            assert!(start_session(&pool, &window, 1_000).await.unwrap());
+            tracker_settings::save_tracker_timestamp(
+                &pool,
+                tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+                8_000,
+            )
+            .await
+            .unwrap();
+
+            let startup_reason = startup::seal_startup_active_session_in_pool(&pool, 20_000)
+                .await
+                .unwrap();
+            let pause_reason = seal_active_sessions_for_tracking_pause(&pool, 25_000)
+                .await
+                .unwrap();
+
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(startup_reason, Some(8_000));
+            assert_eq!(pause_reason, None);
+            assert_eq!(ended_sessions, vec![(8_000, 7_000)]);
         });
     }
 

@@ -10,7 +10,7 @@ These instructions apply to all UI work unless the user gives an explicit task-s
 
 - Product direction and scope must follow `docs/product-principles-and-scope.md`.
 - Roadmap and priority decisions must follow `docs/roadmap-and-prioritization.md`.
-- Engineering quality direction should follow `docs/engineering-quality-target.md`.
+- Engineering quality direction should follow `docs/engineering-quality.md`.
 - UI work must follow `docs/quiet-pro-component-guidelines.md`.
 - Architecture refactors, boundary decisions, and new modules must align with `docs/architecture.md`.
 - Stable-period issue fixes and boundary triage must follow `docs/issue-fix-boundary-guardrails.md`.

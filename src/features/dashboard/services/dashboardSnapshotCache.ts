@@ -1,4 +1,4 @@
-import { loadDashboardSnapshot, type DashboardSnapshot } from "./dashboardReadModel";
+import { loadDashboardSnapshot, type DashboardSnapshot } from "./dashboardReadModel.ts";
 
 const DASHBOARD_SNAPSHOT_CACHE = new Map<string, DashboardSnapshot>();
 

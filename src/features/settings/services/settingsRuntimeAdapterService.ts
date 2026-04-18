@@ -3,7 +3,7 @@ import {
   loadSettings,
   saveSetting,
   type AppSettings,
-} from "../../../shared/lib/settingsPersistenceAdapter";
+} from "../../../shared/lib/settingsPersistenceAdapter.ts";
 import {
   exportBackup,
   pickBackupFile,
@@ -11,17 +11,21 @@ import {
   previewBackup,
   restoreBackup,
   type BackupPreview,
-} from "../../../platform/backup/backupRuntimeGateway";
-import { getAppVersion } from "../../../platform/desktop/appInfoGateway";
-import { openExternalUrl } from "../../../platform/desktop/externalUrlGateway";
-import { setIdleTimeout } from "../../../platform/runtime/trackingRuntimeGateway";
-import type { CleanupRange } from "../types";
+} from "../../../platform/backup/backupRuntimeGateway.ts";
+import { getAppVersion } from "../../../platform/desktop/appInfoGateway.ts";
+import { openExternalUrl } from "../../../platform/desktop/externalUrlGateway.ts";
+import { setIdleTimeout } from "../../../platform/runtime/trackingRuntimeGateway.ts";
+import type { CleanupRange } from "../types.ts";
 import {
   getSettingsBootstrapCache,
   setSettingsBootstrapCache,
-} from "./settingsBootstrapCache";
+} from "./settingsBootstrapCache.ts";
+import {
+  buildSessionCleanupPlan,
+  clearSessionsByRangeWithDeps,
+} from "./sessionCleanupPolicy.ts";
 
-export type { BackupPreview } from "../../../platform/backup/backupRuntimeGateway";
+export type { BackupPreview } from "../../../platform/backup/backupRuntimeGateway.ts";
 
 export interface SettingsPageBootstrapData {
   settings: AppSettings;
@@ -40,12 +44,6 @@ type SettingsPatch = Partial<AppSettings>;
 
 const RELEASE_NOTES_URL = "https://github.com/182376/time-tracking/releases";
 const FEEDBACK_URL = "https://github.com/182376/time-tracking/issues/new/choose";
-
-function resolveCleanupCutoffTime(range: CleanupRange, nowMs: number): number {
-  const date = new Date(nowMs);
-  date.setDate(date.getDate() - range);
-  return date.getTime();
-}
 
 function buildBackupPreviewSummary(preview: BackupPreview): string {
   const exportedAt = new Date(preview.exported_at_ms).toLocaleString();
@@ -92,8 +90,10 @@ export class SettingsRuntimeAdapterService {
   }
 
   static async clearSessionsByRange(range: CleanupRange, nowMs: number = Date.now()): Promise<void> {
-    const cutoffTime = resolveCleanupCutoffTime(range, nowMs);
-    await clearSessionsBefore(cutoffTime);
+    const cleanupPlan = buildSessionCleanupPlan(range, nowMs);
+    await clearSessionsByRangeWithDeps(cleanupPlan.range, cleanupPlan.nowMs, {
+      clearSessionsBefore,
+    });
   }
 
   static async exportBackupWithPicker(initialPath?: string): Promise<string | null> {

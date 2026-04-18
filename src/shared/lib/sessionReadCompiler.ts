@@ -1,12 +1,6 @@
 import type { AppStat } from "../types/app";
 import type { DailySummary, HistorySession } from "./sessionReadRepository";
-import { ProcessMapper } from "../../features/classification/services/ProcessMapper.ts";
-import {
-  normalizeExecutable,
-  resolveCanonicalDisplayName,
-  resolveCanonicalExecutable,
-  shouldTrackProcess,
-} from "../../features/classification/services/processNormalization.ts";
+import { AppClassificationFacade } from "./appClassificationFacade.ts";
 import { cleanWindowTitle } from "./windowTitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;
@@ -82,36 +76,36 @@ function mergeDiagnosticCodes(
 
 function shouldTrackInReadModel(session: HistorySession) {
   const exeName = session.exe_name;
-  const canonicalExe = resolveCanonicalExecutable(exeName);
-  return shouldTrackProcess(exeName, {
+  const canonicalExe = AppClassificationFacade.resolveCanonicalExecutable(exeName);
+  return AppClassificationFacade.shouldTrackProcess(exeName, {
     appName: session.app_name,
     windowTitle: session.window_title,
-  }) && ProcessMapper.shouldTrack(canonicalExe);
+  }) && AppClassificationFacade.shouldTrackApp(canonicalExe);
 }
 
 function resolveCompiledDisplayName(
   session: DiagnosableHistorySession,
   appKey: string,
 ) {
-  const overrideDisplayName = ProcessMapper.getUserOverride(appKey)?.displayName?.trim();
+  const overrideDisplayName = AppClassificationFacade.getUserOverride(appKey)?.displayName?.trim();
   if (overrideDisplayName) {
     return overrideDisplayName;
   }
 
-  const canonicalName = resolveCanonicalDisplayName(appKey);
+  const canonicalName = AppClassificationFacade.resolveCanonicalDisplayName(appKey);
   if (canonicalName) {
     return canonicalName;
   }
 
-  const rawExeKey = normalizeExecutable(session.exe_name);
+  const rawExeKey = AppClassificationFacade.normalizeExecutable(session.exe_name);
 
   if (appKey !== rawExeKey) {
     // For alias executables (installer/updater/tray variants), prefer the
     // canonical app identity over raw product metadata from the alias process.
-    return ProcessMapper.map(appKey).name;
+    return AppClassificationFacade.mapApp(appKey).name;
   }
 
-  const mapped = ProcessMapper.map(appKey, { appName: session.app_name });
+  const mapped = AppClassificationFacade.mapApp(appKey, { appName: session.app_name });
   const appName = session.app_name.trim();
   if (appName) {
     return appName;
@@ -121,7 +115,7 @@ function resolveCompiledDisplayName(
 }
 
 function resolveStatsExeName(session: CompiledSession) {
-  const rawExeKey = normalizeExecutable(session.exe_name);
+  const rawExeKey = AppClassificationFacade.normalizeExecutable(session.exe_name);
   // Keep original exe_name only when it already matches the canonical key.
   // Otherwise persist the canonical executable as the stats identity.
   return session.appKey === rawExeKey ? session.exe_name : session.appKey;
@@ -152,7 +146,7 @@ function prepareSession(
   session: DiagnosableHistorySession,
 ): CompiledSession {
   const rawEndTime = Math.max(session.start_time, getSessionRawEndTime(session));
-  const appKey = resolveCanonicalExecutable(session.exe_name);
+  const appKey = AppClassificationFacade.resolveCanonicalExecutable(session.exe_name);
   const displayName = resolveCompiledDisplayName(session, appKey);
   const cleanedTitle = cleanWindowTitle(session.window_title, session.exe_name);
   const normalizedTitle = normalizeTitle(cleanedTitle, displayName);

@@ -6,7 +6,13 @@ import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack from "../shared/components/ToastStack";
 import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
-import { AppSettingsRuntimeService } from "./services/appSettingsRuntimeService";
+import { saveSetting } from "../shared/lib/settingsPersistenceAdapter.ts";
+import {
+  applyMappingOverridesReadModelRefresh,
+  applySessionDeletionReadModelRefresh,
+  INITIAL_READ_MODEL_REFRESH_STATE,
+  resolveReadModelRefreshSignal,
+} from "./services/readModelRefreshState.ts";
 import {
   loadDashboardRuntimeSnapshot,
   loadHistoryRuntimeSnapshot,
@@ -46,8 +52,7 @@ function AppShellContent() {
     setMappingDirty,
   } = useAppShellNavigation({ confirm });
   const { toasts, pushToast } = useAppShellToasts();
-  const [mappingVersion, setMappingVersion] = useState(0);
-  const [dataRefreshTick, setDataRefreshTick] = useState(0);
+  const [readModelRefreshState, setReadModelRefreshState] = useState(INITIAL_READ_MODEL_REFRESH_STATE);
   const didPrewarmBootstrapCachesRef = useRef(false);
   const didPrewarmSnapshotCachesRef = useRef(false);
   const {
@@ -58,7 +63,8 @@ function AppShellContent() {
     syncTick,
     trackerHealth,
   } = useWindowTracking();
-  const refreshSignal = syncTick + dataRefreshTick;
+  const refreshSignal = resolveReadModelRefreshSignal(syncTick, readModelRefreshState);
+  const { mappingVersion } = readModelRefreshState;
   const { dashboard, icons } = useDashboardStats(
     appSettings.refresh_interval_secs,
     refreshSignal,
@@ -94,7 +100,7 @@ function AppShellContent() {
       ...current,
       min_session_secs: nextValue,
     }));
-    void AppSettingsRuntimeService.updateSetting("min_session_secs", nextValue).catch(console.warn);
+    void saveSetting("min_session_secs", nextValue).catch(console.warn);
   }, [setAppSettings]);
 
   return (
@@ -157,12 +163,11 @@ function AppShellContent() {
                 onRegisterSaveHandler={registerMappingSaveHandler}
                 onDirtyChange={setMappingDirty}
                 onOverridesChanged={() => {
-                  setMappingVersion((version) => version + 1);
-                  setDataRefreshTick((tick) => tick + 1);
+                  setReadModelRefreshState(applyMappingOverridesReadModelRefresh);
                   pushToast(UI_TEXT.app.mappingUpdated, "success");
                 }}
                 onSessionsDeleted={() => {
-                  setDataRefreshTick((tick) => tick + 1);
+                  setReadModelRefreshState(applySessionDeletionReadModelRefresh);
                   pushToast(UI_TEXT.app.historyDeleted, "success");
                 }}
               />

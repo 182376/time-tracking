@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -29,6 +29,11 @@ function assertVersion(version) {
 
 async function readText(filePath) {
   return readFile(filePath, "utf8");
+}
+
+async function readPackageVersion() {
+  const packageJson = JSON.parse(await readText(PACKAGE_JSON_PATH));
+  return packageJson.version;
 }
 
 async function writeJson(filePath, value) {
@@ -81,6 +86,17 @@ async function syncVersion(version) {
   );
 
   await writeFile(CARGO_TOML_PATH, updatedCargoToml, "utf8");
+}
+
+async function resolveTargetVersion(version) {
+  if (version) {
+    assertVersion(version);
+    return version;
+  }
+
+  const packageVersion = await readPackageVersion();
+  assertVersion(packageVersion);
+  return packageVersion;
 }
 
 function findVersionSection(changelog, version) {
@@ -143,14 +159,15 @@ function sectionBullets(sectionBody, heading) {
 }
 
 async function parseChangelog(version) {
-  assertVersion(version);
+  const targetVersion = await resolveTargetVersion(version);
 
   const changelog = await readText(CHANGELOG_PATH);
-  const section = findVersionSection(changelog, version);
+  const section = findVersionSection(changelog, targetVersion);
   const release = fieldValue(section.body, "Release");
   const appNote = fieldValue(section.body, "App note");
 
   return {
+    version: targetVersion,
     ...section,
     release,
     appNote,
@@ -162,15 +179,15 @@ async function parseChangelog(version) {
 
 async function validateChangelog(version) {
   const parsed = await parseChangelog(version);
-  assertFinalField("Release", parsed.release, version);
-  assertFinalField("App note", parsed.appNote, version);
+  assertFinalField("Release", parsed.release, parsed.version);
+  assertFinalField("App note", parsed.appNote, parsed.version);
 
   if (parsed.release.length > 100) {
-    fail(`CHANGELOG.md ${version} Release is too long; keep it short`);
+    fail(`CHANGELOG.md ${parsed.version} Release is too long; keep it short`);
   }
 
   if (parsed.appNote.length > 40) {
-    fail(`CHANGELOG.md ${version} App note is too long; keep it lighter`);
+    fail(`CHANGELOG.md ${parsed.version} App note is too long; keep it lighter`);
   }
 }
 
@@ -219,12 +236,89 @@ async function writeLatestJson(version, assetUrl, signature, outputPath, target 
   await writeJson(outputPath, latest);
 }
 
+async function findSignedInstaller(bundleDir) {
+  const entries = await readDirRecursive(bundleDir);
+  const signatureFile = entries.find((entry) => (
+    entry.endsWith(".exe.sig")
+  ));
+
+  if (!signatureFile) {
+    fail(`Could not find updater .exe.sig artifact under ${bundleDir}.`);
+  }
+
+  const installerFilePath = signatureFile.replace(/\.sig$/i, "");
+  try {
+    await readFile(installerFilePath);
+  } catch {
+    fail(`Could not find installer matching ${signatureFile}.`);
+  }
+
+  return {
+    installerFilePath,
+    signatureFilePath: signatureFile,
+  };
+}
+
+async function readDirRecursive(rootDir) {
+  const { readdir } = await import("node:fs/promises");
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const absolutePath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      return readDirRecursive(absolutePath);
+    }
+    return entry.isFile() ? [absolutePath] : [];
+  }));
+  return files.flat();
+}
+
+async function prepareReleaseAssets(
+  version,
+  bundleDir,
+  outputDir,
+  repository,
+  target = "windows-x86_64",
+) {
+  const resolvedVersion = await resolveTargetVersion(version);
+  await validateChangelog(resolvedVersion);
+
+  if (!bundleDir) {
+    fail("missing bundle directory");
+  }
+
+  if (!outputDir) {
+    fail("missing output directory");
+  }
+
+  if (!repository) {
+    fail("missing repository slug");
+  }
+
+  const { installerFilePath, signatureFilePath } = await findSignedInstaller(bundleDir);
+  const signature = (await readText(signatureFilePath)).trim();
+  if (!signature) {
+    fail(`updater signature file is empty: ${signatureFilePath}`);
+  }
+
+  const releaseInstallerName = `TimeTracker_${resolvedVersion}_x64-setup.exe`;
+  const releaseInstallerPath = path.join(outputDir, releaseInstallerName);
+  const tagName = `v${resolvedVersion}`;
+  const encodedName = encodeURIComponent(releaseInstallerName);
+  const assetUrl = `https://github.com/${repository}/releases/download/${tagName}/${encodedName}`;
+  const latestJsonPath = path.join(outputDir, "latest.json");
+
+  await mkdir(outputDir, { recursive: true });
+  await copyFile(installerFilePath, releaseInstallerPath);
+  await writeLatestJson(resolvedVersion, assetUrl, signature, latestJsonPath, target);
+}
+
 function help() {
   console.log(`Usage:
   node --experimental-strip-types scripts/release.ts sync-version <version>
   node --experimental-strip-types scripts/release.ts validate-changelog <version>
   node --experimental-strip-types scripts/release.ts write-release-notes <version> <output>
   node --experimental-strip-types scripts/release.ts write-latest-json <version> <asset-url> <signature> <output> [target]
+  node --experimental-strip-types scripts/release.ts prepare-release-assets <version> <bundle-dir> <output-dir> <repository> [target]
 `);
 }
 
@@ -242,6 +336,9 @@ switch (command) {
     break;
   case "write-latest-json":
     await writeLatestJson(args[0], args[1], args[2], args[3], args[4]);
+    break;
+  case "prepare-release-assets":
+    await prepareReleaseAssets(args[0], args[1], args[2], args[3], args[4]);
     break;
   default:
     help();

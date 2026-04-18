@@ -1,17 +1,20 @@
 import { useEffect } from "react";
 import type { AppSettings } from "../../shared/settings/appSettings";
-import { AppSettingsRuntimeService } from "../services/appSettingsRuntimeService";
+import {
+  setDesktopBehavior,
+  setLaunchBehavior,
+} from "../../platform/desktop/desktopBehaviorRuntimeGateway";
 
 export function useDesktopLaunchBehaviorSync(appSettings: AppSettings) {
   useEffect(() => {
-    void AppSettingsRuntimeService.applyDesktopBehavior(
+    void setDesktopBehavior(
       appSettings.close_behavior,
       appSettings.minimize_behavior,
     ).catch(console.warn);
   }, [appSettings.close_behavior, appSettings.minimize_behavior]);
 
   useEffect(() => {
-    void AppSettingsRuntimeService.applyLaunchBehavior(
+    void setLaunchBehavior(
       appSettings.launch_at_login,
       appSettings.start_minimized,
     ).catch(console.warn);

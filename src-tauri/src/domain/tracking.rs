@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+pub const TRACKING_REASON_WATCHDOG_SEALED: &str = "watchdog-sealed";
+pub const TRACKING_REASON_STARTUP_SEALED: &str = "startup-sealed";
+pub const TRACKING_REASON_TRACKING_PAUSED_SEALED: &str = "tracking-paused-sealed";
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackingDataChangedPayload {
     pub reason: String,
@@ -386,7 +390,8 @@ pub struct ActiveSessionSnapshot {
 mod tests {
     use super::{
         is_trackable_window, should_track, TrackingDataChangedPayload, WindowSessionIdentity,
-        WindowTrackingCandidate, WindowTransitionDecision,
+        WindowTrackingCandidate, WindowTransitionDecision, TRACKING_REASON_STARTUP_SEALED,
+        TRACKING_REASON_TRACKING_PAUSED_SEALED, TRACKING_REASON_WATCHDOG_SEALED,
     };
 
     #[test]
@@ -449,6 +454,16 @@ mod tests {
         let payload = TrackingDataChangedPayload::new("session-transition", 123);
         assert_eq!(payload.reason, "session-transition");
         assert_eq!(payload.changed_at_ms, 123);
+    }
+
+    #[test]
+    fn sealed_reason_contracts_are_stable() {
+        assert_eq!(TRACKING_REASON_WATCHDOG_SEALED, "watchdog-sealed");
+        assert_eq!(TRACKING_REASON_STARTUP_SEALED, "startup-sealed");
+        assert_eq!(
+            TRACKING_REASON_TRACKING_PAUSED_SEALED,
+            "tracking-paused-sealed"
+        );
     }
 
     #[test]

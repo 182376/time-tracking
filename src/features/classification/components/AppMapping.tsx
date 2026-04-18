@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Save, Sparkles, Trash2, RotateCcw, SlidersHorizontal, Pencil } from "lucide-react";
+import { RefreshCw, Save, Sparkles, SlidersHorizontal } from "lucide-react";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import {
   ClassificationService,
@@ -18,20 +18,15 @@ import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
 import CategoryColorControls from "./CategoryColorControls";
 import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
-import QuietSelect from "../../../shared/components/QuietSelect";
 import QuietDialog from "../../../shared/components/QuietDialog";
-import QuietColorField from "../../../shared/components/QuietColorField";
 import QuietSegmentedFilter from "../../../shared/components/QuietSegmentedFilter";
-import QuietInlineAction from "../../../shared/components/QuietInlineAction";
-import QuietIconAction from "../../../shared/components/QuietIconAction";
-import QuietBadge from "../../../shared/components/QuietBadge";
-import QuietResetAction from "../../../shared/components/QuietResetAction";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 import {
   getClassificationBootstrapCache,
   setClassificationBootstrapCache,
 } from "../services/classificationBootstrapCache";
+import AppMappingCandidateCard from "./AppMappingCandidateCard";
 
 interface Props {
   icons: Record<string, string>;
@@ -315,6 +310,17 @@ export default function AppMapping({
     const hasOther = activeBuiltinCategories.includes("other");
     return hasOther ? [...base, ...customCategoryOptions, "other"] : [...base, ...customCategoryOptions];
   }, [activeBuiltinCategories, customCategoryOptions]);
+
+  const candidateCategoryOptions = useMemo(
+    () => [
+      { value: AUTO_CATEGORY_VALUE, label: "自动识别" },
+      ...orderedAssignableCategories.map((category) => ({
+        value: category,
+        label: AppClassificationFacade.getCategoryLabel(category),
+      })),
+    ],
+    [orderedAssignableCategories],
+  );
 
   const categoryControlCategories = useMemo<AppCategory[]>(() => {
     const manageable = [
@@ -726,170 +732,55 @@ export default function AppMapping({
                 const inputValue = nameDrafts[candidate.exeName] ?? displayName;
                 const hasManualColor = Boolean(draftOverrides[candidate.exeName]?.color);
                 return (
-                  <div
+                  <AppMappingCandidateCard
                     key={candidate.exeName}
-                    className="relative rounded-[12px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-elevated)] px-4 py-3.5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div
-                          className="mt-0.5 h-10 w-10 rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] p-1.5"
-                          style={{ boxShadow: `0 0 0 2px ${displayColor}22` }}
-                        >
-                          {icons[candidate.exeName] ? (
-                            <img src={icons[candidate.exeName]} className="h-full w-full object-contain" alt="" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[var(--qp-text-tertiary)]">
-                              {(displayName || candidate.exeName).slice(0, 1).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="inline-flex max-w-full items-center gap-1">
-                            {isEditingName ? (
-                              <input
-                                id={`app-name-${candidate.exeName}`}
-                                value={inputValue}
-                                autoFocus
-                                disabled={isBusy}
-                                onChange={(event) => {
-                                  const nextValue = event.target.value;
-                                  syncNameDraftToPageDraft(candidate, nextValue);
-                                }}
-                                onBlur={() => {
-                                  if (skipNextNameBlurExeRef.current === candidate.exeName) {
-                                    skipNextNameBlurExeRef.current = null;
-                                    return;
-                                  }
-                                  handleNameCommit(candidate);
-                                  setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.currentTarget.blur();
-                                    return;
-                                  }
-                                  if (event.key === "Escape") {
-                                    handleNameEditCancel(candidate);
-                                  }
-                                }}
-                                className="max-w-[240px] truncate rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-1 text-[15px] font-semibold text-[var(--qp-text-primary)] outline-none disabled:cursor-not-allowed"
-                              />
-                            ) : (
-                              <span className="truncate rounded-[8px] px-2 py-1 text-[15px] font-semibold text-[var(--qp-text-primary)]">
-                                {displayName}
-                              </span>
-                            )}
-                            <QuietIconAction
-                              icon={<Pencil size={13} />}
-                              title="修改应用名称"
-                              disabled={isBusy}
-                              onClick={() => {
-                                skipNextNameBlurExeRef.current = null;
-                                setNameEditSnapshots((prev) => ({
-                                  ...prev,
-                                  [candidate.exeName]: draftOverrides[candidate.exeName] ?? null,
-                                }));
-                                setEditingNameExe(candidate.exeName);
-                                setNameDrafts((prev) => ({
-                                  ...prev,
-                                  [candidate.exeName]: prev[candidate.exeName] ?? displayName,
-                                }));
-                              }}
-                            />
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 px-2">
-                            <QuietBadge>
-                              {candidate.exeName}
-                            </QuietBadge>
-                            {!trackingEnabled && (
-                              <QuietBadge tone="warning">
-                                不统计
-                              </QuietBadge>
-                            )}
-                            {!titleCaptureEnabled && (
-                              <QuietBadge tone="subtle">
-                                不记标题
-                              </QuietBadge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex min-w-0 flex-col gap-2 items-end">
-                        <div className="flex flex-nowrap items-center gap-2">
-                          <div className="order-2 flex max-w-full flex-wrap items-center gap-2 rounded-[8px] border border-[var(--qp-border-subtle)] bg-[var(--qp-bg-panel)] px-2 py-1.5">
-                            <QuietColorField
-                              color={displayColor}
-                              format={colorFormat}
-                              fixedValueSlot
-                              disabled={isBusy}
-                              onChange={(nextColor) => handleColorAssign(candidate, nextColor)}
-                              onFormatChange={setColorFormat}
-                              title="颜色"
-                            />
-                            
-                            <QuietResetAction
-                              disabled={isBusy}
-                              dimmed={!hasManualColor}
-                              onClick={() => handleColorAssign(candidate, null)}
-                              title="恢复默认颜色"
-                            >
-                              默认
-                            </QuietResetAction>
-                          </div>
-                          <QuietSelect
-                            value={assignedCategory}
-                            disabled={isBusy}
-                            className="order-1 min-w-[132px]"
-                            onChange={(value) => handleCategoryAssign(candidate, String(value))}
-                            options={[
-                              { value: AUTO_CATEGORY_VALUE, label: "自动识别" },
-                              ...orderedAssignableCategories.map((category) => ({
-                                value: category,
-                                label: AppClassificationFacade.getCategoryLabel(category),
-                              })),
-                            ]}
-                          />
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          <QuietInlineAction
-                            disabled={isBusy}
-                            onClick={() => handleTitleCaptureToggle(candidate, !titleCaptureEnabled)}
-                            tone={titleCaptureEnabled ? "neutral" : "accent"}
-                            title={titleCaptureEnabled ? "不记录该应用窗口标题" : "恢复记录该应用窗口标题"}
-                          >
-                            {titleCaptureEnabled ? "记录标题" : "不记标题"}
-                          </QuietInlineAction>
-                          <QuietInlineAction
-                            disabled={isBusy}
-                            onClick={() => handleTrackingToggle(candidate, !trackingEnabled)}
-                            tone={trackingEnabled ? "warning" : "accent"}
-                            title={trackingEnabled ? "将该应用排除出统计" : "恢复该应用进入统计"}
-                          >
-                            {trackingEnabled ? "统计中" : "不统计"}
-                          </QuietInlineAction>
-                          <QuietInlineAction
-                            disabled={isBusy}
-                            onClick={() => handleResetAppOverride(candidate)}
-                            tone="neutral"
-                            title="恢复该应用默认识别"
-                            leadingIcon={<RotateCcw size={12} />}
-                          >
-                            恢复默认
-                          </QuietInlineAction>
-                          <QuietInlineAction
-                            disabled={isBusy}
-                            onClick={() => void handleDeleteAllSessions(candidate)}
-                            tone="danger"
-                            title="删除应用记录"
-                            leadingIcon={<Trash2 size={12} />}
-                          >
-                            删除应用记录
-                          </QuietInlineAction>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    candidate={candidate}
+                    icon={icons[candidate.exeName]}
+                    displayName={displayName}
+                    displayColor={displayColor}
+                    assignedCategory={assignedCategory}
+                    trackingEnabled={trackingEnabled}
+                    titleCaptureEnabled={titleCaptureEnabled}
+                    isBusy={isBusy}
+                    isEditingName={isEditingName}
+                    inputValue={inputValue}
+                    hasManualColor={hasManualColor}
+                    colorFormat={colorFormat}
+                    categoryOptions={candidateCategoryOptions}
+                    onNameDraftChange={(nextValue) => syncNameDraftToPageDraft(candidate, nextValue)}
+                    onNameBlur={() => {
+                      if (skipNextNameBlurExeRef.current === candidate.exeName) {
+                        skipNextNameBlurExeRef.current = null;
+                        return;
+                      }
+                      handleNameCommit(candidate);
+                      setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
+                    }}
+                    onNameEditCancel={() => {
+                      handleNameEditCancel(candidate);
+                    }}
+                    onStartNameEdit={() => {
+                      skipNextNameBlurExeRef.current = null;
+                      setNameEditSnapshots((prev) => ({
+                        ...prev,
+                        [candidate.exeName]: draftOverrides[candidate.exeName] ?? null,
+                      }));
+                      setEditingNameExe(candidate.exeName);
+                      setNameDrafts((prev) => ({
+                        ...prev,
+                        [candidate.exeName]: prev[candidate.exeName] ?? displayName,
+                      }));
+                    }}
+                    onColorAssign={(nextColor) => handleColorAssign(candidate, nextColor)}
+                    onColorFormatChange={setColorFormat}
+                    onCategoryAssign={(value) => handleCategoryAssign(candidate, value)}
+                    onToggleTitleCapture={() => handleTitleCaptureToggle(candidate, !titleCaptureEnabled)}
+                    onToggleTracking={() => handleTrackingToggle(candidate, !trackingEnabled)}
+                    onResetOverride={() => handleResetAppOverride(candidate)}
+                    onDeleteAllSessions={() => {
+                      void handleDeleteAllSessions(candidate);
+                    }}
+                  />
                 );
               })}
             </div>

@@ -1,5 +1,5 @@
 use crate::data::repositories::{sessions, tracker_settings};
-use crate::domain::tracking::TrackingDataChangedPayload;
+use crate::domain::tracking::{TrackingDataChangedPayload, TRACKING_REASON_STARTUP_SEALED};
 use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 use tauri::{AppHandle, Emitter, Runtime};
@@ -40,8 +40,20 @@ async fn seal_startup_active_session_if_needed<R: Runtime>(
     pool: &Pool<Sqlite>,
     repair_notes: &mut Vec<String>,
 ) -> Result<(), sqlx::Error> {
+    if let Some(end_time) = seal_startup_active_session_in_pool(pool, now_ms()).await? {
+        repair_notes.push("sealed_active_session".to_string());
+        let _ = emit_tracking_data_changed(app, TRACKING_REASON_STARTUP_SEALED, end_time as u64);
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn seal_startup_active_session_in_pool(
+    pool: &Pool<Sqlite>,
+    now_ms: i64,
+) -> Result<Option<i64>, sqlx::Error> {
     let Some(existing_session) = sessions::load_active_session(pool).await? else {
-        return Ok(());
+        return Ok(None);
     };
 
     let last_heartbeat_ms = tracker_settings::load_tracker_timestamp(
@@ -50,14 +62,13 @@ async fn seal_startup_active_session_if_needed<R: Runtime>(
     )
     .await?;
     let end_time =
-        resolve_startup_seal_time(existing_session.start_time, last_heartbeat_ms, now_ms());
+        resolve_startup_seal_time(existing_session.start_time, last_heartbeat_ms, now_ms);
 
     if sessions::end_active_sessions(pool, end_time).await? {
-        repair_notes.push("sealed_active_session".to_string());
-        let _ = emit_tracking_data_changed(app, "startup-sealed", end_time as u64);
+        return Ok(Some(end_time));
     }
 
-    Ok(())
+    Ok(None)
 }
 
 async fn persist_startup_self_heal_if_needed(
@@ -123,7 +134,18 @@ fn log_startup_error(message: impl AsRef<str>) {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_startup_seal_time;
+    use super::{resolve_startup_seal_time, seal_startup_active_session_in_pool};
+    use crate::data::migrations as db_schema;
+    use crate::data::repositories::{sessions, tracker_settings};
+    use sqlx::{Executor, SqlitePool};
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        pool.execute(db_schema::MIGRATION_1_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_2_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_3_SQL).await.unwrap();
+        pool
+    }
 
     #[test]
     fn startup_seal_time_prefers_valid_heartbeat() {
@@ -133,5 +155,68 @@ mod tests {
             20_000
         );
         assert_eq!(resolve_startup_seal_time(5_000, None, 20_000), 20_000);
+    }
+
+    #[test]
+    fn startup_seal_closes_active_session_from_last_heartbeat() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000)
+                .await
+                .unwrap();
+            tracker_settings::save_tracker_timestamp(
+                &pool,
+                tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+                8_000,
+            )
+            .await
+            .unwrap();
+
+            let end_time = seal_startup_active_session_in_pool(&pool, 20_000)
+                .await
+                .unwrap();
+            let ended: Option<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL LIMIT 1",
+            )
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(end_time, Some(8_000));
+            assert_eq!(ended, Some((8_000, 7_000)));
+        });
+    }
+
+    #[test]
+    fn startup_seal_is_a_noop_after_session_was_already_closed() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000)
+                .await
+                .unwrap();
+            sessions::end_active_sessions(&pool, 5_000).await.unwrap();
+            tracker_settings::save_tracker_timestamp(
+                &pool,
+                tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
+                8_000,
+            )
+            .await
+            .unwrap();
+
+            let end_time = seal_startup_active_session_in_pool(&pool, 20_000)
+                .await
+                .unwrap();
+            let ended_sessions: Vec<(i64, i64)> = sqlx::query_as(
+                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(end_time, None);
+            assert_eq!(ended_sessions, vec![(5_000, 4_000)]);
+        });
     }
 }

@@ -1,4 +1,4 @@
-import { loadHistorySnapshot, type HistorySnapshot } from "./historyReadModel";
+import { loadHistorySnapshot, type HistorySnapshot } from "./historyReadModel.ts";
 
 const HISTORY_SNAPSHOT_CACHE = new Map<string, HistorySnapshot>();
 

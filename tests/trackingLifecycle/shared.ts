@@ -1,0 +1,107 @@
+import assert from "node:assert/strict";
+import {
+  isTrackableWindow,
+  planWindowTransition,
+  resolveStartupSealTime,
+} from "../../src/shared/lib/trackingWindowLifecycle.ts";
+import {
+  buildDailySummaries,
+  buildNormalizedAppStats,
+  buildTimelineSessions,
+  compileSessions,
+  getDayRange,
+  getRollingDayRanges,
+} from "../../src/shared/lib/sessionReadCompiler.ts";
+import {
+  buildReadModelDiagnostics,
+  materializeLiveSessions,
+  resolveLiveCutoffMs,
+} from "../../src/shared/lib/readModelCore.ts";
+import { HistoryReadModelService } from "../../src/shared/lib/historyReadModelService.ts";
+import type { HistorySession } from "../../src/shared/lib/sessionReadRepository.ts";
+import {
+  isTrackingDataChangedPayload,
+  resolveTrackerHealth,
+  isTrackingWindowSnapshot,
+  type TrackedWindow,
+} from "../../src/shared/types/tracking.ts";
+import { AppClassificationFacade } from "../../src/shared/lib/appClassificationFacade.ts";
+import { ProcessMapper } from "../../src/features/classification/services/ProcessMapper.ts";
+import { shouldSyncTrackingPause } from "../../src/app/services/trackingPauseSettingsPolicy.ts";
+import {
+  applyMappingOverridesReadModelRefresh,
+  applySessionDeletionReadModelRefresh,
+  INITIAL_READ_MODEL_REFRESH_STATE,
+  resolveReadModelRefreshSignal,
+} from "../../src/app/services/readModelRefreshState.ts";
+import {
+  loadDashboardRuntimeSnapshotWithDeps,
+  loadHistoryRuntimeSnapshotWithDeps,
+} from "../../src/app/services/readModelRuntimeService.ts";
+import { resolveTrackingDataChangedEffects } from "../../src/app/hooks/trackingDataChangedPolicy.ts";
+import { applyTrackingDataChangedPayload } from "../../src/app/hooks/trackingDataChangedRuntime.ts";
+import {
+  clearSessionsByRangeWithDeps,
+  resolveSessionStartCleanupCutoffTime,
+  buildSessionCleanupPlan,
+  shouldDeleteSessionByStartTime,
+} from "../../src/features/settings/services/sessionCleanupPolicy.ts";
+import {
+  createTestHarness,
+  makeSession,
+  makeWindow,
+} from "../helpers/trackingTestHarness.ts";
+
+export {
+  assert,
+  buildDailySummaries,
+  buildNormalizedAppStats,
+  buildReadModelDiagnostics,
+  buildSessionCleanupPlan,
+  clearSessionsByRangeWithDeps,
+  buildTimelineSessions,
+  compileSessions,
+  HistoryReadModelService,
+  INITIAL_READ_MODEL_REFRESH_STATE,
+  isTrackableWindow,
+  isTrackingDataChangedPayload,
+  isTrackingWindowSnapshot,
+  materializeLiveSessions,
+  makeSession,
+  makeWindow,
+  applyMappingOverridesReadModelRefresh,
+  applySessionDeletionReadModelRefresh,
+  loadDashboardRuntimeSnapshotWithDeps,
+  loadHistoryRuntimeSnapshotWithDeps,
+  planWindowTransition,
+  ProcessMapper,
+  resolveLiveCutoffMs,
+  resolveReadModelRefreshSignal,
+  resolveSessionStartCleanupCutoffTime,
+  resolveStartupSealTime,
+  resolveTrackerHealth,
+  resolveTrackingDataChangedEffects,
+  applyTrackingDataChangedPayload,
+  shouldDeleteSessionByStartTime,
+  shouldSyncTrackingPause,
+  getDayRange,
+  getRollingDayRanges,
+};
+
+export type {
+  HistorySession,
+  TrackedWindow,
+};
+
+export const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
+export const resolveCanonicalDisplayName = AppClassificationFacade.resolveCanonicalDisplayName;
+export const resolveCanonicalExecutable = AppClassificationFacade.resolveCanonicalExecutable;
+export const shouldTrackProcess = AppClassificationFacade.shouldTrackProcess;
+
+const harness = createTestHarness();
+
+export const runTest = harness.run;
+
+export async function finishTrackingLifecycleTests() {
+  await harness.finish("tracking lifecycle");
+}

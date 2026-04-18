@@ -1,5 +1,6 @@
 use crate::data::repositories::sessions;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
+use crate::domain::tracking::TRACKING_REASON_WATCHDOG_SEALED;
 use sqlx::{Pool, Sqlite};
 use std::sync::{
     atomic::{AtomicI64, Ordering},
@@ -87,7 +88,7 @@ async fn seal_stale_session<R: Runtime>(
                 ));
                 let _ = runtime::emit_tracking_data_changed(
                     app,
-                    "watchdog-sealed",
+                    TRACKING_REASON_WATCHDOG_SEALED,
                     sample_time_ms as u64,
                 );
             }
