@@ -1,14 +1,15 @@
 {
   "name": "time-tracker",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/trackingLifecycle.test.ts",
     "test:replay": "node --experimental-strip-types --experimental-specifier-resolution=node tests/trackingReplay.test.ts",
-    "check": "npm test && npm run test:replay && npm run build",
+    "test:update": "node --experimental-strip-types --experimental-specifier-resolution=node tests/updateViewModel.test.ts",
+    "check": "npm test && npm run test:replay && npm run test:update && npm run build",
     "perf:history-read-model": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/perf/history-read-model-benchmark.ts",
     "release:sync-version": "node --experimental-strip-types scripts/release.ts sync-version",
     "release:validate-changelog": "node --experimental-strip-types scripts/release.ts validate-changelog",

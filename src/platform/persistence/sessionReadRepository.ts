@@ -1,5 +1,5 @@
 import { getDB } from "./sqlite.ts";
-import { AppClassificationFacade } from "../../shared/lib/appClassificationFacade.ts";
+import { AppClassification } from "../../shared/classification/appClassification.ts";
 
 export interface HistorySession {
   id: number;
@@ -28,7 +28,7 @@ export async function getIconMap(): Promise<Record<string, string>> {
     const rawExe = (row.exe_name ?? "").trim();
     if (!rawExe) continue;
 
-    const normalizedExe = AppClassificationFacade.resolveCanonicalExecutable(rawExe);
+    const normalizedExe = AppClassification.resolveCanonicalExecutable(rawExe);
     const lowerExe = rawExe.toLowerCase();
 
     map[rawExe] = row.icon_base64;

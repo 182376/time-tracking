@@ -4,7 +4,7 @@ import QuietColorField from "../../../shared/components/QuietColorField";
 import QuietIconAction from "../../../shared/components/QuietIconAction";
 import QuietResetAction from "../../../shared/components/QuietResetAction";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
-import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import { AppClassification } from "../../../shared/classification/appClassification.ts";
 
 interface Props {
   categories: AppCategory[];
@@ -30,7 +30,7 @@ export default function CategoryColorControls({
   return (
     <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
       {categories.map((category) => {
-        const label = AppClassificationFacade.getCategoryLabel(category);
+        const label = AppClassification.getCategoryLabel(category);
         const color = getCategoryColor(category);
 
         return (

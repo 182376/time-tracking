@@ -36,6 +36,28 @@ App note: 待定。
 
 - 暂无。
 
+## [0.3.2] - 2026-04-19
+
+Release: 收起重复更新进度展示，修正下载前的进度反馈，并补齐默认验证门槛与架构收口。
+App note: 修正更新进度展示，并补齐默认验证门槛。
+### Added
+
+- 新增面向 PR 的默认校验 workflow，自动执行前端质量门槛和 Rust `cargo check`。
+### Changed
+
+- 应用映射页和设置页将页面状态编排收回到各自 feature hook，页面组件回到以组合和渲染为主的壳层。
+- 应用分类的稳定映射、归一化和分类色 owner 收口到 `shared/classification/*`，供 Dashboard、History、AppShell 和 Classification 统一复用。
+### Fixed
+
+- 修复更新弹窗打开时，设置页仍重复显示下载进度条的问题。
+- 修复更新下载刚开始但尚未获得字节进度时，进度条被错误渲染为满蓝条且文案反馈不清晰的问题。
+- 修复默认前端验证门槛未覆盖更新视图模型测试，以及 Node `strip-types` 测试链路下分类共享模块导入不一致导致的回归风险。
+### Removed
+
+- 移除 `shared/lib/appClassificationFacade.ts` 和 `shared/lib/historyReadModelService.ts` 这类 `shared -> features` 的历史兼容壳。
+### Internal
+
+- 将 `npm run check` 扩展为 `tracking lifecycle + replay + update view model + build`，并同步回写长期文档与发布校验口径。
 ## [0.3.1] - 2026-04-19
 
 Release: 修复托盘退出后无法重新打开，并隔离开发版与正式版数据。

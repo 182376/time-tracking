@@ -10,6 +10,7 @@ interface UpdateStatusPanelProps {
   snapshot: UpdateSnapshot;
   checking: boolean;
   installing: boolean;
+  suppressProgress?: boolean;
   onCheckUpdates: () => void;
   onOpenConfirmDialog: () => void;
   onOpenUpdateReleasePage: () => void;
@@ -31,6 +32,7 @@ export default function UpdateStatusPanel({
   snapshot,
   checking,
   installing,
+  suppressProgress = false,
   onCheckUpdates,
   onOpenConfirmDialog,
   onOpenUpdateReleasePage,
@@ -67,7 +69,7 @@ export default function UpdateStatusPanel({
           {viewModel.statusDetail}
         </p>
       ) : null}
-      {viewModel.progress ? (
+      {viewModel.progress && !suppressProgress ? (
         <UpdateProgressBar
           className="mt-3"
           percent={viewModel.progress.percent}

@@ -11,6 +11,7 @@ interface SettingsUpdateEntry {
   updateSnapshot: UpdateSnapshot;
   updateChecking: boolean;
   updateInstalling: boolean;
+  updateDialogOpen: boolean;
   onCheckForUpdates: () => Promise<void>;
   onOpenUpdateDialog: () => void;
   onOpenUpdateReleasePage: () => Promise<void>;
@@ -22,6 +23,7 @@ export function useAppShellUpdateEntry() {
     snapshot,
     isChecking,
     isInstalling,
+    dialogOpen,
     shouldShowSidebarEntry,
     openUpdateDialog,
     checkForUpdates,
@@ -42,6 +44,7 @@ export function useAppShellUpdateEntry() {
     updateSnapshot: snapshot,
     updateChecking: isChecking,
     updateInstalling: isInstalling,
+    updateDialogOpen: dialogOpen,
     onCheckForUpdates: handleCheckForUpdates,
     onOpenUpdateDialog: openUpdateDialog,
     onOpenUpdateReleasePage: openReleasePage,

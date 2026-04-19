@@ -3,7 +3,8 @@ import {
   applyMappingOverridesReadModelRefresh,
   applySessionDeletionReadModelRefresh,
   assert,
-  HistoryReadModelService,
+  buildDashboardReadModel,
+  buildHistoryReadModel,
   INITIAL_READ_MODEL_REFRESH_STATE,
   loadDashboardRuntimeSnapshotWithDeps,
   loadHistoryRuntimeSnapshotWithDeps,
@@ -189,12 +190,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -292,12 +293,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -378,12 +379,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -465,12 +466,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -552,12 +553,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -639,12 +640,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -740,12 +741,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,
@@ -841,12 +842,12 @@ export function runReadModelRuntimeTests() {
       },
     });
 
-    const dashboard = HistoryReadModelService.buildDashboardReadModel(
+    const dashboard = buildDashboardReadModel(
       dashboardSnapshot.sessions,
       trackerHealth,
       nowMs,
     );
-    const history = HistoryReadModelService.buildHistoryReadModel({
+    const history = buildHistoryReadModel({
       daySessions: historySnapshot.daySessions,
       weeklySessions: historySnapshot.weeklySessions,
       selectedDate: date,

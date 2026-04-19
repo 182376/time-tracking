@@ -5,7 +5,7 @@ import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
 import { formatDashboardDuration } from "../services/dashboardFormatting";
 import type { DashboardReadModel } from "../services/dashboardReadModel";
-import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import { AppClassification } from "../../../shared/classification/appClassification.ts";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 
@@ -160,7 +160,7 @@ export default function Dashboard({
             )}
             {topApplications.map((app) => (
               (() => {
-                const overrideColor = AppClassificationFacade.getUserOverride(app.exeName)?.color;
+                const overrideColor = AppClassification.getUserOverride(app.exeName)?.color;
                 const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? app.color;
 
                 return (

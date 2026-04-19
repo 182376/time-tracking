@@ -531,6 +531,7 @@ Rust 侧允许为了稳定演进保留少量入口协调或兼容封装，但规
 
 - `npm test`
 - `npm run test:replay`
+- `npm run test:update`
 - `npm run build`
 
 如果某次结构性改动无法通过这些最小验证之一，应优先解释风险或补验证，而不是直接跳过。

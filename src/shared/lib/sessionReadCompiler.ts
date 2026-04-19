@@ -1,6 +1,6 @@
 import type { AppStat } from "../types/app";
 import type { DailySummary, HistorySession } from "./sessionReadRepository";
-import { AppClassificationFacade } from "./appClassificationFacade.ts";
+import { AppClassification } from "../classification/appClassification.ts";
 import { cleanWindowTitle } from "./windowTitleCleaner.ts";
 
 const DIRECT_MERGE_GAP_MS = 5_000;
@@ -77,36 +77,36 @@ function mergeDiagnosticCodes(
 
 function shouldTrackInReadModel(session: HistorySession) {
   const exeName = session.exe_name;
-  const canonicalExe = AppClassificationFacade.resolveCanonicalExecutable(exeName);
-  return AppClassificationFacade.shouldTrackProcess(exeName, {
+  const canonicalExe = AppClassification.resolveCanonicalExecutable(exeName);
+  return AppClassification.shouldTrackProcess(exeName, {
     appName: session.app_name,
     windowTitle: session.window_title,
-  }) && AppClassificationFacade.shouldTrackApp(canonicalExe);
+  }) && AppClassification.shouldTrackApp(canonicalExe);
 }
 
 function resolveCompiledDisplayName(
   session: DiagnosableHistorySession,
   appKey: string,
 ) {
-  const overrideDisplayName = AppClassificationFacade.getUserOverride(appKey)?.displayName?.trim();
+  const overrideDisplayName = AppClassification.getUserOverride(appKey)?.displayName?.trim();
   if (overrideDisplayName) {
     return overrideDisplayName;
   }
 
-  const canonicalName = AppClassificationFacade.resolveCanonicalDisplayName(appKey);
+  const canonicalName = AppClassification.resolveCanonicalDisplayName(appKey);
   if (canonicalName) {
     return canonicalName;
   }
 
-  const rawExeKey = AppClassificationFacade.normalizeExecutable(session.exe_name);
+  const rawExeKey = AppClassification.normalizeExecutable(session.exe_name);
 
   if (appKey !== rawExeKey) {
     // For alias executables (installer/updater/tray variants), prefer the
     // canonical app identity over raw product metadata from the alias process.
-    return AppClassificationFacade.mapApp(appKey).name;
+    return AppClassification.mapApp(appKey).name;
   }
 
-  const mapped = AppClassificationFacade.mapApp(appKey, { appName: session.app_name });
+  const mapped = AppClassification.mapApp(appKey, { appName: session.app_name });
   const appName = session.app_name.trim();
   if (appName) {
     return appName;
@@ -116,7 +116,7 @@ function resolveCompiledDisplayName(
 }
 
 function resolveStatsExeName(session: CompiledSession) {
-  const rawExeKey = AppClassificationFacade.normalizeExecutable(session.exe_name);
+  const rawExeKey = AppClassification.normalizeExecutable(session.exe_name);
   // Keep original exe_name only when it already matches the canonical key.
   // Otherwise persist the canonical executable as the stats identity.
   return session.appKey === rawExeKey ? session.exe_name : session.appKey;
@@ -147,7 +147,7 @@ function prepareSession(
   session: DiagnosableHistorySession,
 ): CompiledSession {
   const rawEndTime = Math.max(session.start_time, getSessionRawEndTime(session));
-  const appKey = AppClassificationFacade.resolveCanonicalExecutable(session.exe_name);
+  const appKey = AppClassification.resolveCanonicalExecutable(session.exe_name);
   const displayName = resolveCompiledDisplayName(session, appKey);
   const cleanedTitle = cleanWindowTitle(session.window_title, session.exe_name);
   const normalizedTitle = normalizeTitle(cleanedTitle, displayName);

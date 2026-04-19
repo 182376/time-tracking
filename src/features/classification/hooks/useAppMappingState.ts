@@ -1,0 +1,687 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UI_TEXT } from "../../../shared/copy/uiText.ts";
+import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
+import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
+import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
+import { AppClassification } from "../../../shared/classification/appClassification.ts";
+import {
+  ClassificationService,
+  type AppOverride,
+  type ClassificationDraftState,
+} from "../services/classificationService";
+import {
+  getClassificationBootstrapCache,
+  setClassificationBootstrapCache,
+} from "../services/classificationBootstrapCache";
+import type { CandidateFilter, ObservedAppCandidate } from "../types";
+import {
+  buildCustomCategory,
+  isCustomCategory,
+  USER_ASSIGNABLE_CATEGORIES,
+  type AppCategory,
+  type UserAssignableAppCategory,
+} from "../config/categoryTokens";
+
+const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
+export const AUTO_CATEGORY_VALUE = "__auto__";
+const APP_MAPPING_COLLATOR = new Intl.Collator("zh-CN", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+export interface UseAppMappingStateOptions {
+  icons: Record<string, string>;
+  onDirtyChange?: (dirty: boolean) => void;
+  onOverridesChanged?: () => void;
+  onSessionsDeleted?: () => void;
+  onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
+}
+
+function cloneDraftState(state: ClassificationDraftState): ClassificationDraftState {
+  const overrides: Record<string, AppOverride> = {};
+  for (const [exeName, override] of Object.entries(state.overrides)) {
+    overrides[exeName] = { ...override };
+  }
+  return {
+    overrides,
+    categoryColorOverrides: { ...state.categoryColorOverrides },
+    customCategories: [...state.customCategories],
+    deletedCategories: [...state.deletedCategories],
+  };
+}
+
+function cloneObservedCandidates(observed: ObservedAppCandidate[]): ObservedAppCandidate[] {
+  return observed.map((candidate) => ({ ...candidate }));
+}
+
+function normalizeHexColor(colorValue: string | undefined): string | undefined {
+  const raw = (colorValue ?? "").trim();
+  if (!raw) return undefined;
+  const normalized = raw.startsWith("#") ? raw : `#${raw}`;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(normalized)) return undefined;
+  return normalized.toUpperCase();
+}
+
+function fallbackDisplayName(exeName: string) {
+  return exeName
+    .replace(/\.exe$/i, "")
+    .split(/[_\-\s.]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildOverride(params: {
+  category?: UserAssignableAppCategory;
+  displayName?: string;
+  color?: string;
+  track?: boolean;
+  captureTitle?: boolean;
+  updatedAt?: number;
+}): AppOverride | null {
+  const category = params.category;
+  const displayName = params.displayName?.trim();
+  const color = normalizeHexColor(params.color);
+  const track = params.track;
+  const captureTitle = params.captureTitle;
+  if (!category && !displayName && !color && track !== false && captureTitle !== false) return null;
+  const next: AppOverride = { enabled: true, updatedAt: params.updatedAt ?? Date.now() };
+  if (category) next.category = category;
+  if (displayName) next.displayName = displayName;
+  if (color) next.color = color;
+  if (track === false) next.track = false;
+  if (captureTitle === false) next.captureTitle = false;
+  return next;
+}
+
+function createDraftState(bootstrap: Awaited<ReturnType<typeof ClassificationService.loadClassificationBootstrap>>): ClassificationDraftState {
+  return cloneDraftState({
+    overrides: bootstrap.loadedOverrides,
+    categoryColorOverrides: bootstrap.loadedCategoryColorOverrides,
+    customCategories: bootstrap.loadedCustomCategories,
+    deletedCategories: bootstrap.loadedDeletedCategories,
+  });
+}
+
+export function useAppMappingState({
+  icons,
+  onDirtyChange,
+  onOverridesChanged,
+  onSessionsDeleted,
+  onRegisterSaveHandler,
+}: UseAppMappingStateOptions) {
+  const { confirm, prompt, dialogs } = useQuietDialogs();
+  const initialBootstrap = getClassificationBootstrapCache();
+  const initialBootstrapRef = useRef(initialBootstrap);
+  const [loading, setLoading] = useState(() => !initialBootstrap);
+  const [candidates, setCandidates] = useState<ObservedAppCandidate[]>(
+    () => cloneObservedCandidates(initialBootstrap?.observed ?? []),
+  );
+  const [savedState, setSavedState] = useState<ClassificationDraftState | null>(
+    () => (initialBootstrap ? cloneDraftState({
+      overrides: initialBootstrap.loadedOverrides,
+      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
+      customCategories: initialBootstrap.loadedCustomCategories,
+      deletedCategories: initialBootstrap.loadedDeletedCategories,
+    }) : null),
+  );
+  const [draftState, setDraftState] = useState<ClassificationDraftState | null>(
+    () => (initialBootstrap ? cloneDraftState({
+      overrides: initialBootstrap.loadedOverrides,
+      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
+      customCategories: initialBootstrap.loadedCustomCategories,
+      deletedCategories: initialBootstrap.loadedDeletedCategories,
+    }) : null),
+  );
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
+  const [nameEditSnapshots, setNameEditSnapshots] = useState<Record<string, AppOverride | null>>({});
+  const [editingNameExe, setEditingNameExe] = useState<string | null>(null);
+  const [filter, setFilter] = useState<CandidateFilter>("all");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saving, setSaving] = useState(false);
+  const [deletingSessionsExe, setDeletingSessionsExe] = useState<string | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [colorFormat, setColorFormat] = useState<ColorDisplayFormat>("hex");
+  const iconThemeColors = useIconThemeColors(icons);
+  const skipNextNameBlurExeRef = useRef<string | null>(null);
+  const hasUnsavedChangesRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const hadCacheAtStart = Boolean(initialBootstrapRef.current);
+      if (!hadCacheAtStart) {
+        setLoading(true);
+      }
+      try {
+        const bootstrap = await ClassificationService.loadClassificationBootstrap();
+        const nextObserved = cloneObservedCandidates(bootstrap.observed);
+        const nextState = createDraftState(bootstrap);
+        setClassificationBootstrapCache(bootstrap);
+        if (cancelled) return;
+        setCandidates(nextObserved);
+        if (!hasUnsavedChangesRef.current) {
+          setSavedState(cloneDraftState(nextState));
+          setDraftState(cloneDraftState(nextState));
+          setNameEditSnapshots({});
+          setEditingNameExe(null);
+          skipNextNameBlurExeRef.current = null;
+        }
+      } catch (error) {
+        console.error("load app mapping bootstrap failed", error);
+      } finally {
+        if (!cancelled && !hadCacheAtStart) {
+          setLoading(false);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const draftOverrides = draftState?.overrides ?? {};
+  const draftCategoryColorOverrides = draftState?.categoryColorOverrides ?? {};
+  const draftCustomCategories = draftState?.customCategories ?? [];
+  const draftDeletedCategories = draftState?.deletedCategories ?? [];
+
+  const hasUnsavedChanges = (() => {
+    if (!savedState || !draftState) return false;
+    return ClassificationService.hasDraftChanges(savedState, draftState);
+  })();
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
+  useEffect(() => () => {
+    onDirtyChange?.(false);
+  }, [onDirtyChange]);
+
+  const resolveCategoryColor = useCallback((category: AppCategory) => (
+    draftCategoryColorOverrides[category] ?? AppClassification.getCategoryColor(category)
+  ), [draftCategoryColorOverrides]);
+
+  const resolveAutoDisplayName = useCallback((candidate: ObservedAppCandidate) => {
+    const appName = candidate.appName.trim();
+    return appName || fallbackDisplayName(candidate.exeName) || candidate.exeName;
+  }, []);
+
+  const resolveMappedCategory = useCallback((candidate: ObservedAppCandidate): UserAssignableAppCategory => {
+    const mapped = AppClassification.mapApp(candidate.exeName, { appName: candidate.appName });
+    const overrideCategory = draftOverrides[candidate.exeName]?.category;
+    const category = overrideCategory ?? mapped.category;
+    return category === "system" ? "other" : category;
+  }, [draftOverrides]);
+
+  const resolveEffectiveDisplayName = useCallback((candidate: ObservedAppCandidate) => {
+    const mapped = AppClassification.mapApp(candidate.exeName, { appName: candidate.appName });
+    return draftOverrides[candidate.exeName]?.displayName?.trim()
+      || mapped.name
+      || resolveAutoDisplayName(candidate);
+  }, [draftOverrides, resolveAutoDisplayName]);
+
+  const resolveTrackingEnabled = useCallback((candidate: ObservedAppCandidate) => {
+    const mapped = AppClassification.mapApp(candidate.exeName, { appName: candidate.appName });
+    const baseCategory = draftOverrides[candidate.exeName]?.category ?? mapped.category;
+    return baseCategory !== "system" && draftOverrides[candidate.exeName]?.track !== false;
+  }, [draftOverrides]);
+
+  const resolveTitleCaptureEnabled = useCallback((candidate: ObservedAppCandidate) => (
+    draftOverrides[candidate.exeName]?.captureTitle !== false
+  ), [draftOverrides]);
+
+  const resolveCandidateColor = useCallback((candidate: ObservedAppCandidate) => {
+    const overrideColor = draftOverrides[candidate.exeName]?.color;
+    if (overrideColor) return overrideColor;
+    const mappedCategory = resolveMappedCategory(candidate);
+    return iconThemeColors[candidate.exeName] ?? resolveCategoryColor(mappedCategory);
+  }, [draftOverrides, iconThemeColors, resolveCategoryColor, resolveMappedCategory]);
+
+  const filteredCandidates = useMemo(
+    () => candidates
+      .filter((candidate) => {
+        const category = resolveMappedCategory(candidate);
+        if (filter === "all") return true;
+        if (filter === "other") return category === "other";
+        return category !== "other";
+      })
+      .sort((left, right) => {
+        const labelCompare = APP_MAPPING_COLLATOR.compare(
+          resolveEffectiveDisplayName(left),
+          resolveEffectiveDisplayName(right),
+        );
+        if (labelCompare !== 0) {
+          return labelCompare;
+        }
+        return APP_MAPPING_COLLATOR.compare(left.exeName, right.exeName);
+      }),
+    [candidates, filter, resolveEffectiveDisplayName, resolveMappedCategory],
+  );
+
+  const counts = useMemo(() => {
+    const all = candidates.length;
+    const other = candidates.filter((candidate) => resolveMappedCategory(candidate) === "other").length;
+    const classified = Math.max(0, all - other);
+    return { all, other, classified };
+  }, [candidates, resolveMappedCategory]);
+
+  const customCategoryOptions = useMemo(() => {
+    const deletedSet = new Set(draftDeletedCategories);
+    const categories = new Set<UserAssignableAppCategory>();
+    for (const category of draftCustomCategories) {
+      if (isCustomCategory(category) && !deletedSet.has(category)) categories.add(category);
+    }
+    for (const override of Object.values(draftOverrides)) {
+      if (override.category && isCustomCategory(override.category) && !deletedSet.has(override.category)) {
+        categories.add(override.category);
+      }
+    }
+    for (const category of Object.keys(draftCategoryColorOverrides)) {
+      if (isCustomCategory(category) && !deletedSet.has(category)) categories.add(category);
+    }
+    return Array.from(categories)
+      .sort((a, b) => AppClassification.getCategoryLabel(a).localeCompare(AppClassification.getCategoryLabel(b), "zh-CN"));
+  }, [draftCategoryColorOverrides, draftCustomCategories, draftDeletedCategories, draftOverrides]);
+
+  const activeBuiltinCategories = useMemo(
+    () => CATEGORY_OPTIONS.filter((category) => !draftDeletedCategories.includes(category)),
+    [draftDeletedCategories],
+  );
+
+  const orderedAssignableCategories = useMemo<UserAssignableAppCategory[]>(() => {
+    const base = activeBuiltinCategories.filter((category) => category !== "other");
+    const hasOther = activeBuiltinCategories.includes("other");
+    return hasOther ? [...base, ...customCategoryOptions, "other"] : [...base, ...customCategoryOptions];
+  }, [activeBuiltinCategories, customCategoryOptions]);
+
+  const candidateCategoryOptions = useMemo(
+    () => [
+      { value: AUTO_CATEGORY_VALUE, label: "自动识别" },
+      ...orderedAssignableCategories.map((category) => ({
+        value: category,
+        label: AppClassification.getCategoryLabel(category),
+      })),
+    ],
+    [orderedAssignableCategories],
+  );
+
+  const categoryControlCategories = useMemo<AppCategory[]>(() => {
+    const manageable = [
+      ...activeBuiltinCategories.filter((category) => category !== "other"),
+      ...customCategoryOptions,
+    ];
+    return [...manageable]
+      .sort((a, b) => AppClassification.getCategoryLabel(a).localeCompare(
+        AppClassification.getCategoryLabel(b),
+        "zh-CN",
+      ));
+  }, [activeBuiltinCategories, customCategoryOptions]);
+
+  const refreshCandidates = useCallback(async () => {
+    const observed = await ClassificationService.loadObservedAppCandidates();
+    setCandidates(observed);
+    if (savedState) {
+      setClassificationBootstrapCache({
+        observed: cloneObservedCandidates(observed),
+        loadedOverrides: { ...savedState.overrides },
+        loadedCategoryColorOverrides: { ...savedState.categoryColorOverrides },
+        loadedCustomCategories: [...savedState.customCategories],
+        loadedDeletedCategories: [...savedState.deletedCategories],
+      });
+    }
+  }, [savedState]);
+
+  const updateOverride = useCallback((exeName: string, nextOverride: AppOverride | null) => {
+    setDraftState((current) => {
+      if (!current) return current;
+      const nextOverrides = { ...current.overrides };
+      if (!nextOverride) delete nextOverrides[exeName];
+      else nextOverrides[exeName] = nextOverride;
+      return { ...current, overrides: nextOverrides };
+    });
+  }, []);
+
+  const applyCategoryColor = useCallback((category: AppCategory, colorValue: string | null) => {
+    setDraftState((current) => {
+      if (!current) return current;
+      const next = { ...current.categoryColorOverrides };
+      if (!colorValue) delete next[category];
+      else next[category] = colorValue;
+      return { ...current, categoryColorOverrides: next };
+    });
+  }, []);
+
+  const handleCreateCustomCategory = useCallback(async () => {
+    const customCategoryName = await prompt({
+      title: UI_TEXT.mapping.createCategoryTitle,
+      description: UI_TEXT.mapping.createCategoryDescription,
+      placeholder: UI_TEXT.mapping.createCategoryPlaceholder,
+    });
+    if (!customCategoryName) return;
+    const normalized = customCategoryName.trim();
+    if (!normalized) return;
+    const category = buildCustomCategory(normalized);
+    setDraftState((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        customCategories: current.customCategories.includes(category)
+          ? current.customCategories
+          : [...current.customCategories, category],
+        deletedCategories: current.deletedCategories.filter((item) => item !== category),
+      };
+    });
+  }, [prompt]);
+
+  const handleDeleteCategory = useCallback(async (category: AppCategory) => {
+    if (category === "other") {
+      return;
+    }
+    const categoryLabel = AppClassification.getCategoryLabel(category);
+    const confirmed = await confirm({
+      title: UI_TEXT.mapping.deleteCategoryTitle,
+      description: UI_TEXT.mapping.deleteCategoryDetail(categoryLabel),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
+    if (!confirmed) return;
+    setDraftState((current) => {
+      if (!current) return current;
+      const nextOverrides: Record<string, AppOverride> = {};
+      for (const [exeName, override] of Object.entries(current.overrides)) {
+        if (override.category !== category) {
+          nextOverrides[exeName] = override;
+          continue;
+        }
+        const nextOverride = buildOverride({
+          category: undefined,
+          color: override.color,
+          displayName: override.displayName,
+          track: override.track !== false,
+          captureTitle: override.captureTitle !== false,
+          updatedAt: override.updatedAt,
+        });
+        if (nextOverride) nextOverrides[exeName] = nextOverride;
+      }
+      const nextCategoryColorOverrides = { ...current.categoryColorOverrides };
+      delete nextCategoryColorOverrides[category];
+      if (isCustomCategory(category)) {
+        return {
+          ...current,
+          overrides: nextOverrides,
+          categoryColorOverrides: nextCategoryColorOverrides,
+          customCategories: current.customCategories.filter((item) => item !== category),
+          deletedCategories: current.deletedCategories.filter((item) => item !== category),
+        };
+      }
+      return {
+        ...current,
+        overrides: nextOverrides,
+        categoryColorOverrides: nextCategoryColorOverrides,
+        deletedCategories: Array.from(new Set([...current.deletedCategories, category])),
+      };
+    });
+  }, [confirm]);
+
+  const handleCategoryAssign = useCallback((candidate: ObservedAppCandidate, categoryValue: string) => {
+    const current = draftOverrides[candidate.exeName] ?? null;
+    const category = categoryValue === AUTO_CATEGORY_VALUE ? undefined : categoryValue as UserAssignableAppCategory;
+    const nextOverride = buildOverride({
+      category,
+      color: current?.color,
+      displayName: current?.displayName,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
+      updatedAt: current?.updatedAt,
+    });
+    updateOverride(candidate.exeName, nextOverride);
+  }, [draftOverrides, updateOverride]);
+
+  const handleColorAssign = useCallback((candidate: ObservedAppCandidate, colorValue?: string | null) => {
+    const current = draftOverrides[candidate.exeName] ?? null;
+    const nextOverride = buildOverride({
+      category: current?.category,
+      displayName: current?.displayName,
+      color: colorValue ?? undefined,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
+      updatedAt: current?.updatedAt,
+    });
+    updateOverride(candidate.exeName, nextOverride);
+  }, [draftOverrides, updateOverride]);
+
+  const syncNameDraftToPageDraft = useCallback((
+    candidate: ObservedAppCandidate,
+    nextInputValue: string,
+    normalizeInputDraft: boolean = false,
+  ) => {
+    const draftRaw = nextInputValue.trim();
+    const autoName = resolveAutoDisplayName(candidate);
+    const displayName = draftRaw && draftRaw !== autoName ? draftRaw : undefined;
+    const current = draftOverrides[candidate.exeName] ?? null;
+    const nextOverride = buildOverride({
+      category: current?.category,
+      color: current?.color,
+      displayName,
+      track: current?.track !== false,
+      captureTitle: current?.captureTitle !== false,
+      updatedAt: current?.updatedAt,
+    });
+    updateOverride(candidate.exeName, nextOverride);
+    setNameDrafts((prev) => ({
+      ...prev,
+      [candidate.exeName]: normalizeInputDraft ? (displayName ?? autoName) : nextInputValue,
+    }));
+  }, [draftOverrides, resolveAutoDisplayName, updateOverride]);
+
+  const resolveDisplayNameFromOverride = useCallback((
+    candidate: ObservedAppCandidate,
+    override: AppOverride | null,
+  ) => {
+    const mapped = AppClassification.mapApp(candidate.exeName, { appName: candidate.appName });
+    return override?.displayName?.trim()
+      || mapped.name
+      || resolveAutoDisplayName(candidate);
+  }, [resolveAutoDisplayName]);
+
+  const handleNameCommit = useCallback((candidate: ObservedAppCandidate) => {
+    const inputValue = nameDrafts[candidate.exeName] ?? resolveEffectiveDisplayName(candidate);
+    syncNameDraftToPageDraft(candidate, inputValue, true);
+    setNameEditSnapshots((prev) => {
+      const next = { ...prev };
+      delete next[candidate.exeName];
+      return next;
+    });
+  }, [nameDrafts, resolveEffectiveDisplayName, syncNameDraftToPageDraft]);
+
+  const handleNameEditCancel = useCallback((candidate: ObservedAppCandidate) => {
+    skipNextNameBlurExeRef.current = candidate.exeName;
+    const snapshot = Object.prototype.hasOwnProperty.call(nameEditSnapshots, candidate.exeName)
+      ? nameEditSnapshots[candidate.exeName]
+      : (draftOverrides[candidate.exeName] ?? null);
+    updateOverride(candidate.exeName, snapshot);
+    setNameDrafts((prev) => ({
+      ...prev,
+      [candidate.exeName]: resolveDisplayNameFromOverride(candidate, snapshot),
+    }));
+    setNameEditSnapshots((prev) => {
+      const next = { ...prev };
+      delete next[candidate.exeName];
+      return next;
+    });
+    setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
+  }, [draftOverrides, nameEditSnapshots, resolveDisplayNameFromOverride, updateOverride]);
+
+  const startNameEdit = useCallback((candidate: ObservedAppCandidate) => {
+    const displayName = resolveEffectiveDisplayName(candidate);
+    skipNextNameBlurExeRef.current = null;
+    setNameEditSnapshots((prev) => ({
+      ...prev,
+      [candidate.exeName]: draftOverrides[candidate.exeName] ?? null,
+    }));
+    setEditingNameExe(candidate.exeName);
+    setNameDrafts((prev) => ({
+      ...prev,
+      [candidate.exeName]: prev[candidate.exeName] ?? displayName,
+    }));
+  }, [draftOverrides, resolveEffectiveDisplayName]);
+
+  const handleResetAppOverride = useCallback((candidate: ObservedAppCandidate) => {
+    updateOverride(candidate.exeName, null);
+    setNameDrafts((prev) => ({ ...prev, [candidate.exeName]: resolveAutoDisplayName(candidate) }));
+  }, [resolveAutoDisplayName, updateOverride]);
+
+  const handleDeleteAllSessions = useCallback(async (candidate: ObservedAppCandidate) => {
+    const displayName = resolveEffectiveDisplayName(candidate);
+    const confirmed = await confirm({
+      title: UI_TEXT.mapping.deleteAppSessionsTitle,
+      description: UI_TEXT.mapping.deleteAppSessionsDetail(displayName),
+      confirmLabel: UI_TEXT.dialog.confirmDanger,
+      danger: true,
+    });
+    if (!confirmed) return;
+    setDeletingSessionsExe(candidate.exeName);
+    try {
+      await ClassificationService.deleteObservedAppSessions(candidate.exeName, "all");
+      await refreshCandidates();
+      onSessionsDeleted?.();
+    } finally {
+      setDeletingSessionsExe(null);
+    }
+  }, [confirm, onSessionsDeleted, refreshCandidates, resolveEffectiveDisplayName]);
+
+  const handleTrackingToggle = useCallback((candidate: ObservedAppCandidate, nextTrack: boolean) => {
+    const current = draftOverrides[candidate.exeName] ?? null;
+    const nextOverride = buildOverride({
+      category: current?.category,
+      color: current?.color,
+      displayName: current?.displayName,
+      track: nextTrack,
+      captureTitle: current?.captureTitle !== false,
+      updatedAt: current?.updatedAt,
+    });
+    updateOverride(candidate.exeName, nextOverride);
+  }, [draftOverrides, updateOverride]);
+
+  const handleTitleCaptureToggle = useCallback((candidate: ObservedAppCandidate, nextCaptureTitle: boolean) => {
+    const current = draftOverrides[candidate.exeName] ?? null;
+    const nextOverride = buildOverride({
+      category: current?.category,
+      color: current?.color,
+      displayName: current?.displayName,
+      track: current?.track !== false,
+      captureTitle: nextCaptureTitle,
+      updatedAt: current?.updatedAt,
+    });
+    updateOverride(candidate.exeName, nextOverride);
+  }, [draftOverrides, updateOverride]);
+
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!savedState || !draftState) return false;
+    if (!hasUnsavedChanges) return true;
+    if (saving) return false;
+    setSaving(true);
+    setSaveStatus("saving");
+    try {
+      await ClassificationService.commitDraftChanges(savedState, draftState);
+      setSavedState(draftState);
+      setClassificationBootstrapCache({
+        observed: cloneObservedCandidates(candidates),
+        loadedOverrides: { ...draftState.overrides },
+        loadedCategoryColorOverrides: { ...draftState.categoryColorOverrides },
+        loadedCustomCategories: [...draftState.customCategories],
+        loadedDeletedCategories: [...draftState.deletedCategories],
+      });
+      setNameEditSnapshots({});
+      setEditingNameExe(null);
+      skipNextNameBlurExeRef.current = null;
+      onOverridesChanged?.();
+      setSaveStatus("saved");
+      window.setTimeout(() => setSaveStatus("idle"), 1800);
+      return true;
+    } catch (error) {
+      console.error("save app mapping failed", error);
+      setSaveStatus("idle");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [candidates, draftState, hasUnsavedChanges, onOverridesChanged, savedState, saving]);
+
+  useEffect(() => {
+    onRegisterSaveHandler?.(handleSave);
+    return () => {
+      onRegisterSaveHandler?.(null);
+    };
+  }, [handleSave, onRegisterSaveHandler]);
+
+  const handleCancel = useCallback(() => {
+    if (!savedState || !hasUnsavedChanges || saving) return;
+    setDraftState(savedState);
+    setNameDrafts({});
+    setNameEditSnapshots({});
+    setEditingNameExe(null);
+    skipNextNameBlurExeRef.current = null;
+    setSaveStatus("idle");
+  }, [hasUnsavedChanges, savedState, saving]);
+
+  const handleNameBlur = useCallback((candidate: ObservedAppCandidate) => {
+    if (skipNextNameBlurExeRef.current === candidate.exeName) {
+      skipNextNameBlurExeRef.current = null;
+      return;
+    }
+    handleNameCommit(candidate);
+    setEditingNameExe((prev) => (prev === candidate.exeName ? null : prev));
+  }, [handleNameCommit]);
+
+  return {
+    dialogs,
+    loading,
+    draftState,
+    savedState,
+    filter,
+    setFilter,
+    counts,
+    saveStatus,
+    saving,
+    hasUnsavedChanges,
+    handleCancel,
+    handleSave,
+    filteredCandidates,
+    showCategoryDialog,
+    setShowCategoryDialog,
+    colorFormat,
+    setColorFormat,
+    categoryControlCategories,
+    candidateCategoryOptions,
+    resolveCategoryColor,
+    handleCreateCustomCategory,
+    handleDeleteCategory,
+    resolveEffectiveDisplayName,
+    resolveCandidateColor,
+    resolveMappedCategory,
+    resolveTrackingEnabled,
+    resolveTitleCaptureEnabled,
+    deletingSessionsExe,
+    editingNameExe,
+    nameDrafts,
+    draftOverrides,
+    syncNameDraftToPageDraft,
+    handleNameBlur,
+    handleNameEditCancel,
+    startNameEdit,
+    handleColorAssign,
+    handleCategoryAssign,
+    handleTitleCaptureToggle,
+    handleTrackingToggle,
+    handleResetAppOverride,
+    handleDeleteAllSessions,
+    applyCategoryColor,
+  };
+}

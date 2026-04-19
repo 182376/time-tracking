@@ -2,7 +2,7 @@ import {
   assert,
   buildNormalizedAppStats,
   compileSessions,
-  HistoryReadModelService,
+  buildHistoryReadModel,
   makeSession,
   ProcessMapper,
   resolveCanonicalDisplayName,
@@ -159,7 +159,7 @@ export function runProcessMapperTests() {
     });
 
     const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
-    const historyView = HistoryReadModelService.buildHistoryReadModel({
+    const historyView = buildHistoryReadModel({
       daySessions: [
         makeSession({
           id: 1,
@@ -194,7 +194,7 @@ export function runProcessMapperTests() {
     });
 
     const trackerHealth = resolveTrackerHealth(120_000, 120_000, 8_000);
-    const historyView = HistoryReadModelService.buildHistoryReadModel({
+    const historyView = buildHistoryReadModel({
       daySessions: [
         makeSession({
           id: 1,

@@ -74,6 +74,7 @@ jobs:
         run: |
           npm test
           npm run test:replay
+          npm run test:update
 
       - name: Check Rust
         if: env.TAG_EXISTS != 'true'

@@ -23,7 +23,7 @@ import {
   type HistorySnapshot,
 } from "../services/historyReadModel";
 import type { TrackerHealthSnapshot } from "../../../shared/types/tracking";
-import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade";
+import { AppClassification } from "../../../shared/classification/appClassification.ts";
 import QuietChartTooltip from "../../../shared/components/QuietChartTooltip";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
 import {
@@ -258,8 +258,8 @@ export default function History({
               ) : (
                 <div className="space-y-4">
                   {appSummary.map((app) => {
-                    const mapped = AppClassificationFacade.mapApp(app.exeName, { appName: app.appName });
-                    const overrideColor = AppClassificationFacade.getUserOverride(app.exeName)?.color;
+                    const mapped = AppClassification.mapApp(app.exeName, { appName: app.appName });
+                    const overrideColor = AppClassification.getUserOverride(app.exeName)?.color;
                     const accentColor = overrideColor ?? iconThemeColors[app.exeName] ?? mapped.color;
                     const appName = app.appName.trim() || mapped.name;
                     return (
@@ -324,8 +324,8 @@ export default function History({
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
                 {timelineSessions.map((session) => {
-                  const mapped = AppClassificationFacade.mapApp(session.exe_name, { appName: session.displayName });
-                  const overrideColor = AppClassificationFacade.getUserOverride(session.exe_name)?.color;
+                  const mapped = AppClassification.mapApp(session.exe_name, { appName: session.displayName });
+                  const overrideColor = AppClassification.getUserOverride(session.exe_name)?.color;
                   const accentColor = overrideColor ?? iconThemeColors[session.exe_name] ?? mapped.color;
 
                   return (

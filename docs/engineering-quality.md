@@ -108,6 +108,7 @@
 
 - `npm test`
 - `npm run test:replay`
+- `npm run test:update`
 - `npm run build`
 
 命中风险时追加验证：

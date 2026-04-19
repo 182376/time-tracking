@@ -17,7 +17,8 @@ import {
   materializeLiveSessions,
   resolveLiveCutoffMs,
 } from "../../src/shared/lib/readModelCore.ts";
-import { HistoryReadModelService } from "../../src/shared/lib/historyReadModelService.ts";
+import { buildDashboardReadModel } from "../../src/features/dashboard/services/dashboardReadModel.ts";
+import { buildHistoryReadModel } from "../../src/features/history/services/historyReadModel.ts";
 import type { HistorySession } from "../../src/shared/lib/sessionReadRepository.ts";
 import {
   isCurrentTrackingSnapshot,
@@ -26,8 +27,8 @@ import {
   isTrackingWindowSnapshot,
   type TrackedWindow,
 } from "../../src/shared/types/tracking.ts";
-import { AppClassificationFacade } from "../../src/shared/lib/appClassificationFacade.ts";
-import { ProcessMapper } from "../../src/features/classification/services/ProcessMapper.ts";
+import { AppClassification } from "../../src/shared/classification/appClassification.ts";
+import { ProcessMapper } from "../../src/shared/classification/processMapper.ts";
 import { shouldSyncTrackingPause } from "../../src/app/services/trackingPauseSettingsPolicy.ts";
 import {
   applyMappingOverridesReadModelRefresh,
@@ -62,7 +63,8 @@ export {
   clearSessionsByRangeWithDeps,
   buildTimelineSessions,
   compileSessions,
-  HistoryReadModelService,
+  buildDashboardReadModel,
+  buildHistoryReadModel,
   INITIAL_READ_MODEL_REFRESH_STATE,
   isTrackableWindow,
   isCurrentTrackingSnapshot,
@@ -96,9 +98,9 @@ export type {
 };
 
 export const shouldTrack = (exeName: string) => !["explorer.exe", "time_tracker.exe"].includes(exeName.toLowerCase());
-export const resolveCanonicalDisplayName = AppClassificationFacade.resolveCanonicalDisplayName;
-export const resolveCanonicalExecutable = AppClassificationFacade.resolveCanonicalExecutable;
-export const shouldTrackProcess = AppClassificationFacade.shouldTrackProcess;
+export const resolveCanonicalDisplayName = AppClassification.resolveCanonicalDisplayName;
+export const resolveCanonicalExecutable = AppClassification.resolveCanonicalExecutable;
+export const shouldTrackProcess = AppClassification.shouldTrackProcess;
 
 const harness = createTestHarness();
 

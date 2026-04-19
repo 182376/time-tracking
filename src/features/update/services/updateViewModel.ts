@@ -116,7 +116,7 @@ function buildUpdateProgressModel(snapshot: UpdateSnapshot): UpdateProgressModel
         ? `${formatByteCount(downloadedBytes)} / ${formatByteCount(totalBytes)}`
         : hasDownloadedBytes
           ? `已下载 ${formatByteCount(downloadedBytes)}`
-          : "正在下载更新包",
+          : "正在获取进度",
       valueText: percent !== null ? `${percent}%` : null,
       indeterminate: percent === null,
     };

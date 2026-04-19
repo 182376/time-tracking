@@ -1,4 +1,5 @@
-import { HistoryReadModelService } from "../../src/shared/lib/historyReadModelService.ts";
+import { buildDashboardReadModel } from "../../src/features/dashboard/services/dashboardReadModel.ts";
+import { buildHistoryReadModel } from "../../src/features/history/services/historyReadModel.ts";
 import { resolveTrackerHealth } from "../../src/shared/types/tracking.ts";
 import type { HistorySession } from "../../src/shared/lib/sessionReadRepository.ts";
 import { makeSession } from "./trackingTestHarness.ts";
@@ -45,7 +46,7 @@ export function buildHistoryView(params: {
     mergeThresholdSecs = 180,
   } = params;
 
-  return HistoryReadModelService.buildHistoryReadModel({
+  return buildHistoryReadModel({
     daySessions,
     weeklySessions,
     selectedDate,
@@ -61,5 +62,5 @@ export function buildDashboardView(
   trackerHealth: ReturnType<typeof resolveTrackerHealth> = makeHealthyTrackerHealth(),
   nowMs: number = 200_000,
 ) {
-  return HistoryReadModelService.buildDashboardReadModel(sessions, trackerHealth, nowMs);
+  return buildDashboardReadModel(sessions, trackerHealth, nowMs);
 }

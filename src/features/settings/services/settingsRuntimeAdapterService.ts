@@ -1,6 +1,7 @@
 import {
   clearSessionsBefore,
   loadSettings,
+  loadTrackerHealthTimestamp,
   saveSetting,
   type AppSettings,
 } from "../../../shared/lib/settingsPersistenceAdapter.ts";
@@ -57,9 +58,26 @@ function buildBackupPreviewSummary(preview: BackupPreview): string {
 }
 
 export class SettingsRuntimeAdapterService {
+  static async loadCurrentSettings(): Promise<AppSettings> {
+    return loadSettings();
+  }
+
+  static async loadLatestTrackingPauseSetting(): Promise<boolean> {
+    const settings = await this.loadCurrentSettings();
+    return settings.tracking_paused;
+  }
+
+  static async loadTrackerHealthTimestamp(): Promise<number | null> {
+    return loadTrackerHealthTimestamp();
+  }
+
+  static async saveMinSessionSecsSetting(nextValue: number): Promise<void> {
+    await saveSetting("min_session_secs", nextValue);
+  }
+
   static async loadBootstrap(): Promise<SettingsPageBootstrapData> {
     const [settings, appVersion] = await Promise.all([
-      loadSettings(),
+      this.loadCurrentSettings(),
       getAppVersion().catch(() => "unknown"),
     ]);
 

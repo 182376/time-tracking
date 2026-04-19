@@ -188,6 +188,7 @@
 
 - `npm test`
 - `npm run test:replay`
+- `npm run test:update`
 - `npm run build`
 
 如果改动还涉及 Rust 侧关键路径，应补上对应的 Rust 检查或回归验证。

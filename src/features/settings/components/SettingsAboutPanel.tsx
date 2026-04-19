@@ -8,6 +8,7 @@ type SettingsAboutPanelProps = {
   effectiveUpdateSnapshot: UpdateSnapshot;
   updateChecking: boolean;
   updateInstalling: boolean;
+  updateDialogOpen: boolean;
   onCheckForUpdates?: () => void;
   onOpenUpdateDialog?: () => void;
   onOpenUpdateReleasePage?: () => void;
@@ -21,6 +22,7 @@ export default function SettingsAboutPanel({
   effectiveUpdateSnapshot,
   updateChecking,
   updateInstalling,
+  updateDialogOpen,
   onCheckForUpdates,
   onOpenUpdateDialog,
   onOpenUpdateReleasePage,
@@ -48,6 +50,7 @@ export default function SettingsAboutPanel({
             snapshot={effectiveUpdateSnapshot}
             checking={updateChecking}
             installing={updateInstalling}
+            suppressProgress={updateDialogOpen}
             onCheckUpdates={() => onCheckForUpdates?.()}
             onOpenConfirmDialog={() => onOpenUpdateDialog?.()}
             onOpenUpdateReleasePage={() => onOpenUpdateReleasePage?.()}

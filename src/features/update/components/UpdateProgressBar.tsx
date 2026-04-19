@@ -13,7 +13,8 @@ export default function UpdateProgressBar({
   indeterminate = false,
   className,
 }: UpdateProgressBarProps) {
-  const resolvedPercent = percent === null ? 100 : Math.max(0, Math.min(100, percent));
+  const resolvedPercent = percent === null ? 0 : Math.max(0, Math.min(100, percent));
+  const visualPercent = indeterminate ? 36 : resolvedPercent;
 
   return (
     <div className={className}>
@@ -30,8 +31,8 @@ export default function UpdateProgressBar({
         aria-valuetext={valueText ?? label}
       >
         <div
-          className={`h-full rounded-full bg-[var(--qp-accent-default)] transition-[width] duration-300 ease-out ${indeterminate ? "animate-pulse" : ""}`}
-          style={{ width: `${resolvedPercent}%` }}
+          className={`h-full rounded-full bg-[var(--qp-accent-default)] ${indeterminate ? "animate-pulse opacity-90" : "transition-[width] duration-300 ease-out"}`}
+          style={{ width: `${visualPercent}%` }}
         />
       </div>
     </div>

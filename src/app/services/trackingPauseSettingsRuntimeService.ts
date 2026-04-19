@@ -1,6 +1,5 @@
-import { loadSettings } from "../../shared/lib/settingsPersistenceAdapter.ts";
+import { SettingsRuntimeAdapterService } from "../../features/settings/services/settingsRuntimeAdapterService.ts";
 
 export async function loadLatestTrackingPauseSetting() {
-  const latestSettings = await loadSettings();
-  return latestSettings.tracking_paused;
+  return SettingsRuntimeAdapterService.loadLatestTrackingPauseSetting();
 }

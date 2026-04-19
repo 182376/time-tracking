@@ -1,13 +1,13 @@
-import { ProcessMapper, type AppInfo, type AppOverride, type MappingHints } from "../../features/classification/services/ProcessMapper.ts";
-import type { AppCategory } from "../../features/classification/config/categoryTokens.ts";
+import { ProcessMapper, type AppInfo, type AppOverride, type MappingHints } from "./processMapper.ts";
+import type { AppCategory } from "./categoryTokens.ts";
 import {
   normalizeExecutable,
   resolveCanonicalDisplayName,
   resolveCanonicalExecutable,
   shouldTrackProcess,
-} from "../../features/classification/services/processNormalization.ts";
+} from "./processNormalization.ts";
 
-export class AppClassificationFacade {
+export class AppClassification {
   static mapApp(exeName: string, hints: MappingHints = {}): AppInfo {
     return ProcessMapper.map(exeName, hints);
   }

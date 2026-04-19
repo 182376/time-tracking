@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { HistoryReadModelService } from "../src/shared/lib/historyReadModelService.ts";
+import { buildDashboardReadModel } from "../src/features/dashboard/services/dashboardReadModel.ts";
+import { buildHistoryReadModel } from "../src/features/history/services/historyReadModel.ts";
 import { buildTopApplications } from "../src/features/dashboard/services/dashboardFormatting.ts";
 import { ProcessMapper } from "../src/features/classification/services/ProcessMapper.ts";
 import { resolveTrackerHealth } from "../src/shared/types/tracking.ts";
@@ -60,7 +61,7 @@ runTest("history replay filters pickerhost and keeps alias aggregation stable", 
     }),
   ];
 
-  const readModel = HistoryReadModelService.buildHistoryReadModel({
+  const readModel = buildHistoryReadModel({
     daySessions,
     weeklySessions: daySessions,
     selectedDate: new Date(0),
@@ -128,7 +129,7 @@ runTest("dashboard replay keeps alias aggregation stable and filters pickerhost"
     }),
   ];
 
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(sessions, trackerHealth, 400_000);
+  const dashboard = buildDashboardReadModel(sessions, trackerHealth, 400_000);
   assert.equal(
     dashboard.topApplications.some((item) => item.exeName.toLowerCase().includes("pickerhost")),
     false,
@@ -157,7 +158,7 @@ runTest("replay keeps stale live session growth capped in history and dashboard"
     }),
   ];
 
-  const history = HistoryReadModelService.buildHistoryReadModel({
+  const history = buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: sessions,
     selectedDate: new Date(0),
@@ -166,7 +167,7 @@ runTest("replay keeps stale live session growth capped in history and dashboard"
     minSessionSecs: 0,
     mergeThresholdSecs: 180,
   });
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(
+  const dashboard = buildDashboardReadModel(
     sessions,
     staleTrackerHealth,
     30_000,
@@ -192,7 +193,7 @@ runTest("replay keeps startup-sealed sessions closed under stale tracker", () =>
     }),
   ];
 
-  const history = HistoryReadModelService.buildHistoryReadModel({
+  const history = buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: sessions,
     selectedDate: new Date(0),
@@ -201,7 +202,7 @@ runTest("replay keeps startup-sealed sessions closed under stale tracker", () =>
     minSessionSecs: 0,
     mergeThresholdSecs: 180,
   });
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(
+  const dashboard = buildDashboardReadModel(
     sessions,
     staleTrackerHealth,
     30_000,
@@ -240,7 +241,7 @@ runTest("replay keeps startup-sealed sessions stable after cleanup on stale trac
     !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
   ));
 
-  const history = HistoryReadModelService.buildHistoryReadModel({
+  const history = buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: sessions,
     selectedDate: new Date(0),
@@ -249,7 +250,7 @@ runTest("replay keeps startup-sealed sessions stable after cleanup on stale trac
     minSessionSecs: 0,
     mergeThresholdSecs: 180,
   });
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(
+  const dashboard = buildDashboardReadModel(
     sessions,
     staleTrackerHealth,
     30_000,
@@ -290,7 +291,7 @@ runTest("replay keeps sessions starting at cleanup cutoff in stale tracker views
     !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
   ));
 
-  const history = HistoryReadModelService.buildHistoryReadModel({
+  const history = buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: sessions,
     selectedDate: new Date(0),
@@ -299,7 +300,7 @@ runTest("replay keeps sessions starting at cleanup cutoff in stale tracker views
     minSessionSecs: 0,
     mergeThresholdSecs: 180,
   });
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(
+  const dashboard = buildDashboardReadModel(
     sessions,
     staleTrackerHealth,
     35_000,
@@ -342,7 +343,7 @@ runTest("replay keeps active sessions starting at cleanup cutoff and caps them f
     !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
   ));
 
-  const history = HistoryReadModelService.buildHistoryReadModel({
+  const history = buildHistoryReadModel({
     daySessions: sessions,
     weeklySessions: sessions,
     selectedDate: new Date(0),
@@ -351,7 +352,7 @@ runTest("replay keeps active sessions starting at cleanup cutoff and caps them f
     minSessionSecs: 0,
     mergeThresholdSecs: 180,
   });
-  const dashboard = HistoryReadModelService.buildDashboardReadModel(
+  const dashboard = buildDashboardReadModel(
     sessions,
     staleTrackerHealth,
     35_000,

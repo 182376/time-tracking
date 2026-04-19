@@ -6,7 +6,6 @@ import Dashboard from "../features/dashboard/components/Dashboard";
 import ToastStack from "../shared/components/ToastStack";
 import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
-import { saveSetting } from "../shared/lib/settingsPersistenceAdapter.ts";
 import {
   applyMappingOverridesReadModelRefresh,
   applySessionDeletionReadModelRefresh,
@@ -21,12 +20,13 @@ import {
   prewarmStartupBootstrapCaches,
   prewarmStartupSnapshotCaches,
 } from "./services/startupPrewarmService";
-import { AppClassificationFacade } from "../shared/lib/appClassificationFacade";
+import { AppClassification } from "../shared/classification/appClassification.ts";
 import { useQuietDialogs } from "../shared/hooks/useQuietDialogs";
 import UpdateDialogProvider from "./providers/UpdateDialogProvider";
 import { useAppShellNavigation } from "./hooks/useAppShellNavigation";
 import { useAppShellToasts } from "./hooks/useAppShellToasts";
 import { useAppShellUpdateEntry } from "./hooks/useAppShellUpdateEntry";
+import { SettingsRuntimeAdapterService } from "../features/settings/services/settingsRuntimeAdapterService";
 
 const History = lazy(() => import("../features/history/components/History"));
 const Settings = lazy(() => import("../features/settings/components/Settings"));
@@ -76,8 +76,8 @@ function AppShellContent() {
   );
 
   const activeExeName = activeWindow?.exe_name ?? null;
-  const mappedActiveApp = activeExeName && AppClassificationFacade.shouldTrackApp(activeExeName)
-    ? AppClassificationFacade.mapApp(activeExeName)
+  const mappedActiveApp = activeExeName && AppClassification.shouldTrackApp(activeExeName)
+    ? AppClassification.mapApp(activeExeName)
     : null;
   const activeApp = trackerHealth.status === "healthy"
     && !appSettings.tracking_paused
@@ -103,7 +103,7 @@ function AppShellContent() {
       ...current,
       min_session_secs: nextValue,
     }));
-    void saveSetting("min_session_secs", nextValue).catch(console.warn);
+    void SettingsRuntimeAdapterService.saveMinSessionSecsSetting(nextValue).catch(console.warn);
   }, [setAppSettings]);
 
   return (

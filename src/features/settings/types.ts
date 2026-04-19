@@ -11,6 +11,7 @@ export interface SettingsPageProps {
   updateSnapshot?: UpdateSnapshot;
   updateChecking?: boolean;
   updateInstalling?: boolean;
+  updateDialogOpen?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onToast?: (message: string, tone?: ToastTone) => void;
   onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;

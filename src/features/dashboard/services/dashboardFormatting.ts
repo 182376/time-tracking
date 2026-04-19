@@ -1,7 +1,7 @@
 import type { AppStat } from "../../../shared/types/app.ts";
 import type { HistorySession } from "../../../shared/lib/sessionReadRepository.ts";
-import type { AppCategory } from "../../classification/config/categoryTokens.ts";
-import { AppClassificationFacade } from "../../../shared/lib/appClassificationFacade.ts";
+import type { AppCategory } from "../../../shared/classification/categoryTokens.ts";
+import { AppClassification } from "../../../shared/classification/appClassification.ts";
 
 export interface HourlyActivityPoint {
   hour: string;
@@ -43,8 +43,8 @@ export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
   const totalTrackedTime = getTotalTrackedTime(stats);
 
   return stats.map((item) => {
-    const mapped = AppClassificationFacade.mapApp(item.exe_name, { appName: item.app_name });
-    const overrideName = AppClassificationFacade.getUserOverride(item.exe_name)?.displayName?.trim();
+    const mapped = AppClassification.mapApp(item.exe_name, { appName: item.app_name });
+    const overrideName = AppClassification.getUserOverride(item.exe_name)?.displayName?.trim();
     const name = overrideName || item.app_name.trim() || mapped.name;
     return {
       exeName: item.exe_name,
@@ -94,16 +94,16 @@ export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] 
   const categories = new Map<AppCategory, number>();
 
   for (const stat of stats) {
-    const mapped = AppClassificationFacade.mapApp(stat.exe_name, { appName: stat.app_name });
+    const mapped = AppClassification.mapApp(stat.exe_name, { appName: stat.app_name });
     categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.total_duration));
   }
 
   return Array.from(categories.entries())
     .map(([cat, val]) => ({
       category: cat,
-      name: AppClassificationFacade.getCategoryLabel(cat),
+      name: AppClassification.getCategoryLabel(cat),
       value: val,
-      color: AppClassificationFacade.getCategoryColor(cat),
+      color: AppClassification.getCategoryColor(cat),
     }))
     .sort((a, b) => b.value - a.value);
 }
