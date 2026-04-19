@@ -32,7 +32,7 @@ const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
 const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.close_behavior;
 const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
   CLOSE_BEHAVIOR_DEFAULT === "tray" ? "exit" : "tray";
-const IDLE_TIMEOUT_MINUTES_RANGE = { min: 1, max: 30 } as const;
+const IDLE_TIMEOUT_MINUTES_RANGE = { min: 5, max: 30 } as const;
 const TIMELINE_MERGE_GAP_MINUTES_RANGE = { min: 1, max: 5 } as const;
 const MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
 const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -43,6 +43,8 @@ export default function Settings({
   onSettingsChanged,
   onCheckForUpdates,
   onOpenUpdateDialog,
+  onOpenUpdateReleasePage,
+  onOpenUpdateDownload,
   updateSnapshot,
   updateChecking,
   updateInstalling,
@@ -309,6 +311,11 @@ export default function Settings({
     release_notes: null,
     release_date: null,
     error_message: null,
+    error_stage: null,
+    downloaded_bytes: null,
+    total_bytes: null,
+    release_page_url: null,
+    asset_download_url: null,
   };
 
   return (
@@ -363,14 +370,6 @@ export default function Settings({
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
         <div className="grid grid-cols-1 gap-4 md:gap-5">
           <SettingsTrackingPanel
-            idleTimeoutControl={{
-              label: UI_TEXT.settings.idleTimeoutLabel,
-              hint: UI_TEXT.settings.idleTimeoutHint,
-              minutes: idleTimeoutMinutes,
-              minMinutes: IDLE_TIMEOUT_MINUTES_RANGE.min,
-              maxMinutes: IDLE_TIMEOUT_MINUTES_RANGE.max,
-              onMinutesChange: (nextMinutes) => handleChange("idle_timeout_secs", nextMinutes * 60),
-            }}
             timelineMergeGapControl={{
               label: UI_TEXT.settings.timelineMergeGapLabel,
               hint: UI_TEXT.settings.timelineMergeGapHint,
@@ -378,6 +377,14 @@ export default function Settings({
               minMinutes: TIMELINE_MERGE_GAP_MINUTES_RANGE.min,
               maxMinutes: TIMELINE_MERGE_GAP_MINUTES_RANGE.max,
               onMinutesChange: (nextMinutes) => handleChange("timeline_merge_gap_secs", nextMinutes * 60),
+            }}
+            idleTimeoutControl={{
+              label: UI_TEXT.settings.idleTimeoutLabel,
+              hint: UI_TEXT.settings.idleTimeoutHint,
+              minutes: idleTimeoutMinutes,
+              minMinutes: IDLE_TIMEOUT_MINUTES_RANGE.min,
+              maxMinutes: IDLE_TIMEOUT_MINUTES_RANGE.max,
+              onMinutesChange: (nextMinutes) => handleChange("idle_timeout_secs", nextMinutes * 60),
             }}
             minSessionControl={{
               label: UI_TEXT.settings.minSessionLabel,
@@ -434,6 +441,14 @@ export default function Settings({
               void onCheckForUpdates();
             }}
             onOpenUpdateDialog={() => onOpenUpdateDialog?.()}
+            onOpenUpdateReleasePage={() => {
+              if (!onOpenUpdateReleasePage) return;
+              void onOpenUpdateReleasePage();
+            }}
+            onOpenUpdateDownload={() => {
+              if (!onOpenUpdateDownload) return;
+              void onOpenUpdateDownload();
+            }}
             onOpenReleaseNotes={() => {
               void handleOpenReleaseNotes();
             }}

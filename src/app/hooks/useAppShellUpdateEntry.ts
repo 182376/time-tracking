@@ -13,6 +13,8 @@ interface SettingsUpdateEntry {
   updateInstalling: boolean;
   onCheckForUpdates: () => Promise<void>;
   onOpenUpdateDialog: () => void;
+  onOpenUpdateReleasePage: () => Promise<void>;
+  onOpenUpdateDownload: () => Promise<void>;
 }
 
 export function useAppShellUpdateEntry() {
@@ -23,6 +25,8 @@ export function useAppShellUpdateEntry() {
     shouldShowSidebarEntry,
     openUpdateDialog,
     checkForUpdates,
+    openReleasePage,
+    openAssetDownload,
   } = useUpdateDialog();
 
   const handleCheckForUpdates = useCallback(async () => {
@@ -40,6 +44,8 @@ export function useAppShellUpdateEntry() {
     updateInstalling: isInstalling,
     onCheckForUpdates: handleCheckForUpdates,
     onOpenUpdateDialog: openUpdateDialog,
+    onOpenUpdateReleasePage: openReleasePage,
+    onOpenUpdateDownload: openAssetDownload,
   };
 
   return {

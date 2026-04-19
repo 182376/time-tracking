@@ -13,6 +13,8 @@ interface UpdateDialogContextValue {
   closeUpdateDialog: () => void;
   checkForUpdates: (silent: boolean) => Promise<UpdateSnapshot>;
   confirmUpdateAction: () => Promise<UpdateSnapshot>;
+  openReleasePage: () => Promise<void>;
+  openAssetDownload: () => Promise<void>;
 }
 
 const UpdateDialogContext = createContext<UpdateDialogContextValue | null>(null);
@@ -37,6 +39,8 @@ export default function UpdateDialogProvider({ children }: UpdateDialogProviderP
     closeUpdateDialog: updateState.closeDialog,
     checkForUpdates: updateState.checkForUpdates,
     confirmUpdateAction: updateState.confirmUpdateAction,
+    openReleasePage: updateState.openReleasePage,
+    openAssetDownload: updateState.openAssetDownload,
   };
 
   return (
@@ -47,6 +51,15 @@ export default function UpdateDialogProvider({ children }: UpdateDialogProviderP
         snapshot={updateState.snapshot}
         installing={updateState.isInstalling}
         onClose={updateState.closeDialog}
+        onRetryCheck={() => {
+          void updateState.checkForUpdates(false);
+        }}
+        onOpenReleasePage={() => {
+          void updateState.openReleasePage();
+        }}
+        onOpenAssetDownload={() => {
+          void updateState.openAssetDownload();
+        }}
         onConfirm={() => {
           void updateState.confirmUpdateAction();
         }}

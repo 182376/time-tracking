@@ -1,4 +1,8 @@
-import type { TrackerHealthSnapshot, TrackingWindowSnapshot } from "../../shared/types/tracking";
+import type {
+  TrackerHealthSnapshot,
+  TrackingStatusSnapshot,
+  TrackingWindowSnapshot,
+} from "../../shared/types/tracking";
 import { resolveTrackerHealth } from "../../shared/types/tracking";
 import {
   loadSettings,
@@ -6,7 +10,7 @@ import {
   type AppSettings,
 } from "../../shared/lib/settingsPersistenceAdapter";
 import {
-  getCurrentWindow,
+  getCurrentTrackingSnapshot,
   setIdleTimeout,
 } from "../../platform/runtime/trackingRuntimeGateway";
 import { initializeProcessMapperRuntime } from "./processMapperRuntimeService";
@@ -16,8 +20,16 @@ export const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
 export interface AppRuntimeBootstrapSnapshot {
   settings: AppSettings;
   activeWindow: TrackingWindowSnapshot | null;
+  trackingStatus: TrackingStatusSnapshot;
   trackerHealth: TrackerHealthSnapshot;
 }
+
+const DEFAULT_TRACKING_STATUS: TrackingStatusSnapshot = {
+  is_tracking_active: false,
+  sustained_participation_eligible: false,
+  sustained_participation_active: false,
+  sustained_participation_kind: null,
+};
 
 export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Promise<TrackerHealthSnapshot> {
   try {
@@ -35,14 +47,15 @@ export async function loadAppRuntimeBootstrapSnapshot(): Promise<AppRuntimeBoots
 
   await initializeProcessMapperRuntime();
 
-  const [activeWindow, trackerHealth] = await Promise.all([
-    getCurrentWindow(),
+  const [trackingSnapshot, trackerHealth] = await Promise.all([
+    getCurrentTrackingSnapshot(),
     loadTrackerHealthSnapshot(),
   ]);
 
   return {
     settings,
-    activeWindow,
+    activeWindow: trackingSnapshot?.window ?? null,
+    trackingStatus: trackingSnapshot?.status ?? DEFAULT_TRACKING_STATUS,
     trackerHealth,
   };
 }

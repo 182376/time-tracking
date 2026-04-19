@@ -20,6 +20,7 @@ import {
 import { HistoryReadModelService } from "../../src/shared/lib/historyReadModelService.ts";
 import type { HistorySession } from "../../src/shared/lib/sessionReadRepository.ts";
 import {
+  isCurrentTrackingSnapshot,
   isTrackingDataChangedPayload,
   resolveTrackerHealth,
   isTrackingWindowSnapshot,
@@ -64,6 +65,7 @@ export {
   HistoryReadModelService,
   INITIAL_READ_MODEL_REFRESH_STATE,
   isTrackableWindow,
+  isCurrentTrackingSnapshot,
   isTrackingDataChangedPayload,
   isTrackingWindowSnapshot,
   materializeLiveSessions,

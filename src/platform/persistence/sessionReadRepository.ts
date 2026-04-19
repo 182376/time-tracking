@@ -9,6 +9,7 @@ export interface HistorySession {
   start_time: number;
   end_time: number | null;
   duration: number | null;
+  continuity_group_start_time: number | null;
 }
 
 export interface DailySummary {
@@ -42,7 +43,7 @@ export async function getSessionsInRange(startMs: number, endMs: number): Promis
   const db = await getDB();
   const now = Date.now();
   return db.select<HistorySession[]>(
-    "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, MAX(0, ? - start_time)) as duration FROM sessions WHERE start_time < ? AND COALESCE(end_time, ?) > ? ORDER BY start_time ASC",
+    "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, MAX(0, ? - start_time)) as duration, continuity_group_start_time FROM sessions WHERE start_time < ? AND COALESCE(end_time, ?) > ? ORDER BY start_time ASC",
     [now, endMs, now, startMs],
   );
 }

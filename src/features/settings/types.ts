@@ -6,6 +6,8 @@ export interface SettingsPageProps {
   onSettingsChanged: (settings: AppSettings) => void;
   onCheckForUpdates?: () => Promise<void>;
   onOpenUpdateDialog?: () => void;
+  onOpenUpdateReleasePage?: () => Promise<void>;
+  onOpenUpdateDownload?: () => Promise<void>;
   updateSnapshot?: UpdateSnapshot;
   updateChecking?: boolean;
   updateInstalling?: boolean;

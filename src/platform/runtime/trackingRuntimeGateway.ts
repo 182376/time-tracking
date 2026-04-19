@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
 import {
+  type CurrentTrackingSnapshot,
   type TrackingDataChangedPayload,
   type TrackingWindowSnapshot,
+  parseCurrentTrackingSnapshot,
   parseTrackingDataChangedPayload,
   parseTrackingWindowSnapshot,
 } from "../../shared/types/tracking";
@@ -11,6 +13,15 @@ export async function getCurrentWindow(): Promise<TrackingWindowSnapshot | null>
   try {
     const payload = await invoke<unknown>("get_current_active_window");
     return parseTrackingWindowSnapshot(payload);
+  } catch {
+    return null;
+  }
+}
+
+export async function getCurrentTrackingSnapshot(): Promise<CurrentTrackingSnapshot | null> {
+  try {
+    const payload = await invoke<unknown>("get_current_tracking_snapshot");
+    return parseCurrentTrackingSnapshot(payload);
   } catch {
     return null;
   }

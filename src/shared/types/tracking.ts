@@ -12,6 +12,20 @@ export interface TrackedWindow {
 
 export type TrackingWindowSnapshot = TrackedWindow;
 
+export type SustainedParticipationKind = "video" | "meeting";
+
+export interface TrackingStatusSnapshot {
+  is_tracking_active: boolean;
+  sustained_participation_eligible: boolean;
+  sustained_participation_active: boolean;
+  sustained_participation_kind: SustainedParticipationKind | null;
+}
+
+export interface CurrentTrackingSnapshot {
+  window: TrackingWindowSnapshot;
+  status: TrackingStatusSnapshot;
+}
+
 export interface TrackingDataChangedPayload {
   reason: string;
   changed_at_ms: number;
@@ -58,6 +72,24 @@ export function isTrackingWindowSnapshot(value: unknown): value is TrackingWindo
     && typeof value.idle_time_ms === "number";
 }
 
+export function isTrackingStatusSnapshot(value: unknown): value is TrackingStatusSnapshot {
+  return isRecord(value)
+    && typeof value.is_tracking_active === "boolean"
+    && typeof value.sustained_participation_eligible === "boolean"
+    && typeof value.sustained_participation_active === "boolean"
+    && (
+      value.sustained_participation_kind === null
+      || value.sustained_participation_kind === "video"
+      || value.sustained_participation_kind === "meeting"
+    );
+}
+
+export function isCurrentTrackingSnapshot(value: unknown): value is CurrentTrackingSnapshot {
+  return isRecord(value)
+    && isTrackingWindowSnapshot(value.window)
+    && isTrackingStatusSnapshot(value.status);
+}
+
 export function isTrackingDataChangedPayload(value: unknown): value is TrackingDataChangedPayload {
   return isRecord(value)
     && typeof value.reason === "string"
@@ -66,6 +98,10 @@ export function isTrackingDataChangedPayload(value: unknown): value is TrackingD
 
 export function parseTrackingWindowSnapshot(value: unknown): TrackingWindowSnapshot | null {
   return isTrackingWindowSnapshot(value) ? value : null;
+}
+
+export function parseCurrentTrackingSnapshot(value: unknown): CurrentTrackingSnapshot | null {
+  return isCurrentTrackingSnapshot(value) ? value : null;
 }
 
 export function parseTrackingDataChangedPayload(value: unknown): TrackingDataChangedPayload | null {

@@ -13,6 +13,7 @@ interface Props {
   dashboard: DashboardReadModel;
   icons: Record<string, string>;
   isAfk: boolean;
+  isTrackingActive: boolean;
   activeAppName: string | null;
   trackingPaused: boolean;
 }
@@ -21,6 +22,7 @@ export default function Dashboard({
   dashboard,
   icons,
   isAfk,
+  isTrackingActive,
   activeAppName,
   trackingPaused,
 }: Props) {
@@ -35,10 +37,14 @@ export default function Dashboard({
     ? UI_TEXT.dashboard.paused
     : isAfk
       ? UI_TEXT.dashboard.afk
-      : UI_TEXT.dashboard.active;
+      : isTrackingActive
+        ? UI_TEXT.dashboard.active
+        : UI_TEXT.dashboard.idle;
   const runtimeStateToneClass = trackingPaused || isAfk
     ? "bg-[var(--qp-warning)]"
-    : "bg-[var(--qp-success)]";
+    : isTrackingActive
+      ? "bg-[var(--qp-success)]"
+      : "bg-[var(--qp-border-strong)]";
 
   return (
     <div className="flex flex-col gap-4 md:gap-5 h-full overflow-hidden">

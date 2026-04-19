@@ -57,6 +57,7 @@ function AppShellContent() {
   const didPrewarmSnapshotCachesRef = useRef(false);
   const {
     activeWindow,
+    trackingStatus,
     appSettings,
     classificationReady,
     setAppSettings,
@@ -75,12 +76,14 @@ function AppShellContent() {
   );
 
   const activeExeName = activeWindow?.exe_name ?? null;
+  const mappedActiveApp = activeExeName && AppClassificationFacade.shouldTrackApp(activeExeName)
+    ? AppClassificationFacade.mapApp(activeExeName)
+    : null;
   const activeApp = trackerHealth.status === "healthy"
     && !appSettings.tracking_paused
-    && activeExeName
-    && !activeWindow?.is_afk
-    && AppClassificationFacade.shouldTrackApp(activeExeName)
-    ? AppClassificationFacade.mapApp(activeExeName)
+    && mappedActiveApp
+    && trackingStatus.is_tracking_active
+    ? mappedActiveApp
     : null;
 
   useEffect(() => {
@@ -128,6 +131,7 @@ function AppShellContent() {
                 dashboard={dashboard}
                 icons={icons}
                 isAfk={activeWindow?.is_afk ?? false}
+                isTrackingActive={activeApp !== null}
                 activeAppName={activeApp?.name ?? null}
                 trackingPaused={appSettings.tracking_paused}
               />

@@ -224,6 +224,10 @@ mod tests {
         pool.execute(db_schema::MIGRATION_1_SQL).await.unwrap();
         pool.execute(db_schema::MIGRATION_2_SQL).await.unwrap();
         pool.execute(db_schema::MIGRATION_3_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_4_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_5_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_6_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_7_SQL).await.unwrap();
         pool
     }
 
@@ -266,6 +270,7 @@ mod tests {
                     start_time: 3000,
                     end_time: Some(4000),
                     duration: Some(1000),
+                    continuity_group_start_time: Some(3000),
                 }],
                 settings: vec![
                     BackupSetting {

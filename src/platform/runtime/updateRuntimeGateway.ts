@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type Event } from "@tauri-apps/api/event";
 import { parseUpdateSnapshot, type UpdateSnapshot } from "../../shared/types/update";
 
 function assertSnapshot(payload: unknown): UpdateSnapshot {
@@ -27,4 +28,18 @@ export async function downloadUpdate(): Promise<UpdateSnapshot> {
 export async function installUpdate(): Promise<UpdateSnapshot> {
   const payload = await invoke<unknown>("cmd_install_update");
   return assertSnapshot(payload);
+}
+
+export async function onUpdateSnapshotChanged(
+  handler: (snapshot: UpdateSnapshot) => void | Promise<void>,
+): Promise<() => void> {
+  return listen<unknown>("update-snapshot-changed", (event: Event<unknown>) => {
+    const payload = parseUpdateSnapshot(event.payload);
+    if (!payload) {
+      console.warn("Ignored invalid update snapshot payload", event.payload);
+      return;
+    }
+
+    void handler(payload);
+  });
 }

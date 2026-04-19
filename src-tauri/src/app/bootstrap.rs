@@ -18,15 +18,16 @@ pub fn build(input: BootstrapInput) -> tauri::Builder<tauri::Wry> {
 }
 
 fn register_single_instance_plugin(
-    mut builder: tauri::Builder<tauri::Wry>,
+    builder: tauri::Builder<tauri::Wry>,
 ) -> tauri::Builder<tauri::Wry> {
-    #[cfg(desktop)]
+    #[cfg(all(desktop, not(debug_assertions)))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        return builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::show_main_window(app);
         }));
     }
 
+    #[cfg(any(not(desktop), debug_assertions))]
     builder
 }
 
@@ -58,6 +59,7 @@ fn register_invoke_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Build
     builder.invoke_handler(tauri::generate_handler![
         commands::apps::get_icon,
         commands::tracking::get_current_active_window,
+        commands::tracking::get_current_tracking_snapshot,
         commands::tracking::cmd_set_idle_timeout,
         commands::settings::cmd_set_desktop_behavior,
         commands::settings::cmd_set_launch_behavior,

@@ -60,6 +60,15 @@ pub const MIGRATION_6_SQL: &str = "
     SELECT 1;
 ";
 
+pub const MIGRATION_7_SQL: &str = "
+    ALTER TABLE sessions
+    ADD COLUMN continuity_group_start_time INTEGER;
+
+    UPDATE sessions
+    SET continuity_group_start_time = start_time
+    WHERE continuity_group_start_time IS NULL;
+";
+
 pub fn tracker_migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -96,6 +105,12 @@ pub fn tracker_migrations() -> Vec<Migration> {
             version: 6,
             description: "compatibility_noop_for_existing_v6_history",
             sql: MIGRATION_6_SQL,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "persist_session_continuity_group_anchor",
+            sql: MIGRATION_7_SQL,
             kind: MigrationKind::Up,
         },
     ]

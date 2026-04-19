@@ -1,0 +1,290 @@
+# 跟踪第二阶段补充执行方案：持续参与期间的连续性对齐连续关注窗口
+
+## 1. 文档定位
+
+本文是第二阶段“持续参与时长”在媒体信号已落地之后的补充执行文档。
+
+这一轮不是继续扩媒体信号来源，而是修正“持续参与期间短暂切应用返回”的连续性语义，使其与 `连续关注窗口` 保持一致。
+
+本文遵循以下长期约束：
+
+- [`docs/architecture.md`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/architecture.md)
+- [`docs/engineering-quality.md`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/engineering-quality.md)
+- [`docs/archive/tracking-phase-2-sustained-participation-execution-plan.md`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/archive/tracking-phase-2-sustained-participation-execution-plan.md)
+- [`docs/archive/tracking-phase-2-gsmtc-primary-fallback-execution-plan.md`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/docs/archive/tracking-phase-2-gsmtc-primary-fallback-execution-plan.md)
+
+本文完成后应移动到 `docs/archive/`。
+
+---
+
+## 2. 现在的问题
+
+当前代码已经实现了：
+
+- [x] 前台窗口命中匹配媒体信号时，按 `持续参与时长` 处理
+- [x] 没有匹配媒体信号时，退回 `连续关注窗口`
+- [x] 展示层可以把短暂中断前后的同应用时间流重新归并
+
+但仍存在一个产品语义缺口：
+
+- [ ] 在持续参与期间，只要切到别的应用，runtime 就会立即结束旧 session 并开始新 session
+- [ ] 如果用户很快切回原视频/会议应用，底层并没有把这段视为“同一轮持续参与”
+- [ ] 现在只是展示层事后把前后片段并在一起，运行时连续性没有真正对齐
+
+这会导致：
+
+- [ ] 切出去的一小段时间虽然归给了实际应用，这是对的
+- [ ] 但原媒体场景“是否仍属于同一轮持续参与”，没有按 `连续关注窗口` 判断
+- [ ] 持续参与在运行时和普通连续关注使用了不一致的中断处理规则
+
+---
+
+## 3. 本轮目标
+
+本轮要收口成下面这套规则：
+
+- [ ] `持续参与时长` 负责决定：命中媒体信号后，这轮低交互参与最长可放宽多久
+- [ ] `连续关注窗口` 负责决定：这轮参与在短暂切到其它应用后，返回时还能不能续上
+- [ ] 用户在持续参与期间切到别的应用，这段时间仍然归实际发生的应用
+- [ ] 但如果在 `连续关注窗口` 内返回原媒体应用，原媒体参与应续上同一轮连续性
+- [ ] 只有超过 `连续关注窗口` 不返回，才真正断开原媒体参与连续性
+
+一句话总结：
+
+- [ ] 一个时间管“可放宽多久”
+- [ ] 一个时间管“中断后还能不能续上”
+
+---
+
+## 4. 完成态定义
+
+本轮完成后，系统应同时满足：
+
+- [ ] 媒体信号命中期间，静默仍按 `持续参与时长` 控制封口
+- [ ] 媒体信号命中期间，短暂切到其它应用后在 `连续关注窗口` 内返回，原媒体参与连续性可续上
+- [ ] 切出去那段时间仍归实际应用，不补回给原媒体应用
+- [ ] 原媒体参与的“续上”发生在 runtime 语义层，而不只是展示层补并
+- [ ] 展示层时间流与 runtime 连续性语义保持一致
+- [ ] 普通交互场景既有的 `连续关注窗口` 行为不回归
+
+---
+
+## 5. 非目标
+
+- [ ] 不改变“切到其它应用的时间归实际应用”这条规则
+- [ ] 不把 gap 自动补成原媒体应用的有效时长
+- [ ] 不改回“只在展示层归并，runtime 不管”的做法
+- [ ] 不新增第三套时间配置
+- [ ] 不让前端自己复刻连续性判断规则
+
+---
+
+## 6. 产品规则拆解
+
+### 6.1 切应用时
+
+- [ ] 当前媒体应用命中持续参与
+- [ ] 用户切到 QQ / 微信 / 浏览器其它页面 / 任意应用
+- [ ] 原媒体 session 不应立刻被定义为“这一轮参与彻底结束”
+- [ ] 新应用仍开始记录自己的 session
+
+### 6.2 返回原媒体应用时
+
+- [ ] 若返回发生在 `连续关注窗口` 内
+- [ ] 且原媒体应用再次命中匹配媒体信号
+- [ ] 应视为原媒体参与连续性续上
+
+### 6.3 超窗时
+
+- [ ] 若切走后超过 `连续关注窗口` 仍未返回
+- [ ] 原媒体参与连续性真正断开
+- [ ] 后续再回来，应算新一轮持续参与
+
+### 6.4 时间归属
+
+- [ ] 中断期间的 QQ / 其它应用时间，仍归该应用
+- [ ] 不把中断时间补成原媒体应用的有效时长
+- [ ] 原媒体应用续上的是“连续性”，不是“抢回中断时间”
+
+---
+
+## 7. 架构约束
+
+### 7.1 Owner
+
+- [ ] runtime 连续性判定 owner 在 [`src-tauri/src/engine/tracking/runtime.rs`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/src-tauri/src/engine/tracking/runtime.rs)
+- [ ] session 切换规划 owner 在 [`src-tauri/src/engine/tracking/transition.rs`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/src-tauri/src/engine/tracking/transition.rs)
+- [ ] 领域语义与连续性契约 owner 在 [`src-tauri/src/domain/tracking.rs`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/src-tauri/src/domain/tracking.rs)
+- [ ] 展示归并 owner 仍在 [`src/shared/lib/sessionReadCompiler.ts`](/C:/Users/SYBao/Documents/Code/Time%20Tracking/src/shared/lib/sessionReadCompiler.ts)
+
+### 7.2 不该发生的回流
+
+- [ ] 不把连续性规则塞回 `commands/*`
+- [ ] 不把连续性规则塞回前端 `app/*`
+- [ ] 不新增页面级临时 patch 修正 runtime 语义
+
+---
+
+## 8. 执行顺序
+
+- [ ] 步骤 1：澄清当前 runtime 与展示层的语义分叉
+- [ ] 步骤 2：定义“持续参与期间切应用”的连续性规则
+- [ ] 步骤 3：修改 runtime / transition 使其按连续关注窗口续上
+- [ ] 步骤 4：对齐展示层时间流与 runtime 语义
+- [ ] 步骤 5：补齐测试
+- [ ] 步骤 6：跑自动化验证
+- [ ] 步骤 7：回写完成状态并归档
+
+---
+
+## 9. 切片 A：现状盘点
+
+### 9.1 目标
+
+- [ ] 明确当前“切到其它应用再回来”时，runtime 在哪里立即拆 session
+- [ ] 明确展示层目前是如何把前后同应用重新归并的
+- [ ] 明确哪一层拥有“连续性”语义，哪一层只是“展示合并”
+
+### 9.2 任务清单
+
+- [ ] 盘点 `transition.rs` 中 `app_changed` 路径对 active session 的处理
+- [ ] 盘点 `runtime.rs` 中持续参与超时、连续关注超时与切应用之间的关系
+- [ ] 盘点 `sessionReadCompiler.ts` 中时间流归并规则
+- [ ] 列出当前实际行为与目标行为的差异清单
+
+### 9.3 完成标准
+
+- [ ] 能准确说清“现在哪里拆了、哪里又并了、哪里还没对齐”
+
+---
+
+## 10. 切片 B：领域语义收口
+
+### 10.1 目标
+
+- [ ] 把“持续参与期间短暂切应用返回”的连续性提升为 runtime 语义
+
+### 10.2 任务清单
+
+- [ ] 在 `domain/tracking.rs` 明确“持续参与连续性”和“有效时长归属”不是同一概念
+- [ ] 明确 `连续关注窗口` 也适用于持续参与期间的短暂切出返回
+- [ ] 明确“续上”的定义是续上同一轮连续性，不是补 gap 时长
+
+### 10.3 完成标准
+
+- [ ] 领域语义里不再把“持续参与静默放宽”和“切应用后的连续性”混成一件事
+
+---
+
+## 11. 切片 C：runtime / transition 实现
+
+### 11.1 目标
+
+- [ ] 让 runtime 在持续参与期间对短暂切应用返回使用与 `连续关注窗口` 一致的续接规则
+
+### 11.2 任务清单
+
+- [ ] 重新设计“媒体应用切走后”的旧 session 结束时机
+- [ ] 明确是否需要延迟封口、回边界封口、或引入受控 pending continuity 状态
+- [ ] 保持切出去的其它应用仍正常启动并记录 session
+- [ ] 在返回原媒体应用且窗口内返回时，续上原媒体参与连续性
+- [ ] 在超窗未返回时，真正结束原媒体参与连续性
+- [ ] 避免引入双活 session 或重叠写入
+
+### 11.3 完成标准
+
+- [ ] 10 分钟视频 -> 1 分钟 QQ -> 回视频（窗口内返回）时，原视频连续性可续上
+- [ ] 中间 1 分钟仍归 QQ
+- [ ] 超窗返回时不续上，改为新一轮
+
+---
+
+## 12. 切片 D：展示层对齐
+
+### 12.1 目标
+
+- [ ] 确保展示层归并不再掩盖 runtime 语义缺口，而是和 runtime 一致
+
+### 12.2 任务清单
+
+- [ ] 检查 `sessionReadCompiler.ts` 是否仍需要保留当前按 gap 归并的逻辑
+- [ ] 若 runtime 已拥有连续性语义，重新确认展示层是否要简化或维持现状
+- [ ] 确保 app summary 与 timeline duration 口径稳定
+
+### 12.3 完成标准
+
+- [ ] 展示层不再“修补” runtime 的连续性缺口
+- [ ] timeline、app summary、session duration 三者语义一致
+
+---
+
+## 13. 切片 E：测试补齐
+
+### 13.1 Rust 测试
+
+- [ ] 新增“持续参与期间短暂切到其它应用并在窗口内返回 -> 续上连续性”测试
+- [ ] 新增“持续参与期间切到其它应用超过窗口再返回 -> 不续上”测试
+- [ ] 新增“中断期间时间归实际应用，不补回原媒体应用”测试
+- [ ] 新增“普通交互场景既有连续关注行为不回归”测试
+
+### 13.2 前端 / 读模型测试
+
+- [ ] 新增“timeline 连续性与 runtime 语义一致”测试
+- [ ] 新增“app summary 仍只按真实有效时长统计”测试
+- [ ] 新增“展示跨度可续上，但 gap 不补 duration”测试
+
+### 13.3 完成标准
+
+- [ ] 测试能直接证明“持续参与期间切应用连续性已对齐连续关注窗口”
+
+---
+
+## 14. 自动化验证清单
+
+- [ ] `cargo check --manifest-path src-tauri/Cargo.toml --quiet`
+- [ ] `cargo test --manifest-path src-tauri/Cargo.toml --quiet`
+- [ ] `npm run check`
+
+---
+
+## 15. 关键实机场景验证
+
+- [ ] 视频前台持续 10 分钟 -> 切 QQ 1 分钟 -> 回视频，且 `连续关注窗口` 大于 1 分钟：原视频连续性续上
+- [ ] 上述场景中 QQ 的 1 分钟仍记在 QQ
+- [ ] 视频前台持续 10 分钟 -> 切 QQ 4 分钟 -> 回视频，且 `连续关注窗口` 为 3 分钟：原视频不续上
+- [ ] 会议场景执行同样验证，语义一致
+- [ ] 普通非媒体应用场景不回归
+
+---
+
+## 16. 暂停条件
+
+- [ ] 如果实现需要引入无法解释的临时共享状态，应暂停并重判 owner
+- [ ] 如果实现会让 session 时间归属变得重叠或重复记账，应暂停
+- [ ] 如果只能靠展示层补并而 runtime 仍无法表达连续性，应暂停并重新设计
+
+---
+
+## 17. 当前执行状态
+
+- [x] 问题已确认
+- [x] 目标规则已确认
+- [ ] 代码尚未开始改动
+- [ ] 测试尚未补齐
+- [ ] 自动化验证尚未运行
+- [ ] 完成后待归档到 `docs/archive/`
+> 完成回写（2026-04-19）
+>
+> - 已完成：`sessions` 持久化连续轮次锚点 `continuity_group_start_time`
+> - 已完成：runtime 在持续参与场景切走时生成受控 pending continuity，并在连续关注窗口内返回时复用原锚点
+> - 已完成：同应用静默超窗恢复不会误续上旧锚点，仍按新一轮 session 处理
+> - 已完成：时间流展示优先按持久化连续锚点续上跨度，但中断时长仍归中间应用
+> - 已完成：备份 / 恢复、前端 `HistorySession` 契约、Rust / TS 测试同步新字段
+> - 已完成验证：`cargo check --manifest-path src-tauri/Cargo.toml --quiet`、`cargo test --manifest-path src-tauri/Cargo.toml --quiet`、`npm run check`
+> - 待补充：统一实机场景验证（视频 -> QQ -> 返回视频；会议场景同样验证）
+> 补充说明（2026-04-19）
+>
+> - 实机验证不再作为本轮收口阻塞项
+> - 后续通过日常使用持续观察真实表现
+> - 本轮完成判断以自动化验证通过为准：`cargo check --manifest-path src-tauri/Cargo.toml --quiet`、`cargo test --manifest-path src-tauri/Cargo.toml --quiet`、`npm run check`
+

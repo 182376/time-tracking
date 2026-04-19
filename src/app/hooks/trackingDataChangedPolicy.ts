@@ -2,6 +2,8 @@ const SEALED_REFRESH_ONLY_REASONS = new Set([
   "watchdog-sealed",
   "startup-sealed",
   "tracking-paused-sealed",
+  "continuity-window-sealed",
+  "passive-participation-sealed",
   "backup-restored",
 ]);
 const PAUSE_TOGGLE_REASONS = new Set([

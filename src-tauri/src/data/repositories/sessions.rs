@@ -4,7 +4,8 @@ use sqlx::{Pool, Row, Sqlite, Transaction};
 
 pub async fn fetch_all_for_backup(pool: &Pool<Sqlite>) -> Result<Vec<BackupSession>, String> {
     let rows = sqlx::query(
-        "SELECT id, app_name, exe_name, window_title, start_time, end_time, duration
+        "SELECT id, app_name, exe_name, window_title, start_time, end_time, duration,
+                continuity_group_start_time
          FROM sessions
          ORDER BY id ASC",
     )
@@ -22,6 +23,7 @@ pub async fn fetch_all_for_backup(pool: &Pool<Sqlite>) -> Result<Vec<BackupSessi
             start_time: row.get("start_time"),
             end_time: row.get("end_time"),
             duration: row.get("duration"),
+            continuity_group_start_time: row.get("continuity_group_start_time"),
         })
         .collect())
 }
@@ -41,8 +43,9 @@ pub async fn insert_for_restore(
     for session in sessions {
         sqlx::query(
             "INSERT INTO sessions (
-               id, app_name, exe_name, window_title, start_time, end_time, duration
-             ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+               id, app_name, exe_name, window_title, start_time, end_time, duration,
+               continuity_group_start_time
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(session.id)
         .bind(&session.app_name)
@@ -51,6 +54,7 @@ pub async fn insert_for_restore(
         .bind(session.start_time)
         .bind(session.end_time)
         .bind(session.duration)
+        .bind(session.continuity_group_start_time.unwrap_or(session.start_time))
         .execute(&mut **tx)
         .await
         .map_err(|error| format!("failed to restore sessions: {error}"))?;
@@ -76,7 +80,10 @@ pub async fn load_active_session(
     pool: &Pool<Sqlite>,
 ) -> Result<Option<ActiveSessionSnapshot>, sqlx::Error> {
     let row = sqlx::query(
-        "SELECT start_time, exe_name, COALESCE(window_title, '') AS window_title
+        "SELECT start_time,
+                COALESCE(continuity_group_start_time, start_time) AS continuity_group_start_time,
+                exe_name,
+                COALESCE(window_title, '') AS window_title
          FROM sessions
          WHERE end_time IS NULL
          ORDER BY start_time DESC, id DESC
@@ -87,6 +94,7 @@ pub async fn load_active_session(
 
     Ok(row.map(|row| ActiveSessionSnapshot {
         start_time: row.get("start_time"),
+        continuity_group_start_time: row.get("continuity_group_start_time"),
         exe_name: row.get("exe_name"),
         window_title: row.get("window_title"),
     }))
@@ -163,6 +171,7 @@ pub async fn start_session(
     exe_name: &str,
     window_title: &str,
     start_time: i64,
+    continuity_group_start_time: i64,
 ) -> Result<bool, sqlx::Error> {
     if let Some(existing_session) = load_active_session(pool).await? {
         if existing_session.exe_name.eq_ignore_ascii_case(exe_name)
@@ -173,13 +182,19 @@ pub async fn start_session(
     }
 
     sqlx::query(
-        "INSERT INTO sessions (app_name, exe_name, window_title, start_time)
-         VALUES (?, ?, ?, ?)",
+        "INSERT INTO sessions (
+            app_name,
+            exe_name,
+            window_title,
+            start_time,
+            continuity_group_start_time
+         ) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(app_name)
     .bind(exe_name)
     .bind(window_title)
     .bind(start_time)
+    .bind(continuity_group_start_time)
     .execute(pool)
     .await?;
 

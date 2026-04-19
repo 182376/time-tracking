@@ -25,6 +25,7 @@ export interface CompileSessionsOptions extends SessionRange {
 export interface CompiledSession extends HistorySession {
   // Stable grouping key for stats and timeline merges.
   appKey: string;
+  continuity_group_start_time: number;
   mergedCount: number;
   // User-facing display name produced by normalization rules.
   displayName: string;
@@ -155,6 +156,8 @@ function prepareSession(
     ...session,
     end_time: rawEndTime,
     duration: rawEndTime - session.start_time,
+    continuity_group_start_time:
+      session.continuity_group_start_time ?? session.start_time,
     appKey,
     mergedCount: 1,
     displayName,
@@ -223,6 +226,10 @@ function buildCompiledSessionBase(
     if (sameApp && gap >= 0 && gap <= directMergeGapMs) {
       previous.end_time = Math.max(previousEnd, session.end_time ?? session.start_time);
       previous.duration = (previous.end_time ?? previousEnd) - previous.start_time;
+      previous.continuity_group_start_time = Math.min(
+        previous.continuity_group_start_time,
+        session.continuity_group_start_time,
+      );
       previous.mergedCount += session.mergedCount;
       previous.titleSamples = mergeTitleSamples(previous.titleSamples, session.titleSamples);
       previous.sourceIds = [...previous.sourceIds, ...session.sourceIds];
@@ -384,11 +391,18 @@ export function buildTimelineSessions(
 
       if (nextCandidate.appKey === current.appKey) {
         const currentEnd = current.end_time ?? current.start_time;
-        const interruptionDuration = nextCandidate.start_time - currentEnd;
+        const gapFromCurrent = nextCandidate.start_time - currentEnd;
+        const sharesContinuityGroup =
+          current.continuity_group_start_time ===
+          nextCandidate.continuity_group_start_time;
 
-        if (interruptionDuration <= mergeThresholdMs) {
+        if (sharesContinuityGroup || gapFromCurrent <= mergeThresholdMs) {
           current.end_time = Math.max(currentEnd, nextCandidate.end_time ?? nextCandidate.start_time);
           current.duration = Math.max(0, current.duration ?? 0) + Math.max(0, nextCandidate.duration ?? 0);
+          current.continuity_group_start_time = Math.min(
+            current.continuity_group_start_time,
+            nextCandidate.continuity_group_start_time,
+          );
           current.mergedCount += nextCandidate.mergedCount;
           current.titleSamples = mergeTitleSamples(current.titleSamples, nextCandidate.titleSamples);
           current.sourceIds = [...current.sourceIds, ...nextCandidate.sourceIds];
@@ -402,12 +416,6 @@ export function buildTimelineSessions(
           continue;
         }
 
-        break;
-      }
-
-      const currentEnd = current.end_time ?? current.start_time;
-      const interruptionSoFar = (nextCandidate.end_time ?? nextCandidate.start_time) - currentEnd;
-      if (interruptionSoFar > mergeThresholdMs) {
         break;
       }
 

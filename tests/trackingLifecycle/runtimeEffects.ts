@@ -5,9 +5,11 @@ import {
   clearSessionsByRangeWithDeps,
   buildReadModelDiagnostics,
   compileSessions,
+  isCurrentTrackingSnapshot,
   isTrackingDataChangedPayload,
   isTrackingWindowSnapshot,
   makeSession,
+  makeWindow,
   materializeLiveSessions,
   resolveLiveCutoffMs,
   resolveSessionStartCleanupCutoffTime,
@@ -66,6 +68,26 @@ export function runRuntimeEffectsTests() {
       reason: "session-transition",
       changed_at_ms: "123",
     }), false);
+
+    assert.equal(isCurrentTrackingSnapshot({
+      window: {
+        hwnd: "0x100",
+        root_owner_hwnd: "0x100",
+        process_id: 123,
+        window_class: "Chrome_WidgetWin_1",
+        title: "Window",
+        exe_name: "QQ.exe",
+        process_path: "C:\\Program Files\\QQ\\QQ.exe",
+        is_afk: false,
+        idle_time_ms: 0,
+      },
+      status: {
+        is_tracking_active: true,
+        sustained_participation_eligible: true,
+        sustained_participation_active: true,
+        sustained_participation_kind: "video",
+      },
+    }), true);
   });
 
   runTest("tracking pause sync reasons only accept explicit pause toggle events", () => {
@@ -78,6 +100,7 @@ export function runRuntimeEffectsTests() {
       "tracking-paused-sealed",
       "watchdog-sealed",
       "startup-sealed",
+      "passive-participation-sealed",
       "backup-restored",
       "session-transition",
     ];
@@ -92,6 +115,7 @@ export function runRuntimeEffectsTests() {
       "watchdog-sealed",
       "startup-sealed",
       "tracking-paused-sealed",
+      "passive-participation-sealed",
     ];
 
     for (const reason of sealedReasons) {
@@ -184,6 +208,75 @@ export function runRuntimeEffectsTests() {
     assert.equal(loadCalls, 0);
     assert.equal(setCalls, 0);
     assert.equal(syncTickCount, 1);
+  });
+
+  runTest("tracking data changed runtime syncs active window snapshot before refresh", async () => {
+    let syncedWindowExeName: string | null = null;
+    let syncTickCount = 0;
+
+    await applyTrackingDataChangedPayload({
+      reason: "continuity-window-sealed",
+      changed_at_ms: 900,
+    }, {
+      loadLatestTrackingPauseSetting: async () => false,
+      loadCurrentWindowSnapshot: async () => makeWindow({
+        exe_name: "Cursor.exe",
+        process_path: "C:\\Cursor\\Cursor.exe",
+        idle_time_ms: 181_000,
+      }),
+      setAppSettings: () => {},
+      setActiveWindow: (nextWindow) => {
+        syncedWindowExeName = nextWindow?.exe_name ?? null;
+      },
+      bumpSyncTick: () => {
+        syncTickCount += 1;
+      },
+      warn: () => {
+        throw new Error("active window sync should not warn");
+      },
+    });
+
+    assert.equal(syncedWindowExeName, "Cursor.exe");
+    assert.equal(syncTickCount, 1);
+  });
+
+  runTest("tracking data changed runtime prefers full tracking snapshot when available", async () => {
+    let syncedWindowExeName: string | null = null;
+    let syncedTrackingActive: boolean | null = null;
+
+    await applyTrackingDataChangedPayload({
+      reason: "passive-participation-sealed",
+      changed_at_ms: 901,
+    }, {
+      loadLatestTrackingPauseSetting: async () => false,
+      loadCurrentTrackingSnapshot: async () => ({
+        window: makeWindow({
+          exe_name: "chrome.exe",
+          process_path: "C:\\Chrome\\chrome.exe",
+          idle_time_ms: 200_000,
+        }),
+        status: {
+          is_tracking_active: false,
+          sustained_participation_eligible: true,
+          sustained_participation_active: false,
+          sustained_participation_kind: "video",
+        },
+      }),
+      setAppSettings: () => {},
+      setActiveWindow: (nextWindow) => {
+        syncedWindowExeName = nextWindow?.exe_name ?? null;
+      },
+      setTrackingStatus: (nextStatus) => {
+        syncedTrackingActive = nextStatus.is_tracking_active;
+      },
+      bumpSyncTick: () => {},
+      warn: () => {
+        throw new Error("tracking snapshot sync should not warn");
+      },
+    });
+
+    assert.equal(syncedWindowExeName, "chrome.exe");
+    assert.equal(syncedTrackingActive, false);
   });
 
   runTest("tracking data changed runtime warns but still refreshes when pause sync fails", async () => {

@@ -8,6 +8,8 @@ pub const TRACKER_LAST_STARTUP_SELF_HEAL_SUMMARY_KEY: &str =
     "__tracker_last_startup_self_heal_summary";
 
 const TRACKING_PAUSED_KEY: &str = "tracking_paused";
+const TIMELINE_MERGE_GAP_KEY: &str = "timeline_merge_gap_secs";
+const IDLE_TIMEOUT_KEY: &str = "idle_timeout_secs";
 pub const APP_OVERRIDE_KEY_PREFIX: &str = "__app_override::";
 
 #[derive(Clone, Debug, serde::Deserialize, Default)]
@@ -64,15 +66,19 @@ pub async fn load_idle_timeout_secs(
     pool: &Pool<Sqlite>,
     default_idle_timeout_secs: u64,
 ) -> Result<u64, sqlx::Error> {
-    let row = sqlx::query("SELECT value FROM settings WHERE key = ? LIMIT 1")
-        .bind("idle_timeout_secs")
-        .fetch_optional(pool)
-        .await?;
+    load_u64_setting_or_default(pool, IDLE_TIMEOUT_KEY, default_idle_timeout_secs).await
+}
 
-    Ok(row
-        .and_then(|row| row.try_get::<String, _>("value").ok())
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(default_idle_timeout_secs))
+pub async fn load_timeline_merge_gap_secs(
+    pool: &Pool<Sqlite>,
+    default_timeline_merge_gap_secs: u64,
+) -> Result<u64, sqlx::Error> {
+    load_u64_setting_or_default(
+        pool,
+        TIMELINE_MERGE_GAP_KEY,
+        default_timeline_merge_gap_secs,
+    )
+    .await
 }
 
 pub async fn load_tracker_timestamp(
@@ -126,6 +132,17 @@ pub async fn load_setting_value(
     Ok(row.and_then(|row| row.try_get::<String, _>("value").ok()))
 }
 
+async fn load_u64_setting_or_default(
+    pool: &Pool<Sqlite>,
+    key: &str,
+    default_value: u64,
+) -> Result<u64, sqlx::Error> {
+    Ok(load_setting_value(pool, key)
+        .await?
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(default_value))
+}
+
 fn normalize_exe_setting_key(exe_name: &str) -> Option<String> {
     let trimmed = exe_name.trim().trim_matches('"');
     if trimmed.is_empty() {
@@ -171,6 +188,23 @@ mod tests {
                 .unwrap();
 
             let configured = load_idle_timeout_secs(&pool, 180).await.unwrap();
+            assert_eq!(configured, 240);
+        });
+    }
+
+    #[test]
+    fn timeline_merge_gap_setting_uses_current_setting_key_only() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+
+            let fallback = load_timeline_merge_gap_secs(&pool, 180).await.unwrap();
+            assert_eq!(fallback, 180);
+
+            save_setting_value(&pool, TIMELINE_MERGE_GAP_KEY, "240")
+                .await
+                .unwrap();
+
+            let configured = load_timeline_merge_gap_secs(&pool, 180).await.unwrap();
             assert_eq!(configured, 240);
         });
     }

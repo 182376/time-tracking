@@ -144,6 +144,10 @@ mod tests {
         pool.execute(db_schema::MIGRATION_1_SQL).await.unwrap();
         pool.execute(db_schema::MIGRATION_2_SQL).await.unwrap();
         pool.execute(db_schema::MIGRATION_3_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_4_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_5_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_6_SQL).await.unwrap();
+        pool.execute(db_schema::MIGRATION_7_SQL).await.unwrap();
         pool
     }
 
@@ -162,7 +166,7 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
 
-            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000)
+            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000, 1_000)
                 .await
                 .unwrap();
             tracker_settings::save_tracker_timestamp(
@@ -193,7 +197,7 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
 
-            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000)
+            sessions::start_session(&pool, "QQ", "QQ.exe", "Chat", 1_000, 1_000)
                 .await
                 .unwrap();
             sessions::end_active_sessions(&pool, 5_000).await.unwrap();

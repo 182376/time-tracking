@@ -17,7 +17,7 @@ export function makeWindow(overrides: Partial<TrackedWindow> = {}): TrackedWindo
 }
 
 export function makeSession(overrides: Partial<HistorySession> = {}): HistorySession {
-  return {
+  const session: HistorySession = {
     id: 1,
     app_name: "QQ",
     exe_name: "QQ.exe",
@@ -25,7 +25,14 @@ export function makeSession(overrides: Partial<HistorySession> = {}): HistorySes
     start_time: 1_000,
     end_time: 11_000,
     duration: 10_000,
+    continuity_group_start_time: null,
     ...overrides,
+  };
+
+  return {
+    ...session,
+    continuity_group_start_time:
+      session.continuity_group_start_time ?? session.start_time,
   };
 }
 

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const CURRENT_BACKUP_VERSION: u32 = 1;
-pub const CURRENT_BACKUP_SCHEMA_VERSION: u32 = 3;
+pub const CURRENT_BACKUP_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupMeta {
@@ -19,6 +19,8 @@ pub struct BackupSession {
     pub start_time: i64,
     pub end_time: Option<i64>,
     pub duration: Option<i64>,
+    #[serde(default)]
+    pub continuity_group_start_time: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -168,6 +170,7 @@ mod tests {
                 start_time: 10,
                 end_time: Some(20),
                 duration: Some(10),
+                continuity_group_start_time: Some(10),
             }],
             settings: vec![BackupSetting {
                 key: "k".to_string(),
@@ -222,6 +225,7 @@ mod tests {
             start_time: 11,
             end_time: None,
             duration: None,
+            continuity_group_start_time: Some(11),
         });
 
         let preview = payload.preview();

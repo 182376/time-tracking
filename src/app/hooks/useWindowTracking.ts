@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../shared/settings/appSettings";
 import type {
   TrackerHealthSnapshot,
+  TrackingStatusSnapshot,
   TrackingWindowSnapshot,
 } from "../../shared/types/tracking";
 import { resolveTrackerHealth } from "../../shared/types/tracking";
@@ -10,6 +11,8 @@ import {
   TRACKER_HEARTBEAT_STALE_AFTER_MS,
 } from "../services/appRuntimeBootstrapService";
 import {
+  loadCurrentTrackingSnapshot,
+  loadCurrentWindowSnapshot,
   subscribeActiveWindowChanged,
   subscribeTrackingDataChanged,
 } from "../services/appRuntimeTrackingService";
@@ -22,6 +25,12 @@ import { useDesktopLaunchBehaviorSync } from "./useDesktopLaunchBehaviorSync";
 
 export function useWindowTracking() {
   const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatusSnapshot>({
+    is_tracking_active: false,
+    sustained_participation_eligible: false,
+    sustained_participation_active: false,
+    sustained_participation_kind: null,
+  });
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
   const [classificationReady, setClassificationReady] = useState(false);
@@ -42,6 +51,7 @@ export function useWindowTracking() {
 
         setAppSettings(bootstrap.settings);
         setActiveWindow(bootstrap.activeWindow);
+        setTrackingStatus(bootstrap.trackingStatus);
         setTrackerHealth(bootstrap.trackerHealth);
         setClassificationReady(true);
       } catch (err) {
@@ -52,9 +62,20 @@ export function useWindowTracking() {
 
       if (cancelled) return;
 
-      const activeWindowUnlisten = await subscribeActiveWindowChanged((window) => {
+      const activeWindowUnlisten = await subscribeActiveWindowChanged(async (window) => {
         if (cancelled) return;
         setActiveWindow(window);
+
+        const snapshot = await loadCurrentTrackingSnapshot().catch((error) => {
+          if (!cancelled) {
+            console.warn("Failed to sync tracking snapshot after active-window change", error);
+          }
+          return null;
+        });
+        if (cancelled || !snapshot) return;
+
+        setActiveWindow(snapshot.window);
+        setTrackingStatus(snapshot.status);
       });
       if (cancelled) {
         activeWindowUnlisten();
@@ -67,9 +88,21 @@ export function useWindowTracking() {
           if (cancelled) return;
           await applyTrackingDataChangedPayload(payload, {
             loadLatestTrackingPauseSetting,
+            loadCurrentTrackingSnapshot,
+            loadCurrentWindowSnapshot,
             setAppSettings: (updater) => {
               if (!cancelled) {
                 setAppSettings(updater);
+              }
+            },
+            setActiveWindow: (nextWindow) => {
+              if (!cancelled) {
+                setActiveWindow(nextWindow);
+              }
+            },
+            setTrackingStatus: (nextStatus) => {
+              if (!cancelled) {
+                setTrackingStatus(nextStatus);
               }
             },
             bumpSyncTick: () => {
@@ -113,6 +146,7 @@ export function useWindowTracking() {
 
   return {
     activeWindow,
+    trackingStatus,
     appSettings,
     setAppSettings,
     classificationReady,

@@ -12,6 +12,7 @@ pub(crate) type StartSessionFn =
         pool: &'a Pool<Sqlite>,
         window: &'a tracker::WindowInfo,
         start_time: i64,
+        continuity_group_start_time: i64,
     ) -> Pin<Box<dyn Future<Output = Result<bool, sqlx::Error>> + Send + 'a>>;
 
 pub(crate) async fn apply_window_transition(
@@ -19,11 +20,19 @@ pub(crate) async fn apply_window_transition(
     previous_window: Option<&tracker::WindowInfo>,
     next_window: &tracker::WindowInfo,
     now_ms: i64,
+    next_continuity_group_start_time: i64,
     start_session: StartSessionFn,
 ) -> Result<Option<&'static str>, sqlx::Error> {
     let decision = plan_window_transition(previous_window, next_window, now_ms);
     if !decision.has_mutation_plan() {
-        return recover_missing_active_session(pool, next_window, now_ms, start_session).await;
+        return recover_missing_active_session(
+            pool,
+            next_window,
+            now_ms,
+            next_continuity_group_start_time,
+            start_session,
+        )
+        .await;
     }
 
     let mut did_mutate = false;
@@ -34,7 +43,8 @@ pub(crate) async fn apply_window_transition(
     }
 
     if decision.should_start_next {
-        did_mutate |= start_session(pool, next_window, now_ms).await?;
+        did_mutate |=
+            start_session(pool, next_window, now_ms, next_continuity_group_start_time).await?;
     }
 
     if decision.should_refresh_metadata {
@@ -53,6 +63,7 @@ pub(crate) async fn recover_missing_active_session(
     pool: &Pool<Sqlite>,
     window: &tracker::WindowInfo,
     now_ms: i64,
+    continuity_group_start_time: i64,
     start_session: StartSessionFn,
 ) -> Result<Option<&'static str>, sqlx::Error> {
     if !is_trackable_window(Some(window)) {
@@ -63,7 +74,7 @@ pub(crate) async fn recover_missing_active_session(
         return Ok(None);
     }
 
-    if start_session(pool, window, now_ms).await? {
+    if start_session(pool, window, now_ms, continuity_group_start_time).await? {
         return Ok(Some("session-recovered"));
     }
 

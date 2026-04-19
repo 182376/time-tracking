@@ -128,8 +128,8 @@ export default function SettingsTrackingPanel({
       </div>
 
       <div className="mt-5 space-y-5">
-        <TrackingMinuteField {...idleTimeoutControl} />
         <TrackingMinuteField {...timelineMergeGapControl} />
+        <TrackingMinuteField {...idleTimeoutControl} />
         <TrackingMinuteField {...minSessionControl} />
 
         <div>

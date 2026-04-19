@@ -188,6 +188,49 @@ export function runCompilerAndAggregationTests() {
     assert.equal(timeline[0].duration, 120_000);
   });
 
+  runTest("timeline grouping can follow persisted continuity anchors even when the visible interruption exceeds the merge threshold", () => {
+    const sessions: HistorySession[] = [
+      makeSession({
+        id: 1,
+        exe_name: "Zoom.exe",
+        app_name: "Zoom",
+        start_time: 0,
+        end_time: 60_000,
+        duration: 60_000,
+        continuity_group_start_time: 0,
+      }),
+      makeSession({
+        id: 2,
+        exe_name: "QQ.exe",
+        app_name: "QQ",
+        start_time: 60_000,
+        end_time: 120_000,
+        duration: 60_000,
+        continuity_group_start_time: 60_000,
+      }),
+      makeSession({
+        id: 3,
+        exe_name: "Zoom.exe",
+        app_name: "Zoom",
+        start_time: 120_000,
+        end_time: 180_000,
+        duration: 60_000,
+        continuity_group_start_time: 0,
+      }),
+    ];
+    const compiled = compileSessions(sessions, {
+      startMs: 0,
+      endMs: 200_000,
+      minSessionSecs: 0,
+    });
+    const timeline = buildTimelineSessions(compiled, 10);
+
+    assert.equal(timeline.length, 1);
+    assert.equal(timeline[0].start_time, 0);
+    assert.equal(timeline[0].end_time, 180_000);
+    assert.equal(timeline[0].duration, 120_000);
+  });
+
   runTest("day compilation clips cross-day sessions to the selected date", () => {
     const day = new Date(2026, 3, 4, 12, 0, 0, 0);
     const range = getDayRange(day, new Date(2026, 3, 5, 0, 0, 0, 0).getTime());

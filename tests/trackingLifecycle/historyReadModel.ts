@@ -67,6 +67,87 @@ export function runHistoryReadModelTests() {
     );
   });
 
+  runTest("history timeline honors persisted continuity groups for sustained participation returns", () => {
+    const sessions = [
+      makeSession({
+        id: 1,
+        exe_name: "Zoom.exe",
+        app_name: "Zoom",
+        start_time: 0,
+        end_time: 60_000,
+        duration: 60_000,
+        continuity_group_start_time: 0,
+      }),
+      makeSession({
+        id: 2,
+        exe_name: "QQ.exe",
+        app_name: "QQ",
+        start_time: 60_000,
+        end_time: 120_000,
+        duration: 60_000,
+        continuity_group_start_time: 60_000,
+      }),
+      makeSession({
+        id: 3,
+        exe_name: "Zoom.exe",
+        app_name: "Zoom",
+        start_time: 120_000,
+        end_time: 180_000,
+        duration: 60_000,
+        continuity_group_start_time: 0,
+      }),
+    ];
+
+    const view = buildHistoryView({
+      daySessions: sessions,
+      trackerHealth: makeHealthyTrackerHealth(),
+      mergeThresholdSecs: 10,
+    });
+    const qqSummary = view.appSummary.find((item) => item.exeName === "QQ.exe");
+
+    assert.equal(view.timelineSessions.length, 1);
+    assert.equal(view.timelineSessions[0].start_time, 0);
+    assert.equal(view.timelineSessions[0].end_time, 180_000);
+    assert.equal(view.timelineSessions[0].duration, 120_000);
+    assert.ok(qqSummary);
+    assert.equal(qqSummary.duration, 60_000);
+  });
+
+  runTest("history timeline merges directly adjacent same-app sessions within the continuity window without inflating stats", () => {
+    const sessions = [
+      makeSession({
+        id: 1,
+        exe_name: "cursor.exe",
+        app_name: "Cursor",
+        start_time: 0,
+        end_time: 60_000,
+        duration: 60_000,
+      }),
+      makeSession({
+        id: 2,
+        exe_name: "cursor.exe",
+        app_name: "Cursor",
+        start_time: 90_000,
+        end_time: 150_000,
+        duration: 60_000,
+      }),
+    ];
+
+    const view = buildHistoryView({
+      daySessions: sessions,
+      trackerHealth: makeHealthyTrackerHealth(),
+      mergeThresholdSecs: 180,
+    });
+
+    assert.equal(view.timelineSessions.length, 1);
+    assert.equal(view.timelineSessions[0].duration, 120_000);
+    assert.equal(view.timelineSessions[0].end_time, 150_000);
+    assert.equal(
+      view.appSummary.reduce((sum, item) => sum + item.duration, 0),
+      120_000,
+    );
+  });
+
   runTest("min session threshold only affects timeline display, not real duration stats", () => {
     const sessions = makeShortTimelineSessions();
     const view = buildHistoryView({
@@ -135,6 +216,15 @@ export function runHistoryReadModelTests() {
       }),
       makeSession({
         id: 2,
+        exe_name: "qq.exe",
+        app_name: "QQ",
+        start_time: 20_000,
+        end_time: 22_000,
+        duration: 2_000,
+        window_title: "Chat",
+      }),
+      makeSession({
+        id: 3,
         exe_name: "vscodium.exe",
         app_name: "VSCodium",
         start_time: 22_000,

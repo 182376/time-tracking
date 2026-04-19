@@ -10,6 +10,8 @@ type SettingsAboutPanelProps = {
   updateInstalling: boolean;
   onCheckForUpdates?: () => void;
   onOpenUpdateDialog?: () => void;
+  onOpenUpdateReleasePage?: () => void;
+  onOpenUpdateDownload?: () => void;
   onOpenReleaseNotes: () => void;
   onOpenFeedback: () => void;
 };
@@ -21,6 +23,8 @@ export default function SettingsAboutPanel({
   updateInstalling,
   onCheckForUpdates,
   onOpenUpdateDialog,
+  onOpenUpdateReleasePage,
+  onOpenUpdateDownload,
   onOpenReleaseNotes,
   onOpenFeedback,
 }: SettingsAboutPanelProps) {
@@ -46,6 +50,8 @@ export default function SettingsAboutPanel({
             installing={updateInstalling}
             onCheckUpdates={() => onCheckForUpdates?.()}
             onOpenConfirmDialog={() => onOpenUpdateDialog?.()}
+            onOpenUpdateReleasePage={() => onOpenUpdateReleasePage?.()}
+            onOpenUpdateDownload={() => onOpenUpdateDownload?.()}
             onOpenReleaseNotes={onOpenReleaseNotes}
             onOpenFeedback={onOpenFeedback}
           />
