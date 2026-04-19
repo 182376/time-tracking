@@ -12,7 +12,11 @@ pub fn run() {
     #[cfg(debug_assertions)]
     let context = tauri::generate_context!("tauri.dev.conf.json");
     #[cfg(not(debug_assertions))]
-    let context = tauri::generate_context!();
+    let context = if app::runtime::should_use_local_build_context() {
+        tauri::generate_context!("tauri.local.conf.json")
+    } else {
+        tauri::generate_context!()
+    };
     let runtime_health = Arc::new(engine::tracking::watchdog::RuntimeHealthState::default());
     let launched_by_autostart = app::runtime::was_launched_by_autostart();
     let app_version = context.package_info().version.to_string();

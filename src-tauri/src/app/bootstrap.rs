@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use crate::app::{runtime, state::DesktopBehaviorState, tray};
+use crate::app::{
+    runtime,
+    state::{AppExitState, DesktopBehaviorState},
+    tray,
+};
 use crate::engine::{tracking::watchdog::RuntimeHealthState, updater::UpdaterRuntimeState};
 use crate::{commands, data};
 
@@ -37,6 +41,7 @@ fn register_managed_state_and_plugins(
 ) -> tauri::Builder<tauri::Wry> {
     builder
         .manage(DesktopBehaviorState::default())
+        .manage(AppExitState::default())
         .manage(UpdaterRuntimeState::new(app_version.to_string()))
         .plugin(
             tauri_plugin_autostart::Builder::new()

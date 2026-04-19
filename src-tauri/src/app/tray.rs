@@ -1,5 +1,5 @@
 use crate::app::runtime::now_ms;
-use crate::app::state::DesktopBehaviorState;
+use crate::app::state::{AppExitState, DesktopBehaviorState};
 use crate::data::repositories::tracker_settings;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::settings::{CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior};
@@ -16,6 +16,15 @@ const TRAY_ID: &str = "main";
 const TRAY_MENU_SHOW_ID: &str = "tray-show-main";
 const TRAY_MENU_TOGGLE_PAUSE_ID: &str = "tray-toggle-pause";
 const TRAY_MENU_QUIT_ID: &str = "tray-quit";
+
+fn should_redirect_close_to_tray(
+    settings: DesktopBehaviorSettings,
+    exit_requested: bool,
+) -> bool {
+    !exit_requested
+        && settings.close_behavior == CloseBehavior::Tray
+        && settings.should_keep_tray_visible()
+}
 
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
@@ -80,6 +89,7 @@ pub(crate) fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent
     }
 
     if event.id() == TRAY_MENU_QUIT_ID {
+        app.state::<AppExitState>().request_exit();
         app.exit(0);
     }
 }
@@ -109,9 +119,10 @@ pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &Window
     let app = window.app_handle();
     let state = app.state::<DesktopBehaviorState>();
     let settings = state.snapshot();
+    let exit_requested = app.state::<AppExitState>().is_exit_requested();
 
     if let WindowEvent::CloseRequested { api, .. } = event {
-        if settings.close_behavior == CloseBehavior::Tray && settings.should_keep_tray_visible() {
+        if should_redirect_close_to_tray(settings, exit_requested) {
             api.prevent_close();
             let _ = window.hide();
         }
@@ -196,5 +207,14 @@ mod tests {
             assert_eq!(second_reason, "tracking-resumed");
             assert!(!second_value);
         });
+    }
+
+    #[test]
+    fn explicit_exit_bypasses_close_to_tray_redirect() {
+        let settings =
+            DesktopBehaviorSettings::default().with_raw_desktop_behavior("tray", "taskbar");
+
+        assert!(should_redirect_close_to_tray(settings, false));
+        assert!(!should_redirect_close_to_tray(settings, true));
     }
 }

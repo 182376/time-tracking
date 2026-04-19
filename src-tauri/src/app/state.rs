@@ -1,5 +1,8 @@
 use crate::domain::settings::DesktopBehaviorSettings;
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct DesktopBehaviorState {
@@ -62,5 +65,20 @@ impl DesktopBehaviorState {
                 *guard
             }
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct AppExitState {
+    requested: AtomicBool,
+}
+
+impl AppExitState {
+    pub(crate) fn request_exit(&self) {
+        self.requested.store(true, Ordering::Relaxed);
+    }
+
+    pub(crate) fn is_exit_requested(&self) -> bool {
+        self.requested.load(Ordering::Relaxed)
     }
 }

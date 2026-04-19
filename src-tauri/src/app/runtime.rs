@@ -4,6 +4,8 @@ use crate::app::state::DesktopBehaviorState;
 use crate::app::tray::{apply_tray_visibility, setup_tray, MAIN_WINDOW_LABEL};
 use crate::engine::tracking::watchdog::RuntimeHealthState;
 use crate::platform::windows::power;
+#[cfg(any(test, not(debug_assertions)))]
+use std::path::Path;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -11,6 +13,28 @@ pub const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn was_launched_by_autostart() -> bool {
     std::env::args().any(|arg| arg == AUTOSTART_ARG)
+}
+
+#[cfg(any(test, not(debug_assertions)))]
+#[cfg_attr(debug_assertions, allow(dead_code))]
+pub fn should_use_local_build_context() -> bool {
+    match std::env::current_exe() {
+        Ok(path) => is_workspace_target_binary(&path),
+        Err(_) => false,
+    }
+}
+
+#[cfg(any(test, not(debug_assertions)))]
+fn is_workspace_target_binary(path: &Path) -> bool {
+    let components = path
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+
+    components.windows(3).any(|window| {
+        window == ["src-tauri", "target", "release"] || window == ["src-tauri", "target", "debug"]
+    })
 }
 
 pub(crate) fn now_ms() -> u64 {
@@ -31,6 +55,7 @@ pub fn setup(
     setup_tray(&app_handle)?;
     let desktop_behavior = app_handle.state::<DesktopBehaviorState>().snapshot();
     apply_tray_visibility(&app_handle, desktop_behavior);
+
     if launched_by_autostart {
         if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW_LABEL) {
             let _ = window.hide();
@@ -43,4 +68,31 @@ pub fn setup(
     runtime_tasks::spawn_tracking_watchdog_restart_loop(app.handle().clone(), runtime_health);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_workspace_target_binary;
+    use std::path::Path;
+
+    #[test]
+    fn detects_workspace_target_binary_on_windows_path() {
+        assert!(is_workspace_target_binary(Path::new(
+            r"C:\Users\SYBao\Documents\Code\Time Tracking\src-tauri\target\release\time_tracker.exe"
+        )));
+    }
+
+    #[test]
+    fn detects_workspace_target_binary_on_unix_path() {
+        assert!(is_workspace_target_binary(Path::new(
+            "/home/user/project/src-tauri/target/debug/time_tracker"
+        )));
+    }
+
+    #[test]
+    fn ignores_installed_binary_path() {
+        assert!(!is_workspace_target_binary(Path::new(
+            r"C:\Users\SYBao\AppData\Local\Time Tracker\time_tracker.exe"
+        )));
+    }
 }

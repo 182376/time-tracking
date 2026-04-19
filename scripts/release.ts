@@ -7,6 +7,8 @@ const CHANGELOG_PATH = path.join(ROOT, "CHANGELOG.md");
 const PACKAGE_JSON_PATH = path.join(ROOT, "package.json");
 const PACKAGE_LOCK_PATH = path.join(ROOT, "package-lock.json");
 const TAURI_CONFIG_PATH = path.join(ROOT, "src-tauri", "tauri.conf.json");
+const TAURI_DEV_CONFIG_PATH = path.join(ROOT, "src-tauri", "tauri.dev.conf.json");
+const TAURI_LOCAL_CONFIG_PATH = path.join(ROOT, "src-tauri", "tauri.local.conf.json");
 const CARGO_TOML_PATH = path.join(ROOT, "src-tauri", "Cargo.toml");
 
 const VERSION_PATTERN =
@@ -73,6 +75,14 @@ async function syncVersion(version) {
     },
   };
   await writeJson(TAURI_CONFIG_PATH, tauriConfig);
+
+  const tauriDevConfig = JSON.parse(await readText(TAURI_DEV_CONFIG_PATH));
+  tauriDevConfig.version = version;
+  await writeJson(TAURI_DEV_CONFIG_PATH, tauriDevConfig);
+
+  const tauriLocalConfig = JSON.parse(await readText(TAURI_LOCAL_CONFIG_PATH));
+  tauriLocalConfig.version = version;
+  await writeJson(TAURI_LOCAL_CONFIG_PATH, tauriLocalConfig);
 
   const cargoToml = await readText(CARGO_TOML_PATH);
   const cargoPackageVersionPattern = /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m;
@@ -191,10 +201,7 @@ async function validateChangelog(version) {
   }
 }
 
-async function writeReleaseNotes(version, outputPath) {
-  const parsed = await parseChangelog(version);
-  await validateChangelog(version);
-
+function renderReleaseNotes(parsed) {
   const visibleBullets = parsed.bullets.slice(0, 6);
   const lines = [parsed.release, ""];
 
@@ -202,10 +209,23 @@ async function writeReleaseNotes(version, outputPath) {
     lines.push("### 主要变化", "", ...visibleBullets, "");
   }
 
-  lines.push("### 下载", "", "- Windows 安装包：请下载本页附件中的 `.exe` 安装包。", "");
+  lines.push("### 下载", "", "- Windows 安装包：请下载本页面附件中的 `.exe` 安装包。", "");
+
+  return lines.join("\n");
+}
+
+async function writeReleaseNotes(version, outputPath) {
+  const parsed = await parseChangelog(version);
+  await validateChangelog(version);
 
   await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, lines.join("\n"), "utf8");
+  await writeFile(outputPath, renderReleaseNotes(parsed), "utf8");
+}
+
+async function printReleaseNotes(version) {
+  const parsed = await parseChangelog(version);
+  await validateChangelog(version);
+  process.stdout.write(renderReleaseNotes(parsed));
 }
 
 async function writeLatestJson(version, assetUrl, signature, outputPath, target = "windows-x86_64") {
@@ -238,9 +258,7 @@ async function writeLatestJson(version, assetUrl, signature, outputPath, target 
 
 async function findSignedInstaller(bundleDir) {
   const entries = await readDirRecursive(bundleDir);
-  const signatureFile = entries.find((entry) => (
-    entry.endsWith(".exe.sig")
-  ));
+  const signatureFile = entries.find((entry) => entry.endsWith(".exe.sig"));
 
   if (!signatureFile) {
     fail(`Could not find updater .exe.sig artifact under ${bundleDir}.`);
@@ -316,6 +334,7 @@ function help() {
   console.log(`Usage:
   node --experimental-strip-types scripts/release.ts sync-version <version>
   node --experimental-strip-types scripts/release.ts validate-changelog <version>
+  node --experimental-strip-types scripts/release.ts print-release-notes <version>
   node --experimental-strip-types scripts/release.ts write-release-notes <version> <output>
   node --experimental-strip-types scripts/release.ts write-latest-json <version> <asset-url> <signature> <output> [target]
   node --experimental-strip-types scripts/release.ts prepare-release-assets <version> <bundle-dir> <output-dir> <repository> [target]
@@ -330,6 +349,9 @@ switch (command) {
     break;
   case "validate-changelog":
     await validateChangelog(args[0]);
+    break;
+  case "print-release-notes":
+    await printReleaseNotes(args[0]);
     break;
   case "write-release-notes":
     await writeReleaseNotes(args[0], args[1]);

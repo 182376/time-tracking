@@ -1,11 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Time Tracker",
+  "productName": "Time Tracker Local",
   "version": "0.3.1",
-  "identifier": "com.timetracker",
+  "identifier": "com.timetracker.local",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -13,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Time Tracker",
+        "title": "Time Tracker Local",
         "width": 1100,
         "height": 700,
         "minWidth": 900,
@@ -45,7 +43,7 @@
       ]
     },
     "updater": {
-      "active": true,
+      "active": false,
       "dialog": false,
       "endpoints": [
         "https://raw.githubusercontent.com/182376/time-tracking/updates/latest.json"
