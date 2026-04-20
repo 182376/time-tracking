@@ -1,8 +1,6 @@
 import { ProcessMapper } from "./ProcessMapper.ts";
 import type { AppOverride } from "./ProcessMapper.ts";
 import {
-  USER_ASSIGNABLE_CATEGORIES,
-  isCustomCategory,
   type AppCategory,
   type CustomAppCategory,
 } from "../config/categoryTokens";
@@ -12,8 +10,15 @@ import {
   getClassificationBootstrapCache,
   setClassificationBootstrapCache,
 } from "./classificationBootstrapCache";
+import {
+  buildClassificationDraftChangePlan,
+  hasClassificationDraftChanges,
+  sanitizeDeletedCategories,
+  type ClassificationDraftState,
+} from "./classificationDraftState.ts";
 
 export type { AppOverride } from "./ProcessMapper.ts";
+export type { ClassificationDraftState } from "./classificationDraftState.ts";
 
 export interface ClassificationBootstrapData {
   observed: ObservedAppCandidate[];
@@ -21,68 +26,6 @@ export interface ClassificationBootstrapData {
   loadedCategoryColorOverrides: Record<string, string>;
   loadedCustomCategories: CustomAppCategory[];
   loadedDeletedCategories: AppCategory[];
-}
-
-export interface ClassificationDraftState {
-  overrides: Record<string, AppOverride>;
-  categoryColorOverrides: Record<string, string>;
-  customCategories: CustomAppCategory[];
-  deletedCategories: AppCategory[];
-}
-
-function sanitizeDeletedCategories(categories: AppCategory[]): AppCategory[] {
-  return categories.filter((category) => (
-    !isCustomCategory(category)
-    && category !== "system"
-    && category !== "other"
-  ));
-}
-
-function normalizeOverride(override: AppOverride | null | undefined): AppOverride | null {
-  if (!override) return null;
-  if (override.enabled === false) return null;
-  const next: AppOverride = {};
-  if (override.category) next.category = override.category;
-  if (override.displayName?.trim()) next.displayName = override.displayName.trim();
-  if (override.color) next.color = override.color;
-  if (override.track === false) next.track = false;
-  if (override.captureTitle === false) next.captureTitle = false;
-  if (typeof override.updatedAt === "number") next.updatedAt = override.updatedAt;
-  next.enabled = true;
-  const hasMeaningfulValue = Boolean(
-    next.category
-    || next.displayName
-    || next.color
-    || next.track === false
-    || next.captureTitle === false,
-  );
-  return hasMeaningfulValue ? next : null;
-}
-
-function areOverridesEqual(left: AppOverride | null, right: AppOverride | null): boolean {
-  const l = normalizeOverride(left);
-  const r = normalizeOverride(right);
-  if (!l && !r) return true;
-  if (!l || !r) return false;
-  return l.category === r.category
-    && l.displayName === r.displayName
-    && l.color === r.color
-    && l.track === r.track
-    && l.captureTitle === r.captureTitle;
-}
-
-function areStringMapsEqual(left: Record<string, string>, right: Record<string, string>): boolean {
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  if (leftKeys.length !== rightKeys.length) return false;
-  return leftKeys.every((key) => left[key] === right[key]);
-}
-
-function areStringArraysEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false;
-  const leftSorted = [...left].sort();
-  const rightSorted = [...right].sort();
-  return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
 export class ClassificationService {
@@ -163,87 +106,39 @@ export class ClassificationService {
   }
 
   static hasDraftChanges(saved: ClassificationDraftState, draft: ClassificationDraftState): boolean {
-    if (!areStringMapsEqual(saved.categoryColorOverrides, draft.categoryColorOverrides)) {
-      return true;
-    }
-    if (!areStringArraysEqual(saved.customCategories, draft.customCategories)) {
-      return true;
-    }
-    if (!areStringArraysEqual(
-      sanitizeDeletedCategories(saved.deletedCategories),
-      sanitizeDeletedCategories(draft.deletedCategories),
-    )) {
-      return true;
-    }
-
-    const exeNames = new Set([...Object.keys(saved.overrides), ...Object.keys(draft.overrides)]);
-    for (const exeName of exeNames) {
-      const savedOverride = saved.overrides[exeName] ?? null;
-      const draftOverride = draft.overrides[exeName] ?? null;
-      if (!areOverridesEqual(savedOverride, draftOverride)) {
-        return true;
-      }
-    }
-
-    return false;
+    return hasClassificationDraftChanges(saved, draft);
   }
 
   static async commitDraftChanges(saved: ClassificationDraftState, draft: ClassificationDraftState): Promise<void> {
-    const savedDeletedCategories = sanitizeDeletedCategories(saved.deletedCategories);
-    const draftDeletedCategories = sanitizeDeletedCategories(draft.deletedCategories);
+    const changePlan = buildClassificationDraftChangePlan(saved, draft);
 
-    const savedOverrideKeys = new Set(Object.keys(saved.overrides));
-    const draftOverrideKeys = new Set(Object.keys(draft.overrides));
-    const overrideKeys = new Set([...savedOverrideKeys, ...draftOverrideKeys]);
-    for (const exeName of overrideKeys) {
-      const savedOverride = saved.overrides[exeName] ?? null;
-      const draftOverride = draft.overrides[exeName] ?? null;
-      if (!areOverridesEqual(savedOverride, draftOverride)) {
-        await classificationStore.saveAppOverride(exeName, draftOverride);
-      }
+    for (const update of changePlan.overrideUpserts) {
+      await classificationStore.saveAppOverride(update.exeName, update.override);
     }
 
-    const colorKeys = new Set([
-      ...Object.keys(saved.categoryColorOverrides),
-      ...Object.keys(draft.categoryColorOverrides),
-    ]);
-    for (const category of colorKeys) {
-      const savedColor = saved.categoryColorOverrides[category];
-      const draftColor = draft.categoryColorOverrides[category];
-      if (savedColor === draftColor) continue;
-      await classificationStore.saveCategoryColorOverride(category as AppCategory, draftColor ?? null);
+    for (const update of changePlan.categoryColorUpdates) {
+      await classificationStore.saveCategoryColorOverride(update.category, update.colorValue);
     }
 
-    const savedCustom = new Set(saved.customCategories);
-    const draftCustom = new Set(draft.customCategories);
-    for (const category of draftCustom) {
-      if (!savedCustom.has(category)) {
-        await classificationStore.saveCustomCategory(category);
-      }
+    for (const category of changePlan.customCategoriesToAdd) {
+      await classificationStore.saveCustomCategory(category);
       await classificationStore.saveDeletedCategory(category, false);
     }
-    for (const category of savedCustom) {
-      if (draftCustom.has(category)) continue;
+
+    for (const category of changePlan.customCategoriesToRemove) {
       await ProcessMapper.removeCategoryDefaultColorAssignment(category);
       await classificationStore.deleteCustomCategory(category);
       await classificationStore.saveDeletedCategory(category, false);
       await classificationStore.saveCategoryColorOverride(category, null);
     }
 
-    const assignableCategories = USER_ASSIGNABLE_CATEGORIES.filter((category) => (
-      !isCustomCategory(category) && category !== "other"
-    ));
-    for (const category of assignableCategories) {
-      const savedDeleted = savedDeletedCategories.includes(category);
-      const draftDeleted = draftDeletedCategories.includes(category);
-      if (savedDeleted !== draftDeleted) {
-        await classificationStore.saveDeletedCategory(category, draftDeleted);
-      }
+    for (const update of changePlan.deletedCategoryUpdates) {
+      await classificationStore.saveDeletedCategory(update.category, update.deleted);
     }
 
     ProcessMapper.setUserOverrides(draft.overrides);
     ProcessMapper.setCategoryColorOverrides(draft.categoryColorOverrides);
-    ProcessMapper.setDeletedCategories(draftDeletedCategories);
+    ProcessMapper.setDeletedCategories(changePlan.sanitizedDeletedCategories);
   }
 }
 

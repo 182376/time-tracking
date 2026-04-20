@@ -9,11 +9,20 @@ import {
   type AppOverride,
   type ClassificationDraftState,
 } from "../services/classificationService";
+import { cloneClassificationDraftState } from "../services/classificationDraftState.ts";
 import {
   getClassificationBootstrapCache,
   setClassificationBootstrapCache,
 } from "../services/classificationBootstrapCache";
 import type { CandidateFilter, ObservedAppCandidate } from "../types";
+import {
+  AUTO_CATEGORY_VALUE,
+  buildAppMappingOverride,
+  cloneObservedCandidates,
+  createAppMappingDraftState,
+  fallbackDisplayName,
+  filterAndSortCandidates,
+} from "./appMappingStateHelpers.ts";
 import {
   buildCustomCategory,
   isCustomCategory,
@@ -23,11 +32,6 @@ import {
 } from "../config/categoryTokens";
 
 const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
-export const AUTO_CATEGORY_VALUE = "__auto__";
-const APP_MAPPING_COLLATOR = new Intl.Collator("zh-CN", {
-  numeric: true,
-  sensitivity: "base",
-});
 
 export interface UseAppMappingStateOptions {
   icons: Record<string, string>;
@@ -35,72 +39,6 @@ export interface UseAppMappingStateOptions {
   onOverridesChanged?: () => void;
   onSessionsDeleted?: () => void;
   onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
-}
-
-function cloneDraftState(state: ClassificationDraftState): ClassificationDraftState {
-  const overrides: Record<string, AppOverride> = {};
-  for (const [exeName, override] of Object.entries(state.overrides)) {
-    overrides[exeName] = { ...override };
-  }
-  return {
-    overrides,
-    categoryColorOverrides: { ...state.categoryColorOverrides },
-    customCategories: [...state.customCategories],
-    deletedCategories: [...state.deletedCategories],
-  };
-}
-
-function cloneObservedCandidates(observed: ObservedAppCandidate[]): ObservedAppCandidate[] {
-  return observed.map((candidate) => ({ ...candidate }));
-}
-
-function normalizeHexColor(colorValue: string | undefined): string | undefined {
-  const raw = (colorValue ?? "").trim();
-  if (!raw) return undefined;
-  const normalized = raw.startsWith("#") ? raw : `#${raw}`;
-  if (!/^#[0-9A-Fa-f]{6}$/.test(normalized)) return undefined;
-  return normalized.toUpperCase();
-}
-
-function fallbackDisplayName(exeName: string) {
-  return exeName
-    .replace(/\.exe$/i, "")
-    .split(/[_\-\s.]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function buildOverride(params: {
-  category?: UserAssignableAppCategory;
-  displayName?: string;
-  color?: string;
-  track?: boolean;
-  captureTitle?: boolean;
-  updatedAt?: number;
-}): AppOverride | null {
-  const category = params.category;
-  const displayName = params.displayName?.trim();
-  const color = normalizeHexColor(params.color);
-  const track = params.track;
-  const captureTitle = params.captureTitle;
-  if (!category && !displayName && !color && track !== false && captureTitle !== false) return null;
-  const next: AppOverride = { enabled: true, updatedAt: params.updatedAt ?? Date.now() };
-  if (category) next.category = category;
-  if (displayName) next.displayName = displayName;
-  if (color) next.color = color;
-  if (track === false) next.track = false;
-  if (captureTitle === false) next.captureTitle = false;
-  return next;
-}
-
-function createDraftState(bootstrap: Awaited<ReturnType<typeof ClassificationService.loadClassificationBootstrap>>): ClassificationDraftState {
-  return cloneDraftState({
-    overrides: bootstrap.loadedOverrides,
-    categoryColorOverrides: bootstrap.loadedCategoryColorOverrides,
-    customCategories: bootstrap.loadedCustomCategories,
-    deletedCategories: bootstrap.loadedDeletedCategories,
-  });
 }
 
 export function useAppMappingState({
@@ -118,20 +56,10 @@ export function useAppMappingState({
     () => cloneObservedCandidates(initialBootstrap?.observed ?? []),
   );
   const [savedState, setSavedState] = useState<ClassificationDraftState | null>(
-    () => (initialBootstrap ? cloneDraftState({
-      overrides: initialBootstrap.loadedOverrides,
-      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
-      customCategories: initialBootstrap.loadedCustomCategories,
-      deletedCategories: initialBootstrap.loadedDeletedCategories,
-    }) : null),
+    () => (initialBootstrap ? createAppMappingDraftState(initialBootstrap) : null),
   );
   const [draftState, setDraftState] = useState<ClassificationDraftState | null>(
-    () => (initialBootstrap ? cloneDraftState({
-      overrides: initialBootstrap.loadedOverrides,
-      categoryColorOverrides: initialBootstrap.loadedCategoryColorOverrides,
-      customCategories: initialBootstrap.loadedCustomCategories,
-      deletedCategories: initialBootstrap.loadedDeletedCategories,
-    }) : null),
+    () => (initialBootstrap ? createAppMappingDraftState(initialBootstrap) : null),
   );
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [nameEditSnapshots, setNameEditSnapshots] = useState<Record<string, AppOverride | null>>({});
@@ -156,13 +84,13 @@ export function useAppMappingState({
       try {
         const bootstrap = await ClassificationService.loadClassificationBootstrap();
         const nextObserved = cloneObservedCandidates(bootstrap.observed);
-        const nextState = createDraftState(bootstrap);
+        const nextState = createAppMappingDraftState(bootstrap);
         setClassificationBootstrapCache(bootstrap);
         if (cancelled) return;
         setCandidates(nextObserved);
         if (!hasUnsavedChangesRef.current) {
-          setSavedState(cloneDraftState(nextState));
-          setDraftState(cloneDraftState(nextState));
+          setSavedState(cloneClassificationDraftState(nextState));
+          setDraftState(cloneClassificationDraftState(nextState));
           setNameEditSnapshots({});
           setEditingNameExe(null);
           skipNextNameBlurExeRef.current = null;
@@ -244,23 +172,12 @@ export function useAppMappingState({
   }, [draftOverrides, iconThemeColors, resolveCategoryColor, resolveMappedCategory]);
 
   const filteredCandidates = useMemo(
-    () => candidates
-      .filter((candidate) => {
-        const category = resolveMappedCategory(candidate);
-        if (filter === "all") return true;
-        if (filter === "other") return category === "other";
-        return category !== "other";
-      })
-      .sort((left, right) => {
-        const labelCompare = APP_MAPPING_COLLATOR.compare(
-          resolveEffectiveDisplayName(left),
-          resolveEffectiveDisplayName(right),
-        );
-        if (labelCompare !== 0) {
-          return labelCompare;
-        }
-        return APP_MAPPING_COLLATOR.compare(left.exeName, right.exeName);
-      }),
+    () => filterAndSortCandidates({
+      candidates,
+      filter,
+      resolveMappedCategory,
+      resolveEffectiveDisplayName,
+    }),
     [candidates, filter, resolveEffectiveDisplayName, resolveMappedCategory],
   );
 
@@ -399,7 +316,7 @@ export function useAppMappingState({
           nextOverrides[exeName] = override;
           continue;
         }
-        const nextOverride = buildOverride({
+        const nextOverride = buildAppMappingOverride({
           category: undefined,
           color: override.color,
           displayName: override.displayName,
@@ -432,7 +349,7 @@ export function useAppMappingState({
   const handleCategoryAssign = useCallback((candidate: ObservedAppCandidate, categoryValue: string) => {
     const current = draftOverrides[candidate.exeName] ?? null;
     const category = categoryValue === AUTO_CATEGORY_VALUE ? undefined : categoryValue as UserAssignableAppCategory;
-    const nextOverride = buildOverride({
+    const nextOverride = buildAppMappingOverride({
       category,
       color: current?.color,
       displayName: current?.displayName,
@@ -445,7 +362,7 @@ export function useAppMappingState({
 
   const handleColorAssign = useCallback((candidate: ObservedAppCandidate, colorValue?: string | null) => {
     const current = draftOverrides[candidate.exeName] ?? null;
-    const nextOverride = buildOverride({
+    const nextOverride = buildAppMappingOverride({
       category: current?.category,
       displayName: current?.displayName,
       color: colorValue ?? undefined,
@@ -465,7 +382,7 @@ export function useAppMappingState({
     const autoName = resolveAutoDisplayName(candidate);
     const displayName = draftRaw && draftRaw !== autoName ? draftRaw : undefined;
     const current = draftOverrides[candidate.exeName] ?? null;
-    const nextOverride = buildOverride({
+    const nextOverride = buildAppMappingOverride({
       category: current?.category,
       color: current?.color,
       displayName,
@@ -558,7 +475,7 @@ export function useAppMappingState({
 
   const handleTrackingToggle = useCallback((candidate: ObservedAppCandidate, nextTrack: boolean) => {
     const current = draftOverrides[candidate.exeName] ?? null;
-    const nextOverride = buildOverride({
+    const nextOverride = buildAppMappingOverride({
       category: current?.category,
       color: current?.color,
       displayName: current?.displayName,
@@ -571,7 +488,7 @@ export function useAppMappingState({
 
   const handleTitleCaptureToggle = useCallback((candidate: ObservedAppCandidate, nextCaptureTitle: boolean) => {
     const current = draftOverrides[candidate.exeName] ?? null;
-    const nextOverride = buildOverride({
+    const nextOverride = buildAppMappingOverride({
       category: current?.category,
       color: current?.color,
       displayName: current?.displayName,

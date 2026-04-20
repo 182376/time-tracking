@@ -5,32 +5,28 @@ use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 
 #[derive(Clone, Debug)]
-pub(crate) struct PendingSustainedContinuity {
+pub(crate) struct PendingContinuity {
     pub(crate) app_key: String,
     pub(crate) continuity_group_start_time: i64,
     pub(crate) expires_at_ms: i64,
 }
 
-pub(crate) async fn load_pending_sustained_continuity(
+pub(crate) async fn load_pending_continuity(
     pool: &Pool<Sqlite>,
     previous_window: Option<&tracker::WindowInfo>,
     previous_tracking_status: Option<&TrackingStatusSnapshot>,
     current_window: &tracker::WindowInfo,
     continuity_window_secs: u64,
     now_ms: i64,
-) -> Option<PendingSustainedContinuity> {
-    if !should_open_pending_sustained_continuity(
-        previous_window,
-        previous_tracking_status,
-        current_window,
-    ) {
+) -> Option<PendingContinuity> {
+    if !should_open_pending_continuity(previous_window, previous_tracking_status, current_window) {
         return None;
     }
 
     let previous_identity = transition::resolve_window_session_identity(previous_window)?;
     let active_session = sessions::load_active_session(pool).await.ok().flatten()?;
 
-    Some(PendingSustainedContinuity {
+    Some(PendingContinuity {
         app_key: previous_identity.app_key,
         continuity_group_start_time: active_session.continuity_group_start_time,
         expires_at_ms: now_ms + continuity_window_ms(continuity_window_secs),
@@ -38,15 +34,15 @@ pub(crate) async fn load_pending_sustained_continuity(
 }
 
 pub(crate) fn resolve_next_session_continuity_group_start_time(
-    pending_sustained_continuity: Option<&PendingSustainedContinuity>,
+    pending_continuity: Option<&PendingContinuity>,
     window: &tracker::WindowInfo,
     now_ms: i64,
 ) -> i64 {
-    let Some(pending_sustained_continuity) = pending_sustained_continuity else {
+    let Some(pending_continuity) = pending_continuity else {
         return now_ms;
     };
 
-    if pending_sustained_continuity.expires_at_ms < now_ms {
+    if pending_continuity.expires_at_ms < now_ms {
         return now_ms;
     }
 
@@ -54,51 +50,50 @@ pub(crate) fn resolve_next_session_continuity_group_start_time(
         return now_ms;
     };
 
-    if current_identity.app_key != pending_sustained_continuity.app_key {
+    if current_identity.app_key != pending_continuity.app_key {
         return now_ms;
     }
 
-    pending_sustained_continuity.continuity_group_start_time
+    pending_continuity.continuity_group_start_time
 }
 
-pub(crate) fn resolve_next_pending_sustained_continuity(
-    existing_pending_sustained_continuity: Option<PendingSustainedContinuity>,
-    new_pending_sustained_continuity: Option<PendingSustainedContinuity>,
+pub(crate) fn resolve_next_pending_continuity(
+    existing_pending_continuity: Option<PendingContinuity>,
+    new_pending_continuity: Option<PendingContinuity>,
     continuity_group_start_time: i64,
     current_window: &tracker::WindowInfo,
     now_ms: i64,
-) -> Option<PendingSustainedContinuity> {
-    if let Some(new_pending_sustained_continuity) = new_pending_sustained_continuity {
-        return Some(new_pending_sustained_continuity);
+) -> Option<PendingContinuity> {
+    if let Some(new_pending_continuity) = new_pending_continuity {
+        return Some(new_pending_continuity);
     }
 
-    let existing_pending_sustained_continuity = existing_pending_sustained_continuity?;
-    if existing_pending_sustained_continuity.expires_at_ms < now_ms {
+    let existing_pending_continuity = existing_pending_continuity?;
+    if existing_pending_continuity.expires_at_ms < now_ms {
         return None;
     }
 
     let Some(current_identity) = transition::resolve_window_session_identity(Some(current_window))
     else {
-        return Some(existing_pending_sustained_continuity);
+        return Some(existing_pending_continuity);
     };
 
-    if current_identity.app_key == existing_pending_sustained_continuity.app_key
-        && continuity_group_start_time
-            == existing_pending_sustained_continuity.continuity_group_start_time
+    if current_identity.app_key == existing_pending_continuity.app_key
+        && continuity_group_start_time == existing_pending_continuity.continuity_group_start_time
     {
         return None;
     }
 
-    Some(existing_pending_sustained_continuity)
+    Some(existing_pending_continuity)
 }
 
-fn should_open_pending_sustained_continuity(
+fn should_open_pending_continuity(
     previous_window: Option<&tracker::WindowInfo>,
     previous_tracking_status: Option<&TrackingStatusSnapshot>,
     current_window: &tracker::WindowInfo,
 ) -> bool {
     if !previous_tracking_status
-        .map(|status| status.sustained_participation_active)
+        .map(|status| status.is_tracking_active)
         .unwrap_or(false)
         || current_window.is_afk
     {
@@ -117,14 +112,14 @@ fn should_open_pending_sustained_continuity(
 }
 
 fn continuity_window_ms(continuity_window_secs: u64) -> i64 {
-    continuity_window_secs.saturating_mul(1000).min(i64::MAX as u64) as i64
+    continuity_window_secs
+        .saturating_mul(1000)
+        .min(i64::MAX as u64) as i64
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        load_pending_sustained_continuity, resolve_next_session_continuity_group_start_time,
-    };
+    use super::{load_pending_continuity, resolve_next_session_continuity_group_start_time};
     use crate::data::migrations as db_schema;
     use crate::domain::tracking::{SustainedParticipationKind, TrackingStatusSnapshot};
     use crate::engine::tracking::{active_session, transition};
@@ -196,11 +191,14 @@ mod tests {
                 sustained_participation_eligible: true,
                 sustained_participation_active: true,
                 sustained_participation_kind: Some(SustainedParticipationKind::Meeting),
+                ..TrackingStatusSnapshot::default()
             };
 
-            assert!(active_session::start_session(&pool, &video, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &video, 1_000)
+                .await
+                .unwrap());
 
-            let pending = load_pending_sustained_continuity(
+            let pending = load_pending_continuity(
                 &pool,
                 Some(&video),
                 Some(&previous_status),
@@ -283,11 +281,14 @@ mod tests {
                 sustained_participation_eligible: true,
                 sustained_participation_active: true,
                 sustained_participation_kind: Some(SustainedParticipationKind::Meeting),
+                ..TrackingStatusSnapshot::default()
             };
 
-            assert!(active_session::start_session(&pool, &video, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &video, 1_000)
+                .await
+                .unwrap());
 
-            let pending = load_pending_sustained_continuity(
+            let pending = load_pending_continuity(
                 &pool,
                 Some(&video),
                 Some(&previous_status),
@@ -343,6 +344,194 @@ mod tests {
                     ("Zoom.exe".into(), 1_000, 1_000, Some(10_000)),
                     ("QQ.exe".into(), 10_000, 10_000, Some(250_000)),
                     ("Zoom.exe".into(), 250_000, 250_000, None),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn ordinary_short_app_switch_reuses_original_continuity_group() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+            ]);
+            let chat = make_window(&[
+                ("exe_name", "QQ.exe"),
+                ("process_path", r"C:\Program Files\QQ\QQ.exe"),
+            ]);
+            let resumed_coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+                ("idle_time_ms", "1"),
+            ]);
+            let previous_status = TrackingStatusSnapshot {
+                is_tracking_active: true,
+                sustained_participation_eligible: false,
+                sustained_participation_active: false,
+                sustained_participation_kind: None,
+                ..TrackingStatusSnapshot::default()
+            };
+
+            assert!(active_session::start_session(&pool, &coding, 1_000)
+                .await
+                .unwrap());
+
+            let pending = load_pending_continuity(
+                &pool,
+                Some(&coding),
+                Some(&previous_status),
+                &chat,
+                180,
+                10_000,
+            )
+            .await
+            .unwrap();
+
+            transition::apply_window_transition(
+                &pool,
+                Some(&coding),
+                &chat,
+                10_000,
+                10_000,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let return_continuity_group_start_time =
+                resolve_next_session_continuity_group_start_time(
+                    Some(&pending),
+                    &resumed_coding,
+                    70_000,
+                );
+            transition::apply_window_transition(
+                &pool,
+                Some(&chat),
+                &resumed_coding,
+                70_000,
+                return_continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let sessions: Vec<(String, i64, i64, Option<i64>)> = sqlx::query_as(
+                "SELECT exe_name, start_time, continuity_group_start_time, end_time
+                 FROM sessions
+                 ORDER BY start_time ASC",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(
+                sessions,
+                vec![
+                    ("Code.exe".into(), 1_000, 1_000, Some(10_000)),
+                    ("QQ.exe".into(), 10_000, 10_000, Some(70_000)),
+                    ("Code.exe".into(), 70_000, 1_000, None),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn ordinary_return_after_continuity_window_starts_new_group() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+            ]);
+            let chat = make_window(&[
+                ("exe_name", "QQ.exe"),
+                ("process_path", r"C:\Program Files\QQ\QQ.exe"),
+            ]);
+            let resumed_coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+                ("idle_time_ms", "1"),
+            ]);
+            let previous_status = TrackingStatusSnapshot {
+                is_tracking_active: true,
+                sustained_participation_eligible: false,
+                sustained_participation_active: false,
+                sustained_participation_kind: None,
+                ..TrackingStatusSnapshot::default()
+            };
+
+            assert!(active_session::start_session(&pool, &coding, 1_000)
+                .await
+                .unwrap());
+
+            let pending = load_pending_continuity(
+                &pool,
+                Some(&coding),
+                Some(&previous_status),
+                &chat,
+                180,
+                10_000,
+            )
+            .await
+            .unwrap();
+
+            transition::apply_window_transition(
+                &pool,
+                Some(&coding),
+                &chat,
+                10_000,
+                10_000,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let return_continuity_group_start_time =
+                resolve_next_session_continuity_group_start_time(
+                    Some(&pending),
+                    &resumed_coding,
+                    250_000,
+                );
+            transition::apply_window_transition(
+                &pool,
+                Some(&chat),
+                &resumed_coding,
+                250_000,
+                return_continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let sessions: Vec<(String, i64, i64, Option<i64>)> = sqlx::query_as(
+                "SELECT exe_name, start_time, continuity_group_start_time, end_time
+                 FROM sessions
+                 ORDER BY start_time ASC",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(
+                sessions,
+                vec![
+                    ("Code.exe".into(), 1_000, 1_000, Some(10_000)),
+                    ("QQ.exe".into(), 10_000, 10_000, Some(250_000)),
+                    ("Code.exe".into(), 250_000, 250_000, None),
                 ]
             );
         });

@@ -1,6 +1,6 @@
 import {
   prewarmSettingsBootstrapCache,
-} from "../../features/settings/services/settingsRuntimeAdapterService";
+} from "../../features/settings/services/settingsBootstrapService.ts";
 import {
   prewarmClassificationBootstrapCache,
 } from "../../features/classification/services/classificationService";

@@ -13,8 +13,7 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-    IsIconic, IsWindowVisible,
-    GA_ROOTOWNER,
+    IsIconic, IsWindowVisible, GA_ROOTOWNER,
 };
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -30,7 +29,7 @@ pub struct WindowInfo {
     pub idle_time_ms: u32,
 }
 
-static IDLE_TIMEOUT_SECS: AtomicU64 = AtomicU64::new(300);
+static AFK_THRESHOLD_SECS: AtomicU64 = AtomicU64::new(180);
 
 pub fn has_meaningful_change(previous: Option<&WindowInfo>, next: &WindowInfo) -> bool {
     let Some(previous) = previous else {
@@ -47,13 +46,13 @@ pub fn has_meaningful_change(previous: Option<&WindowInfo>, next: &WindowInfo) -
         || previous.is_afk != next.is_afk
 }
 
-pub fn cmd_set_idle_timeout(timeout_secs: u64) {
-    IDLE_TIMEOUT_SECS.store(timeout_secs, Ordering::Relaxed);
+pub fn cmd_set_afk_threshold(threshold_secs: u64) {
+    AFK_THRESHOLD_SECS.store(threshold_secs, Ordering::Relaxed);
 }
 
 pub fn get_active_window() -> WindowInfo {
     unsafe {
-        // AFK Detection (5 minutes = 300,000 ms)
+        // AFK detection uses the configured threshold from the tracking runtime.
         let mut last_input = LASTINPUTINFO {
             cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
             dwTime: 0,
@@ -65,7 +64,7 @@ pub fn get_active_window() -> WindowInfo {
             0
         };
 
-        let afk_threshold_ms = (IDLE_TIMEOUT_SECS.load(Ordering::Relaxed) as u32) * 1000;
+        let afk_threshold_ms = (AFK_THRESHOLD_SECS.load(Ordering::Relaxed) as u32) * 1000;
         let is_afk = idle_time > afk_threshold_ms;
 
         let hwnd = GetForegroundWindow();
@@ -171,9 +170,11 @@ pub fn get_process_exe_name(process_id: u32) -> String {
 }
 
 fn get_process_details(process_id: u32) -> (String, String) {
-    let fallback_exe_name = unsafe { get_process_name_from_snapshot(process_id) }.unwrap_or_default();
+    let fallback_exe_name =
+        unsafe { get_process_name_from_snapshot(process_id) }.unwrap_or_default();
 
-    let handle = match unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) } {
+    let handle = match unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) }
+    {
         Ok(h) => h,
         Err(_) => return (fallback_exe_name, String::new()),
     };

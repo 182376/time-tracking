@@ -1,10 +1,8 @@
 import {
   clearSessionsBefore,
-  loadSettings,
-  loadTrackerHealthTimestamp,
-  saveSetting,
+  saveAppSetting,
   type AppSettings,
-} from "../../../shared/lib/settingsPersistenceAdapter.ts";
+} from "../../../platform/persistence/appSettingsStore.ts";
 import {
   exportBackup,
   pickBackupFile,
@@ -13,25 +11,15 @@ import {
   restoreBackup,
   type BackupPreview,
 } from "../../../platform/backup/backupRuntimeGateway.ts";
-import { getAppVersion } from "../../../platform/desktop/appInfoGateway.ts";
 import { openExternalUrl } from "../../../platform/desktop/externalUrlGateway.ts";
-import { setIdleTimeout } from "../../../platform/runtime/trackingRuntimeGateway.ts";
+import { setAfkThreshold } from "../../../platform/runtime/trackingRuntimeGateway.ts";
 import type { CleanupRange } from "../types.ts";
-import {
-  getSettingsBootstrapCache,
-  setSettingsBootstrapCache,
-} from "./settingsBootstrapCache.ts";
 import {
   buildSessionCleanupPlan,
   clearSessionsByRangeWithDeps,
 } from "./sessionCleanupPolicy.ts";
 
 export type { BackupPreview } from "../../../platform/backup/backupRuntimeGateway.ts";
-
-export interface SettingsPageBootstrapData {
-  settings: AppSettings;
-  appVersion: string;
-}
 
 export interface BackupRestorePreparation {
   path: string;
@@ -42,6 +30,14 @@ export interface BackupRestorePreparation {
 }
 
 type SettingsPatch = Partial<AppSettings>;
+type ExportBackupDeps = {
+  pickBackupSaveFile: (initialPath?: string) => Promise<string | null>;
+  exportBackup: (path: string) => Promise<string>;
+};
+type PrepareBackupRestoreDeps = {
+  pickBackupFile: (initialPath?: string) => Promise<string | null>;
+  previewBackup: (path: string) => Promise<BackupPreview>;
+};
 
 const RELEASE_NOTES_URL = "https://github.com/182376/time-tracking/releases";
 const FEEDBACK_URL = "https://github.com/182376/time-tracking/issues/new/choose";
@@ -57,53 +53,62 @@ function buildBackupPreviewSummary(preview: BackupPreview): string {
   ].join("\n");
 }
 
-export class SettingsRuntimeAdapterService {
-  static async loadCurrentSettings(): Promise<AppSettings> {
-    return loadSettings();
+const exportBackupDeps: ExportBackupDeps = {
+  pickBackupSaveFile,
+  exportBackup,
+};
+
+const prepareBackupRestoreDeps: PrepareBackupRestoreDeps = {
+  pickBackupFile,
+  previewBackup,
+};
+
+export async function exportBackupWithPickerWithDeps(
+  initialPath: string | undefined,
+  deps: ExportBackupDeps,
+): Promise<string | null> {
+  const selectedPath = await deps.pickBackupSaveFile(initialPath);
+  if (!selectedPath) {
+    return null;
   }
 
-  static async loadLatestTrackingPauseSetting(): Promise<boolean> {
-    const settings = await this.loadCurrentSettings();
-    return settings.tracking_paused;
+  return deps.exportBackup(selectedPath);
+}
+
+export async function prepareBackupRestoreWithDeps(
+  initialPath: string | undefined,
+  deps: PrepareBackupRestoreDeps,
+): Promise<BackupRestorePreparation | null> {
+  const selectedPath = await deps.pickBackupFile(initialPath);
+  if (!selectedPath) {
+    return null;
   }
 
-  static async loadTrackerHealthTimestamp(): Promise<number | null> {
-    return loadTrackerHealthTimestamp();
-  }
-
-  static async saveMinSessionSecsSetting(nextValue: number): Promise<void> {
-    await saveSetting("min_session_secs", nextValue);
-  }
-
-  static async loadBootstrap(): Promise<SettingsPageBootstrapData> {
-    const [settings, appVersion] = await Promise.all([
-      this.loadCurrentSettings(),
-      getAppVersion().catch(() => "unknown"),
-    ]);
-
-    const bootstrap = {
-      settings,
-      appVersion,
+  const preview = await deps.previewBackup(selectedPath);
+  if (preview.compatibility_level === "incompatible") {
+    return {
+      path: selectedPath,
+      preview,
+      previewSummary: "",
+      compatible: false,
+      incompatibilityMessage: preview.compatibility_message,
     };
-    setSettingsBootstrapCache(bootstrap);
-    return bootstrap;
   }
 
-  static getBootstrapCache(): SettingsPageBootstrapData | null {
-    return getSettingsBootstrapCache();
-  }
+  return {
+    path: selectedPath,
+    preview,
+    previewSummary: buildBackupPreviewSummary(preview),
+    compatible: true,
+  };
+}
 
-  static async prewarmBootstrapCache(): Promise<SettingsPageBootstrapData> {
-    const bootstrap = await this.loadBootstrap();
-    setSettingsBootstrapCache(bootstrap);
-    return bootstrap;
-  }
-
+export class SettingsRuntimeAdapterService {
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
-    await saveSetting(key, value);
+    await saveAppSetting(key, value);
 
-    if (key === "idle_timeout_secs") {
-      await setIdleTimeout(value as number);
+    if (key === "timeline_merge_gap_secs") {
+      await setAfkThreshold(value as number);
     }
   }
 
@@ -115,37 +120,11 @@ export class SettingsRuntimeAdapterService {
   }
 
   static async exportBackupWithPicker(initialPath?: string): Promise<string | null> {
-    const selectedPath = await pickBackupSaveFile(initialPath);
-    if (!selectedPath) {
-      return null;
-    }
-
-    return exportBackup(selectedPath);
+    return exportBackupWithPickerWithDeps(initialPath, exportBackupDeps);
   }
 
   static async prepareBackupRestore(initialPath?: string): Promise<BackupRestorePreparation | null> {
-    const selectedPath = await pickBackupFile(initialPath);
-    if (!selectedPath) {
-      return null;
-    }
-
-    const preview = await previewBackup(selectedPath);
-    if (preview.compatibility_level === "incompatible") {
-      return {
-        path: selectedPath,
-        preview,
-        previewSummary: "",
-        compatible: false,
-        incompatibilityMessage: preview.compatibility_message,
-      };
-    }
-
-    return {
-      path: selectedPath,
-      preview,
-      previewSummary: buildBackupPreviewSummary(preview),
-      compatible: true,
-    };
+    return prepareBackupRestoreWithDeps(initialPath, prepareBackupRestoreDeps);
   }
 
   static async restoreBackup(path: string): Promise<void> {
@@ -178,14 +157,10 @@ export class SettingsRuntimeAdapterService {
   static async commitSettingsPatch(patch: SettingsPatch): Promise<void> {
     const entries = Object.entries(patch) as Array<[keyof AppSettings, AppSettings[keyof AppSettings]]>;
     for (const [key, value] of entries) {
-      await saveSetting(key, value);
-      if (key === "idle_timeout_secs") {
-        await setIdleTimeout(value as number);
+      await saveAppSetting(key, value);
+      if (key === "timeline_merge_gap_secs") {
+        await setAfkThreshold(value as number);
       }
     }
   }
-}
-
-export async function prewarmSettingsBootstrapCache(): Promise<SettingsPageBootstrapData> {
-  return SettingsRuntimeAdapterService.prewarmBootstrapCache();
 }

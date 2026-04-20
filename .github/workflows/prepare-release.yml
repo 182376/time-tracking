@@ -65,21 +65,9 @@ jobs:
       - name: Verify release notes generation
         run: node --experimental-strip-types scripts/release.ts write-release-notes ${{ inputs.version }} dist-release/release-notes.md
 
-      - name: Build frontend
+      - name: Run release quality gate
         if: env.TAG_EXISTS != 'true'
-        run: npm run build
-
-      - name: Run tests
-        if: env.TAG_EXISTS != 'true'
-        run: |
-          npm test
-          npm run test:replay
-          npm run test:update
-
-      - name: Check Rust
-        if: env.TAG_EXISTS != 'true'
-        working-directory: src-tauri
-        run: cargo check
+        run: npm run check:full
 
       - name: Commit version changes and tag
         if: env.TAG_EXISTS != 'true'

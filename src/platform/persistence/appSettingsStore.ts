@@ -4,19 +4,19 @@ import {
   loadAllSettingRows,
   loadSettingTimestamp,
   upsertSettingValue,
-} from "../../platform/persistence/settingsPersistence.ts";
+} from "./settingsPersistence.ts";
 import {
   normalizeSettingsRecord,
   serializeSettingValue,
   type AppSettings,
-} from "../settings/appSettings";
+} from "../../shared/settings/appSettings.ts";
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
 const TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY = "__tracker_last_successful_sample_ms";
 
 export type { AppSettings };
 
-export async function loadSettings(): Promise<AppSettings> {
+export async function loadAppSettings(): Promise<AppSettings> {
   const rows = await loadAllSettingRows();
   const record: Record<string, string> = {};
   for (const row of rows) {
@@ -25,7 +25,10 @@ export async function loadSettings(): Promise<AppSettings> {
   return normalizeSettingsRecord(record);
 }
 
-export async function saveSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void> {
+export async function saveAppSetting<K extends keyof AppSettings>(
+  key: K,
+  value: AppSettings[K],
+): Promise<void> {
   await upsertSettingValue(key, serializeSettingValue(value));
 }
 

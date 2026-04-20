@@ -64,7 +64,10 @@ pub fn setup(
 
     desktop_behavior::spawn_sync_from_storage(app.handle().clone(), launched_by_autostart);
     runtime_tasks::spawn_updater_startup_auto_check(app.handle().clone());
-    runtime_tasks::spawn_tracking_runtime_restart_loop(app.handle().clone(), runtime_health.clone());
+    runtime_tasks::spawn_tracking_runtime_restart_loop(
+        app.handle().clone(),
+        runtime_health.clone(),
+    );
     runtime_tasks::spawn_tracking_watchdog_restart_loop(app.handle().clone(), runtime_health);
 
     Ok(())

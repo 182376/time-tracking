@@ -54,7 +54,11 @@ pub async fn insert_for_restore(
         .bind(session.start_time)
         .bind(session.end_time)
         .bind(session.duration)
-        .bind(session.continuity_group_start_time.unwrap_or(session.start_time))
+        .bind(
+            session
+                .continuity_group_start_time
+                .unwrap_or(session.start_time),
+        )
         .execute(&mut **tx)
         .await
         .map_err(|error| format!("failed to restore sessions: {error}"))?;

@@ -3,13 +3,16 @@ import type {
   TrackingStatusSnapshot,
   TrackingWindowSnapshot,
 } from "../../shared/types/tracking";
-import type { AppSettings } from "../../shared/settings/appSettings";
+import type { AppSettings } from "./appSettingsRuntimeService.ts";
 import { resolveTrackerHealth } from "../../shared/types/tracking";
 import {
   getCurrentTrackingSnapshot,
-  setIdleTimeout,
+  setAfkThreshold,
 } from "../../platform/runtime/trackingRuntimeGateway";
-import { SettingsRuntimeAdapterService } from "../../features/settings/services/settingsRuntimeAdapterService";
+import {
+  loadCurrentAppSettings,
+  loadTrackerHealthTimestampMs,
+} from "./appSettingsRuntimeService.ts";
 import { initializeProcessMapperRuntime } from "./processMapperRuntimeService";
 
 export const TRACKER_HEARTBEAT_STALE_AFTER_MS = 8_000;
@@ -26,11 +29,44 @@ const DEFAULT_TRACKING_STATUS: TrackingStatusSnapshot = {
   sustained_participation_eligible: false,
   sustained_participation_active: false,
   sustained_participation_kind: null,
+  sustained_participation_state: "inactive",
+  sustained_participation_signal_source: null,
+  sustained_participation_reason: "no-signal",
+  sustained_participation_diagnostics: {
+    state: "inactive",
+    reason: "no-signal",
+    window_identity: null,
+    effective_signal_source: null,
+    last_match_at_ms: null,
+    grace_deadline_ms: null,
+    system_media: {
+      signal: {
+        is_available: false,
+        is_active: false,
+        signal_source: null,
+        source_app_id: null,
+        source_app_identity: null,
+        playback_type: null,
+      },
+      match_result: "unavailable",
+    },
+    audio_session: {
+      signal: {
+        is_available: false,
+        is_active: false,
+        signal_source: null,
+        source_app_id: null,
+        source_app_identity: null,
+        playback_type: null,
+      },
+      match_result: "unavailable",
+    },
+  },
 };
 
 export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Promise<TrackerHealthSnapshot> {
   try {
-    const lastHeartbeatMs = await SettingsRuntimeAdapterService.loadTrackerHealthTimestamp();
+    const lastHeartbeatMs = await loadTrackerHealthTimestampMs();
     return resolveTrackerHealth(lastHeartbeatMs, nowMs, TRACKER_HEARTBEAT_STALE_AFTER_MS);
   } catch (error) {
     console.warn("Failed to load tracker heartbeat", error);
@@ -39,8 +75,8 @@ export async function loadTrackerHealthSnapshot(nowMs: number = Date.now()): Pro
 }
 
 export async function loadAppRuntimeBootstrapSnapshot(): Promise<AppRuntimeBootstrapSnapshot> {
-  const settings = await SettingsRuntimeAdapterService.loadCurrentSettings();
-  await setIdleTimeout(settings.idle_timeout_secs).catch(console.warn);
+  const settings = await loadCurrentAppSettings();
+  await setAfkThreshold(settings.timeline_merge_gap_secs).catch(console.warn);
 
   await initializeProcessMapperRuntime();
 

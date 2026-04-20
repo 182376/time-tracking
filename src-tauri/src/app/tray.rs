@@ -17,10 +17,7 @@ const TRAY_MENU_SHOW_ID: &str = "tray-show-main";
 const TRAY_MENU_TOGGLE_PAUSE_ID: &str = "tray-toggle-pause";
 const TRAY_MENU_QUIT_ID: &str = "tray-quit";
 
-fn should_redirect_close_to_tray(
-    settings: DesktopBehaviorSettings,
-    exit_requested: bool,
-) -> bool {
+fn should_redirect_close_to_tray(settings: DesktopBehaviorSettings, exit_requested: bool) -> bool {
     !exit_requested
         && settings.close_behavior == CloseBehavior::Tray
         && settings.should_keep_tray_visible()

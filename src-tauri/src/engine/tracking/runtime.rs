@@ -1,18 +1,26 @@
+use super::session_timeout::{
+    seal_active_sessions_for_continuity_timeout,
+    seal_active_sessions_for_passive_participation_timeout,
+    seal_active_sessions_for_tracking_pause, should_seal_sustained_participation,
+    should_suspend_active_tracking,
+};
+use super::sustained_participation::{
+    apply_tracking_mode_window_state, load_sustained_participation_signals,
+    resolve_tracking_status_with_runtime, SustainedParticipationRuntimeState,
+};
 use super::{active_session, continuity, startup, transition, watchdog};
 use crate::data::repositories::{sessions, tracker_settings};
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
-use crate::domain::tracking::{
-    resolve_tracking_status, signal_matches_window, SustainedParticipationSignalSnapshot,
-    TrackingDataChangedPayload, TrackingStatusSnapshot, WindowSessionIdentity,
-    TRACKING_REASON_CONTINUITY_WINDOW_SEALED, TRACKING_REASON_PASSIVE_PARTICIPATION_SEALED,
-    TRACKING_REASON_TRACKING_PAUSED_SEALED,
-};
-use crate::platform::windows::{audio, foreground as tracker, media};
+#[cfg(test)]
+use crate::domain::tracking::TRACKING_REASON_TRACKING_PAUSED_SEALED;
+use crate::domain::tracking::{TrackingDataChangedPayload, TrackingStatusSnapshot};
+use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio::task::spawn_blocking;
 use tokio::time::{sleep, timeout, Duration};
+
 const WINDOW_POLL_TIMEOUT_SECS: u64 = 3;
 
 struct TrackingLoopState {
@@ -20,7 +28,6 @@ struct TrackingLoopState {
     sustained_participation_secs: u64,
     tracking_paused: bool,
     tracked_window: tracker::WindowInfo,
-    sustained_participation_signal: SustainedParticipationSignalSnapshot,
     tracking_status: TrackingStatusSnapshot,
 }
 
@@ -41,21 +48,26 @@ pub async fn run<R: Runtime>(
     let mut last_window: Option<tracker::WindowInfo> = None;
     let mut last_tracking_status: Option<TrackingStatusSnapshot> = None;
     let mut last_emitted_window: Option<tracker::WindowInfo> = None;
-    let mut pending_sustained_continuity: Option<continuity::PendingSustainedContinuity> = None;
+    let mut pending_continuity: Option<continuity::PendingContinuity> = None;
+    let mut sustained_participation_state = SustainedParticipationRuntimeState::default();
 
     loop {
         let window_info = poll_active_window_with_timeout().await?;
         let now_ms = now_ms();
         health_state.note_successful_sample(now_ms);
         persist_tracker_runtime_timestamps(&pool, now_ms).await;
-        let tracking_state = load_tracking_loop_state(&pool, &window_info).await;
+        let (tracking_state, next_sustained_participation_state) =
+            load_tracking_loop_state(&pool, &window_info, now_ms, &sustained_participation_state)
+                .await;
+        sustained_participation_state = next_sustained_participation_state;
         let tracked_window = tracking_state.tracked_window;
-        let continuity_group_start_time = continuity::resolve_next_session_continuity_group_start_time(
-            pending_sustained_continuity.as_ref(),
-            &tracked_window,
-            now_ms,
-        );
-        let new_pending_sustained_continuity = continuity::load_pending_sustained_continuity(
+        let continuity_group_start_time =
+            continuity::resolve_next_session_continuity_group_start_time(
+                pending_continuity.as_ref(),
+                &tracked_window,
+                now_ms,
+            );
+        let new_pending_continuity = continuity::load_pending_continuity(
             &pool,
             last_window.as_ref(),
             last_tracking_status.as_ref(),
@@ -76,7 +88,7 @@ pub async fn run<R: Runtime>(
                 }
             }
 
-            pending_sustained_continuity = None;
+            pending_continuity = None;
             last_window = Some(tracked_window);
             last_tracking_status = Some(tracking_state.tracking_status);
             sleep(Duration::from_secs(1)).await;
@@ -85,9 +97,9 @@ pub async fn run<R: Runtime>(
 
         if should_seal_sustained_participation(
             last_window.as_ref(),
+            last_tracking_status.as_ref(),
             &tracked_window,
-            &tracking_state.sustained_participation_signal,
-            tracking_state.sustained_participation_secs,
+            &tracking_state.tracking_status,
         ) {
             match seal_active_sessions_for_passive_participation_timeout(
                 &pool,
@@ -169,9 +181,9 @@ pub async fn run<R: Runtime>(
             }
         }
 
-        pending_sustained_continuity = continuity::resolve_next_pending_sustained_continuity(
-            pending_sustained_continuity,
-            new_pending_sustained_continuity,
+        pending_continuity = continuity::resolve_next_pending_continuity(
+            pending_continuity,
+            new_pending_continuity,
             continuity_group_start_time,
             &tracked_window,
             now_ms,
@@ -186,7 +198,13 @@ pub async fn load_current_tracking_snapshot(
     pool: &Pool<Sqlite>,
 ) -> Result<CurrentTrackingSnapshotData, String> {
     let window_info = poll_active_window_with_timeout().await?;
-    let tracking_state = load_tracking_loop_state(pool, &window_info).await;
+    let (tracking_state, _) = load_tracking_loop_state(
+        pool,
+        &window_info,
+        now_ms(),
+        &SustainedParticipationRuntimeState::default(),
+    )
+    .await;
 
     Ok(CurrentTrackingSnapshotData {
         window: tracking_state.tracked_window,
@@ -217,16 +235,12 @@ async fn persist_tracker_runtime_timestamps(pool: &Pool<Sqlite>, now_ms: i64) {
             tracker_settings::TRACKER_LAST_SUCCESSFUL_SAMPLE_KEY,
             "sample timestamp",
         ),
-        (
-            tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
-            "heartbeat",
-        ),
+        (tracker_settings::TRACKER_LAST_HEARTBEAT_KEY, "heartbeat"),
     ] {
-        if let Err(error) = tracker_settings::save_tracker_timestamp(pool, setting_key, now_ms).await
+        if let Err(error) =
+            tracker_settings::save_tracker_timestamp(pool, setting_key, now_ms).await
         {
-            log_tracker_error(format!(
-                "failed to save tracker {error_context}: {error}"
-            ));
+            log_tracker_error(format!("failed to save tracker {error_context}: {error}"));
         }
     }
 }
@@ -234,17 +248,17 @@ async fn persist_tracker_runtime_timestamps(pool: &Pool<Sqlite>, now_ms: i64) {
 async fn load_tracking_loop_state(
     pool: &Pool<Sqlite>,
     window_info: &tracker::WindowInfo,
-) -> TrackingLoopState {
-    let continuity_window_secs = match tracker_settings::load_timeline_merge_gap_secs(pool, 180).await
-    {
-        Ok(value) => value,
-        Err(error) => {
-            log_tracker_error(format!(
-                "failed to load continuity window setting: {error}"
-            ));
-            180
-        }
-    };
+    now_ms: i64,
+    previous_state: &SustainedParticipationRuntimeState,
+) -> (TrackingLoopState, SustainedParticipationRuntimeState) {
+    let continuity_window_secs =
+        match tracker_settings::load_timeline_merge_gap_secs(pool, 180).await {
+            Ok(value) => value,
+            Err(error) => {
+                log_tracker_error(format!("failed to load continuity window setting: {error}"));
+                180
+            }
+        };
 
     let tracking_paused = match tracker_settings::load_tracking_paused_setting(pool).await {
         Ok(value) => value,
@@ -286,56 +300,34 @@ async fn load_tracking_loop_state(
         tracked_window.title.clear();
     }
 
-    let sustained_participation_signal =
-        load_sustained_participation_signal(&tracked_window, tracking_paused).await;
-    let tracking_status = resolve_tracking_status(
-        &tracked_window.exe_name,
-        &tracked_window.process_path,
-        tracked_window.idle_time_ms,
-        tracked_window.is_afk,
-        continuity_window_secs,
-        sustained_participation_secs,
-        tracking_paused,
-        &sustained_participation_signal,
-    );
+    let (system_media_signal, audio_signal) =
+        load_sustained_participation_signals(&tracked_window, tracking_paused).await;
+    let (tracking_status, next_sustained_participation_state) =
+        resolve_tracking_status_with_runtime(
+            &tracked_window.exe_name,
+            &tracked_window.process_path,
+            tracked_window.idle_time_ms,
+            tracked_window.is_afk,
+            continuity_window_secs,
+            sustained_participation_secs,
+            tracking_paused,
+            now_ms,
+            previous_state,
+            &system_media_signal,
+            &audio_signal,
+        );
+    let tracked_window = apply_tracking_mode_window_state(tracked_window, &tracking_status);
 
-    TrackingLoopState {
-        continuity_window_secs,
-        sustained_participation_secs,
-        tracking_paused,
-        tracked_window,
-        sustained_participation_signal,
-        tracking_status,
-    }
-}
-
-async fn load_sustained_participation_signal(
-    tracked_window: &tracker::WindowInfo,
-    tracking_paused: bool,
-) -> SustainedParticipationSignalSnapshot {
-    if tracking_paused {
-        return SustainedParticipationSignalSnapshot::default();
-    }
-
-    let system_media_signal = media::get_sustained_participation_signal(tracked_window).await;
-    if signal_matches_window(
-        &tracked_window.exe_name,
-        &tracked_window.process_path,
-        &system_media_signal,
-    ) {
-        return system_media_signal;
-    }
-
-    let audio_signal = audio::get_sustained_participation_signal(tracked_window).await;
-    if signal_matches_window(
-        &tracked_window.exe_name,
-        &tracked_window.process_path,
-        &audio_signal,
-    ) {
-        return audio_signal;
-    }
-
-    system_media_signal
+    (
+        TrackingLoopState {
+            continuity_window_secs,
+            sustained_participation_secs,
+            tracking_paused,
+            tracked_window,
+            tracking_status,
+        },
+        next_sustained_participation_state,
+    )
 }
 
 async fn poll_active_window_with_timeout() -> Result<tracker::WindowInfo, String> {
@@ -376,169 +368,11 @@ async fn apply_power_lifecycle_event(
     Ok(None)
 }
 
-async fn seal_active_sessions_for_tracking_pause(
-    pool: &Pool<Sqlite>,
-    timestamp_ms: i64,
-) -> Result<Option<&'static str>, sqlx::Error> {
-    if sessions::end_active_sessions(pool, timestamp_ms).await? {
-        return Ok(Some(TRACKING_REASON_TRACKING_PAUSED_SEALED));
-    }
-
-    Ok(None)
-}
-
-async fn seal_active_sessions_for_continuity_timeout(
-    pool: &Pool<Sqlite>,
-    window: &tracker::WindowInfo,
-    now_ms: i64,
-    continuity_window_secs: u64,
-) -> Result<Option<&'static str>, sqlx::Error> {
-    if !has_exceeded_continuity_window(window, continuity_window_secs) {
-        return Ok(None);
-    }
-
-    let resolved_end_time = resolve_continuity_window_end_time(
-        now_ms,
-        window.idle_time_ms,
-        continuity_window_secs,
-    );
-
-    if sessions::end_active_sessions(pool, resolved_end_time).await? {
-        return Ok(Some(TRACKING_REASON_CONTINUITY_WINDOW_SEALED));
-    }
-
-    Ok(None)
-}
-
-async fn seal_active_sessions_for_passive_participation_timeout(
-    pool: &Pool<Sqlite>,
-    window: &tracker::WindowInfo,
-    now_ms: i64,
-    sustained_participation_secs: u64,
-) -> Result<Option<&'static str>, sqlx::Error> {
-    if !has_exceeded_sustained_participation_window(window, sustained_participation_secs) {
-        return Ok(None);
-    }
-
-    let resolved_end_time = resolve_sustained_participation_end_time(
-        now_ms,
-        window.idle_time_ms,
-        sustained_participation_secs,
-    );
-
-    if sessions::end_active_sessions(pool, resolved_end_time).await? {
-        return Ok(Some(TRACKING_REASON_PASSIVE_PARTICIPATION_SEALED));
-    }
-
-    Ok(None)
-}
-
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis() as i64)
         .unwrap_or_default()
-}
-
-fn should_suspend_active_tracking(
-    previous_window: Option<&tracker::WindowInfo>,
-    current_window: &tracker::WindowInfo,
-    continuity_window_secs: u64,
-    tracking_status: &TrackingStatusSnapshot,
-) -> bool {
-    if tracking_status.sustained_participation_active {
-        return false;
-    }
-
-    if current_window.is_afk || !has_exceeded_continuity_window(current_window, continuity_window_secs)
-    {
-        return false;
-    }
-
-    let Some(previous_identity) = transition::resolve_window_session_identity(previous_window) else {
-        return false;
-    };
-    let Some(current_identity) =
-        transition::resolve_window_session_identity(Some(current_window))
-    else {
-        return false;
-    };
-
-    previous_identity.is_same_app(&current_identity)
-}
-
-fn should_seal_sustained_participation(
-    previous_window: Option<&tracker::WindowInfo>,
-    current_window: &tracker::WindowInfo,
-    signal: &SustainedParticipationSignalSnapshot,
-    sustained_participation_secs: u64,
-) -> bool {
-    if !signal_matches_window(&current_window.exe_name, &current_window.process_path, signal)
-        || !current_window.is_afk
-        || !has_exceeded_sustained_participation_window(current_window, sustained_participation_secs)
-    {
-        return false;
-    }
-
-    let Some(previous_identity) = transition::resolve_window_session_identity(previous_window) else {
-        return false;
-    };
-    let Some(current_identity) = WindowSessionIdentity::from_window_fields(
-        &current_window.exe_name,
-        current_window.process_id,
-        &current_window.root_owner_hwnd,
-        &current_window.hwnd,
-        &current_window.window_class,
-    ) else {
-        return false;
-    };
-
-    previous_identity.is_same_app(&current_identity)
-}
-
-fn has_exceeded_continuity_window(
-    window: &tracker::WindowInfo,
-    continuity_window_secs: u64,
-) -> bool {
-    let continuity_window_ms = continuity_window_ms(continuity_window_secs);
-    continuity_window_ms >= 0 && i64::from(window.idle_time_ms) > continuity_window_ms
-}
-
-fn has_exceeded_sustained_participation_window(
-    window: &tracker::WindowInfo,
-    sustained_participation_secs: u64,
-) -> bool {
-    let sustained_participation_window_ms =
-        sustained_participation_window_ms(sustained_participation_secs);
-    sustained_participation_window_ms >= 0
-        && i64::from(window.idle_time_ms) > sustained_participation_window_ms
-}
-
-fn resolve_continuity_window_end_time(
-    now_ms: i64,
-    idle_time_ms: u32,
-    continuity_window_secs: u64,
-) -> i64 {
-    now_ms - i64::from(idle_time_ms) + continuity_window_ms(continuity_window_secs)
-}
-
-fn resolve_sustained_participation_end_time(
-    now_ms: i64,
-    idle_time_ms: u32,
-    sustained_participation_secs: u64,
-) -> i64 {
-    now_ms - i64::from(idle_time_ms)
-        + sustained_participation_window_ms(sustained_participation_secs)
-}
-
-fn continuity_window_ms(continuity_window_secs: u64) -> i64 {
-    continuity_window_secs.saturating_mul(1000).min(i64::MAX as u64) as i64
-}
-
-fn sustained_participation_window_ms(sustained_participation_secs: u64) -> i64 {
-    sustained_participation_secs
-        .saturating_mul(1000)
-        .min(i64::MAX as u64) as i64
 }
 
 pub fn emit_tracking_data_changed<R: Runtime>(
@@ -821,8 +655,12 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
-            assert!(!active_session::start_session(&pool, &window, 2_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
+            assert!(!active_session::start_session(&pool, &window, 2_000)
+                .await
+                .unwrap());
 
             let active_count: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE end_time IS NULL")
@@ -863,172 +701,6 @@ mod tests {
     }
 
     #[test]
-    fn continuity_timeout_seals_active_session_at_continuity_boundary() {
-        tauri::async_runtime::block_on(async {
-            let pool = setup_test_db().await;
-            let window = make_window(&[("idle_time_ms", "300000")]);
-
-            assert!(active_session::start_session(&pool, &make_window(&[]), 10_000).await.unwrap());
-
-            let reason = seal_active_sessions_for_continuity_timeout(&pool, &window, 400_000, 180)
-                .await
-                .unwrap();
-
-            let ended: Option<(i64, i64)> = sqlx::query_as(
-                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL LIMIT 1",
-            )
-            .fetch_optional(&pool)
-            .await
-            .unwrap();
-
-            assert_eq!(reason, Some(TRACKING_REASON_CONTINUITY_WINDOW_SEALED));
-            assert_eq!(ended, Some((280_000, 270_000)));
-        });
-    }
-
-    #[test]
-    fn continuity_timeout_allows_same_app_to_start_new_session_after_input_returns() {
-        tauri::async_runtime::block_on(async {
-            let pool = setup_test_db().await;
-            let previous = make_window(&[]);
-            let timed_out = make_window(&[("idle_time_ms", "240000")]);
-            let resumed = make_window(&[("idle_time_ms", "1")]);
-
-            assert!(active_session::start_session(&pool, &previous, 1_000).await.unwrap());
-
-            let seal_reason =
-                seal_active_sessions_for_continuity_timeout(&pool, &timed_out, 300_000, 180)
-                    .await
-                    .unwrap();
-            let recover_reason = transition::apply_window_transition(
-                &pool,
-                Some(&timed_out),
-                &resumed,
-                301_000,
-                301_000,
-                active_session::start_session_for_transition,
-            )
-            .await
-            .unwrap();
-
-            let sessions: Vec<(i64, i64, Option<i64>)> = sqlx::query_as(
-                "SELECT start_time, continuity_group_start_time, end_time
-                 FROM sessions
-                 ORDER BY start_time ASC",
-            )
-                    .fetch_all(&pool)
-                    .await
-                    .unwrap();
-
-            assert_eq!(seal_reason, Some(TRACKING_REASON_CONTINUITY_WINDOW_SEALED));
-            assert_eq!(recover_reason, Some("session-recovered"));
-            assert_eq!(
-                sessions,
-                vec![(1_000, 1_000, Some(240_000)), (301_000, 301_000, None)]
-            );
-        });
-    }
-
-    #[test]
-    fn sustained_participation_signal_skips_continuity_suspend() {
-        let previous = make_window(&[("exe_name", "Zoom.exe"), ("idle_time_ms", "0")]);
-        let current = make_window(&[("exe_name", "Zoom.exe"), ("idle_time_ms", "240000")]);
-        let tracking_status = TrackingStatusSnapshot {
-            is_tracking_active: true,
-            sustained_participation_eligible: true,
-            sustained_participation_active: true,
-            sustained_participation_kind: None,
-        };
-
-        assert!(!should_suspend_active_tracking(
-            Some(&previous),
-            &current,
-            180,
-            &tracking_status,
-        ));
-    }
-
-    #[test]
-    fn sustained_participation_timeout_seals_session_at_sustained_boundary() {
-        tauri::async_runtime::block_on(async {
-            let pool = setup_test_db().await;
-            let previous = make_window(&[("exe_name", "Zoom.exe"), ("idle_time_ms", "0")]);
-            let timed_out = make_window(&[
-                ("exe_name", "Zoom.exe"),
-                ("idle_time_ms", "660000"),
-                ("is_afk", "true"),
-            ]);
-            let signal = SustainedParticipationSignalSnapshot {
-                is_available: true,
-                is_active: true,
-                signal_source: Some(crate::domain::tracking::SustainedParticipationSignalSource::SystemMedia),
-                source_app_id: Some("Zoom".into()),
-                source_app_identity: Some(crate::domain::tracking::SustainedParticipationAppIdentity::Zoom),
-                playback_type: Some(crate::domain::tracking::SystemMediaPlaybackType::Video),
-            };
-
-            assert!(active_session::start_session(&pool, &previous, 10_000).await.unwrap());
-            assert!(should_seal_sustained_participation(
-                Some(&previous),
-                &timed_out,
-                &signal,
-                600,
-            ));
-
-            let reason = seal_active_sessions_for_passive_participation_timeout(
-                &pool,
-                &timed_out,
-                700_000,
-                600,
-            )
-            .await
-            .unwrap();
-
-            let ended: Option<(i64, i64)> = sqlx::query_as(
-                "SELECT end_time, duration FROM sessions WHERE end_time IS NOT NULL LIMIT 1",
-            )
-            .fetch_optional(&pool)
-            .await
-            .unwrap();
-
-            assert_eq!(reason, Some(TRACKING_REASON_PASSIVE_PARTICIPATION_SEALED));
-            assert_eq!(ended, Some((640_000, 630_000)));
-        });
-    }
-
-    #[test]
-    fn sustained_participation_timeout_supports_unknown_audio_signal_matches() {
-        let previous = make_window(&[
-            ("exe_name", "PotPlayerMini64.exe"),
-            ("process_path", r"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe"),
-            ("idle_time_ms", "0"),
-        ]);
-        let timed_out = make_window(&[
-            ("exe_name", "PotPlayerMini64.exe"),
-            ("process_path", r"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe"),
-            ("idle_time_ms", "660000"),
-            ("is_afk", "true"),
-        ]);
-        let signal = SustainedParticipationSignalSnapshot {
-            is_available: true,
-            is_active: true,
-            signal_source: Some(
-                crate::domain::tracking::SustainedParticipationSignalSource::AudioSession,
-            ),
-            source_app_id: Some("PotPlayerMini64.exe".into()),
-            source_app_identity: None,
-            playback_type: None,
-        };
-
-        assert!(should_seal_sustained_participation(
-            Some(&previous),
-            &timed_out,
-            &signal,
-            600,
-        ));
-    }
-
-    #[test]
     fn metadata_refresh_updates_active_session_title() {
         tauri::async_runtime::block_on(async {
             let pool = setup_test_db().await;
@@ -1039,7 +711,9 @@ mod tests {
                 ("title", "Window B"),
             ]);
 
-            assert!(active_session::start_session(&pool, &original, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &original, 1_000)
+                .await
+                .unwrap());
 
             let reason = transition::apply_window_transition(
                 &pool,
@@ -1070,7 +744,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
 
             let reason = apply_power_lifecycle_event(&pool, "lock", 5_000)
                 .await
@@ -1113,7 +789,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
 
             let reason = apply_power_lifecycle_event(&pool, "suspend", 5_000)
                 .await
@@ -1156,7 +834,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
 
             let reason = seal_active_sessions_for_tracking_pause(&pool, 5_000)
                 .await
@@ -1200,7 +880,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
             let pause_reason = seal_active_sessions_for_tracking_pause(&pool, 5_000)
                 .await
                 .unwrap();
@@ -1227,7 +909,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
             let lock_reason = apply_power_lifecycle_event(&pool, "lock", 5_000)
                 .await
                 .unwrap();
@@ -1254,7 +938,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
             tracker_settings::save_tracker_timestamp(
                 &pool,
                 tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
@@ -1289,7 +975,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
             tracker_settings::save_tracker_timestamp(
                 &pool,
                 tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,
@@ -1324,7 +1012,9 @@ mod tests {
             let pool = setup_test_db().await;
             let window = make_window(&[]);
 
-            assert!(active_session::start_session(&pool, &window, 1_000).await.unwrap());
+            assert!(active_session::start_session(&pool, &window, 1_000)
+                .await
+                .unwrap());
             tracker_settings::save_tracker_timestamp(
                 &pool,
                 tracker_settings::TRACKER_LAST_HEARTBEAT_KEY,

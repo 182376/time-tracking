@@ -1,4 +1,4 @@
-import type { SettingsPageBootstrapData } from "./settingsRuntimeAdapterService";
+import type { SettingsPageBootstrapData } from "./settingsBootstrapService.ts";
 
 let SETTINGS_BOOTSTRAP_CACHE: SettingsPageBootstrapData | null = null;
 

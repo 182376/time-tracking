@@ -27,6 +27,6 @@ pub async fn get_current_tracking_snapshot(
 }
 
 #[tauri::command]
-pub fn cmd_set_idle_timeout(timeout_secs: u64) {
-    crate::platform::windows::foreground::cmd_set_idle_timeout(timeout_secs);
+pub fn cmd_set_afk_threshold(threshold_secs: u64) {
+    crate::platform::windows::foreground::cmd_set_afk_threshold(threshold_secs);
 }

@@ -27,10 +27,8 @@ impl UpdaterRuntimeState {
     pub fn new(current_version: String) -> Self {
         Self {
             inner: Arc::new(Mutex::new(UpdaterStateInner {
-                snapshot: UpdateSnapshot::idle(current_version).with_fallback_urls(
-                    Some(RELEASES_BASE_URL.to_string()),
-                    None,
-                ),
+                snapshot: UpdateSnapshot::idle(current_version)
+                    .with_fallback_urls(Some(RELEASES_BASE_URL.to_string()), None),
                 pending_update: None,
                 downloaded_bytes: None,
             })),
@@ -52,12 +50,15 @@ impl UpdaterRuntimeState {
         let release_page_url = release_page_url_for_version(&update.version);
         let asset_download_url = Some(update.download_url.to_string());
         self.with_guard(|inner| {
-            inner.snapshot = inner.snapshot.clone().available(
-                update.version.clone(),
-                update.body.clone(),
-                update.date.map(|value| value.to_string()),
-            )
-            .with_fallback_urls(release_page_url.clone(), asset_download_url.clone());
+            inner.snapshot = inner
+                .snapshot
+                .clone()
+                .available(
+                    update.version.clone(),
+                    update.body.clone(),
+                    update.date.map(|value| value.to_string()),
+                )
+                .with_fallback_urls(release_page_url.clone(), asset_download_url.clone());
             inner.pending_update = Some(update);
             inner.downloaded_bytes = None;
             inner.snapshot.clone()
@@ -91,7 +92,11 @@ impl UpdaterRuntimeState {
         })
     }
 
-    fn set_download_progress(&self, downloaded_bytes: u64, total_bytes: Option<u64>) -> UpdateSnapshot {
+    fn set_download_progress(
+        &self,
+        downloaded_bytes: u64,
+        total_bytes: Option<u64>,
+    ) -> UpdateSnapshot {
         self.with_guard(|inner| {
             inner.snapshot = inner
                 .snapshot

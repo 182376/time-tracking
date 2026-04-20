@@ -40,7 +40,8 @@ pub(crate) fn spawn_tracking_watchdog_restart_loop<R: Runtime + 'static>(
 ) {
     tauri::async_runtime::spawn(async move {
         loop {
-            if let Err(error) = tracking_watchdog::watch(app.clone(), runtime_health.clone()).await {
+            if let Err(error) = tracking_watchdog::watch(app.clone(), runtime_health.clone()).await
+            {
                 eprintln!("[tracker] watchdog stopped: {error}");
                 eprintln!("[tracker] restarting watchdog in 2 seconds...");
                 sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;

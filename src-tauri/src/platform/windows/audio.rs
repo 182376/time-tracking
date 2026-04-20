@@ -1,13 +1,14 @@
 use crate::domain::tracking::{
-    signal_matches_window, sustained_participation_app_identity,
-    SustainedParticipationSignalSnapshot, SustainedParticipationSignalSource,
+    evaluate_sustained_participation_signal, sustained_participation_app_identity,
+    SustainedParticipationSignalMatchResult, SustainedParticipationSignalSnapshot,
+    SustainedParticipationSignalSource,
 };
 use crate::platform::windows::foreground::{self, WindowInfo};
 use windows::core::Interface;
 use windows::Win32::Foundation::RPC_E_CHANGED_MODE;
 use windows::Win32::Media::Audio::{
-    AudioSessionStateActive, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator,
-    MMDeviceEnumerator, eMultimedia, eRender,
+    eMultimedia, eRender, AudioSessionStateActive, IAudioSessionControl2, IAudioSessionManager2,
+    IMMDeviceEnumerator, MMDeviceEnumerator,
 };
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -34,6 +35,8 @@ async fn query_matching_audio_session(
     window: &WindowInfo,
 ) -> Result<Option<SustainedParticipationSignalSnapshot>, String> {
     let _com = ComGuard::initialize()?;
+    let mut fallback_active: Option<SustainedParticipationSignalSnapshot> = None;
+
     unsafe {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
@@ -58,16 +61,16 @@ async fn query_matching_audio_session(
             let session = session
                 .cast::<IAudioSessionControl2>()
                 .map_err(|error| format!("casting audio session at {index} failed: {error}"))?;
-            let state = session
-                .GetState()
-                .map_err(|error| format!("reading audio session state at {index} failed: {error}"))?;
+            let state = session.GetState().map_err(|error| {
+                format!("reading audio session state at {index} failed: {error}")
+            })?;
             if state != AudioSessionStateActive {
                 continue;
             }
 
-            let process_id = session
-                .GetProcessId()
-                .map_err(|error| format!("reading audio session process at {index} failed: {error}"))?;
+            let process_id = session.GetProcessId().map_err(|error| {
+                format!("reading audio session process at {index} failed: {error}")
+            })?;
             let process_exe_name = foreground::get_process_exe_name(process_id);
             let process_path = foreground::get_process_path(process_id);
             let source_identity =
@@ -82,13 +85,26 @@ async fn query_matching_audio_session(
                 playback_type: None,
             };
 
-            if signal_matches_window(&window.exe_name, &window.process_path, &signal) {
-                return Ok(Some(signal));
+            match evaluate_sustained_participation_signal(
+                &window.exe_name,
+                &window.process_path,
+                &signal,
+            )
+            .match_result
+            {
+                SustainedParticipationSignalMatchResult::Matched => return Ok(Some(signal)),
+                SustainedParticipationSignalMatchResult::IdentityMismatch
+                | SustainedParticipationSignalMatchResult::Inactive => {
+                    if fallback_active.is_none() {
+                        fallback_active = Some(signal);
+                    }
+                }
+                SustainedParticipationSignalMatchResult::Unavailable => {}
             }
         }
     }
 
-    Ok(None)
+    Ok(fallback_active)
 }
 
 struct ComGuard {

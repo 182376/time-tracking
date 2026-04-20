@@ -109,13 +109,25 @@
 - `npm test`
 - `npm run test:replay`
 - `npm run test:update`
+- `npm run test:settings`
+- `npm run test:classification`
 - `npm run build`
+
+默认完整质量门槛是：
+
+- `npm run check:full`
+
+它在前端验证链之外继续执行：
+
+- `npm run check:rust`
 
 命中风险时追加验证：
 
-- 改动 Rust tracking 主链、数据边界或恢复路径：追加 `cargo check --manifest-path src-tauri/Cargo.toml --quiet`
+- 改动 Rust tracking 主链、数据边界或恢复路径：追加 `npm run check:rust`
 - 改动 release / changelog / updater：追加 `npm run release:validate-changelog`
-- 准备正式发布：执行 `npm run release:check`
+- 准备正式发布：本地执行 `npm run release:check`，安装包构建与 updater 产物生成默认交给 GitHub Actions
+
+当前仓库默认 CI gate 与 release workflow 的质量校验入口统一为 `npm run check:full`。
 
 性能优化的额外规则：
 

@@ -3,7 +3,13 @@ import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import type { ToastTone } from "../../../shared/components/ToastStack";
 import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
 import { getSettingsBootstrapCache, setSettingsBootstrapCache } from "../services/settingsBootstrapCache";
+import { loadSettingsPageBootstrap } from "../services/settingsBootstrapService.ts";
 import { SettingsRuntimeAdapterService } from "../services/settingsRuntimeAdapterService";
+import {
+  runBackupExportFlow,
+  runBackupRestoreFlow,
+  runSettingsCleanupFlow,
+} from "../services/settingsPageActions.ts";
 import { DEFAULT_SETTINGS, type AppSettings } from "../../../shared/settings/appSettings";
 import type { CleanupRange } from "../types";
 
@@ -75,7 +81,7 @@ export function useSettingsPageState({
         setLoading(true);
       }
       try {
-        const bootstrap = await SettingsRuntimeAdapterService.loadBootstrap();
+        const bootstrap = await loadSettingsPageBootstrap();
         setSettingsBootstrapCache({
           settings: { ...bootstrap.settings },
           appVersion: bootstrap.appVersion,
@@ -174,83 +180,52 @@ export function useSettingsPageState({
   const handleCleanup = useCallback(async () => {
     const selectedLabel = CLEANUP_OPTIONS.find((option) => option.value === cleanupRange)?.label
       ?? UI_TEXT.settings.confirmRangeFallback;
-    const confirmed = await confirm({
-      title: UI_TEXT.settings.cleanupConfirmTitle,
-      description: UI_TEXT.settings.cleanupConfirmDetail(selectedLabel),
-      confirmLabel: UI_TEXT.dialog.confirmDanger,
-      danger: true,
+    await runSettingsCleanupFlow({
+      cleanupRange,
+      cleanupRangeLabel: selectedLabel,
+      confirm,
+      clearSessionsByRange: SettingsRuntimeAdapterService.clearSessionsByRange,
+      notify,
+      reload: () => window.location.reload(),
+      onExecutionStart: () => setIsCleaning(true),
+      onExecutionEnd: () => setIsCleaning(false),
+      reportError: (message, error) => {
+        console.error(message, error);
+      },
     });
-    if (!confirmed) return;
-
-    setIsCleaning(true);
-    try {
-      await SettingsRuntimeAdapterService.clearSessionsByRange(cleanupRange);
-      notify("历史数据已清理。", "success");
-      window.location.reload();
-    } catch (error) {
-      console.error("cleanup failed", error);
-      notify("历史数据清理失败，请稍后重试。", "warning");
-    } finally {
-      setIsCleaning(false);
-    }
   }, [cleanupRange, confirm, notify]);
 
   const handleExportBackup = useCallback(async () => {
     if (isExportingBackup) return;
-
-    setIsExportingBackup(true);
-
-    try {
-      const exportedPath = await SettingsRuntimeAdapterService.exportBackupWithPicker(exportPath.trim() || undefined);
-      if (!exportedPath) return;
-      setExportPath(exportedPath);
-      notify(`备份导出成功：${exportedPath}`, "success");
-    } catch (error) {
-      console.error("export backup failed", error);
-      notify("备份导出失败，请检查路径后重试。", "warning");
-    } finally {
-      setIsExportingBackup(false);
-    }
+    await runBackupExportFlow({
+      initialPath: exportPath,
+      exportBackupWithPicker: SettingsRuntimeAdapterService.exportBackupWithPicker,
+      setExportPath,
+      notify,
+      onExecutionStart: () => setIsExportingBackup(true),
+      onExecutionEnd: () => setIsExportingBackup(false),
+      reportError: (message, error) => {
+        console.error(message, error);
+      },
+    });
   }, [exportPath, isExportingBackup, notify]);
 
   const handleRestoreBackup = useCallback(async () => {
     if (isRestoringBackup) return;
-
-    let preparation: Awaited<ReturnType<typeof SettingsRuntimeAdapterService.prepareBackupRestore>> = null;
-    try {
-      preparation = await SettingsRuntimeAdapterService.prepareBackupRestore(restorePath.trim() || undefined);
-      if (!preparation) return;
-      setRestorePath(preparation.path);
-      if (!preparation.compatible) {
-        notify(`备份不兼容：${preparation.incompatibilityMessage ?? "未知原因"}`, "warning");
-        return;
-      }
-    } catch (error) {
-      console.error("prepare backup restore failed", error);
-      notify("备份文件预览失败，无法确认覆盖范围。", "warning");
-      return;
-    }
-    if (!preparation || !preparation.compatible) return;
-
-    const confirmed = await confirm({
-      title: UI_TEXT.settings.restoreConfirmTitle,
-      description: UI_TEXT.settings.restoreConfirmDetail(preparation.path, preparation.previewSummary),
-      confirmLabel: UI_TEXT.dialog.confirmDanger,
-      danger: true,
+    await runBackupRestoreFlow({
+      initialPath: restorePath,
+      prepareBackupRestore: SettingsRuntimeAdapterService.prepareBackupRestore,
+      setRestorePath,
+      confirm,
+      restoreBackup: SettingsRuntimeAdapterService.restoreBackup,
+      notify,
+      reload: () => window.location.reload(),
+      onExecutionStart: () => setIsRestoringBackup(true),
+      onExecutionEnd: () => setIsRestoringBackup(false),
+      reportError: (message, error) => {
+        console.error(message, error);
+      },
     });
-    if (!confirmed) return;
-
-    setIsRestoringBackup(true);
-    try {
-      await SettingsRuntimeAdapterService.restoreBackup(preparation.path);
-      notify("备份恢复成功，正在刷新界面。", "success");
-      window.location.reload();
-    } catch (error) {
-      console.error("restore backup failed", error);
-      notify("备份恢复失败，已自动回滚，不会破坏当前数据。", "warning");
-    } finally {
-      setIsRestoringBackup(false);
-    }
   }, [confirm, isRestoringBackup, notify, restorePath]);
 
   const handleOpenReleaseNotes = useCallback(async () => {

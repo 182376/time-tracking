@@ -126,6 +126,9 @@ IPC 契约应保持稳定、可解析、可测试。
 - 页面组件不能直接写 SQL
 - feature 不能直接跳过边界访问底层 DB
 - SQLite 访问应通过 `platform/persistence/*` 暴露的明确出口
+- settings 原始读写、tracker health 时间戳与类似本地持久化适配，默认归 `platform/persistence/*`
+- `app/services/*` 只保留应用启动、运行时同步或全局偏好写入所需的薄协调，不从 `features/settings/*` 借基础能力
+- `features/settings/*` 只保留 settings 页面的保存、cleanup、backup、restore 与外链打开等 feature 私有流程
 - 涉及运行时写侧和平台副作用的操作，优先迁往 Rust command
 
 ---
@@ -450,6 +453,9 @@ Rust 侧允许为了稳定演进保留少量入口协调或兼容封装，但规
 - 页面私有状态编排：进对应 `features/*/hooks`
 - 页面私有服务与读模型入口：进对应 `features/*/services`
 - 应用壳层、启动链路、跨 feature 协调：进 `app/*`
+- settings 页面保存、cleanup、backup、restore 等页面私有流程：进 `features/settings/*`
+- 应用启动读取当前设置、tracker health 读取与 `min_session_secs` 这类应用级偏好协调：进 `app/services/*` 对 `platform/persistence/*` 的薄封装
+- 原始 settings persistence adapter：进 `platform/persistence/*`，不进 `shared/*`
 - 共享组件、共享类型、共享纯函数：进 `shared/*`
 - Tauri / SQLite / 本地桌面环境适配：优先进 `platform/*`
 
@@ -461,6 +467,7 @@ Rust 侧允许为了稳定演进保留少量入口协调或兼容封装，但规
 - 核心行为流程：进 `engine/*`
 - 领域模型与语义：进 `domain/*`
 - sqlite 与仓储：进 `data/*`
+- 持续参与识别相关的状态机、信号融合、identity 归一与诊断快照：继续按 `platform/windows/* -> domain/tracking.rs -> engine/tracking/runtime.rs` 的 owner 链收口，不回流到 `commands/*`、`lib.rs` 或前端本地规则
 
 不确定时，优先放在最小作用域，而不是优先抽公共层。
 

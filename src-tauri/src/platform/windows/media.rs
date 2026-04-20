@@ -1,5 +1,6 @@
 use crate::domain::tracking::{
-    signal_matches_window, source_app_id_identity, SustainedParticipationSignalSnapshot,
+    evaluate_sustained_participation_signal, signal_origin_matches_window, source_app_id_identity,
+    SustainedParticipationSignalMatchResult, SustainedParticipationSignalSnapshot,
     SustainedParticipationSignalSource, SystemMediaPlaybackType,
 };
 use crate::platform::windows::foreground::WindowInfo;
@@ -40,22 +41,55 @@ async fn query_matching_media_session(
         .Size()
         .map_err(|error| format!("reading media session count failed: {error}"))?;
 
+    let mut matching_inactive: Option<SustainedParticipationSignalSnapshot> = None;
+    let mut fallback_active: Option<SustainedParticipationSignalSnapshot> = None;
+    let mut fallback_available: Option<SustainedParticipationSignalSnapshot> = None;
+
     for index in 0..session_count {
         let session = sessions
             .GetAt(index)
             .map_err(|error| format!("reading media session at {index} failed: {error}"))?;
-        if let Some(signal) = build_signal_snapshot(window, &session)? {
-            return Ok(Some(signal));
+        let signal = build_signal_snapshot(&session)?;
+        if signal_origin_matches_window(&window.exe_name, &window.process_path, &signal)
+            && signal.is_available
+            && !signal.is_active
+        {
+            if matching_inactive.is_none() {
+                matching_inactive = Some(signal);
+            }
+            continue;
+        }
+
+        match evaluate_sustained_participation_signal(
+            &window.exe_name,
+            &window.process_path,
+            &signal,
+        )
+        .match_result
+        {
+            SustainedParticipationSignalMatchResult::Matched => return Ok(Some(signal)),
+            SustainedParticipationSignalMatchResult::Inactive => {
+                if fallback_available.is_none() {
+                    fallback_available = Some(signal);
+                }
+            }
+            SustainedParticipationSignalMatchResult::IdentityMismatch => {
+                if signal.is_active && fallback_active.is_none() {
+                    fallback_active = Some(signal);
+                } else if fallback_available.is_none() {
+                    fallback_available = Some(signal);
+                }
+            }
+            SustainedParticipationSignalMatchResult::Unavailable => {}
         }
     }
 
-    Ok(None)
+    Ok(matching_inactive.or(fallback_active).or(fallback_available))
 }
 
 fn build_signal_snapshot(
-    window: &WindowInfo,
     session: &GlobalSystemMediaTransportControlsSession,
-) -> Result<Option<SustainedParticipationSignalSnapshot>, String> {
+) -> Result<SustainedParticipationSignalSnapshot, String> {
     let source_app_id = session
         .SourceAppUserModelId()
         .map_err(|error| format!("reading media source app id failed: {error}"))?
@@ -75,18 +109,15 @@ fn build_signal_snapshot(
     let source_app_identity = source_app_id_identity(&source_app_id);
     let signal = SustainedParticipationSignalSnapshot {
         is_available: true,
-        is_active: playback_status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing,
+        is_active: playback_status
+            == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing,
         signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
         source_app_id: Some(source_app_id),
         source_app_identity,
         playback_type,
     };
 
-    if signal_matches_window(&window.exe_name, &window.process_path, &signal) {
-        return Ok(Some(signal));
-    }
-
-    Ok(None)
+    Ok(signal)
 }
 
 fn map_playback_type(value: MediaPlaybackType) -> SystemMediaPlaybackType {

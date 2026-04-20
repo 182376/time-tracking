@@ -4,15 +4,15 @@ use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 use tauri::{AppHandle, Emitter, Runtime};
 
-const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 300;
+const DEFAULT_AFK_THRESHOLD_SECS: u64 = 180;
 
 pub async fn initialize_tracker<R: Runtime>(
     app: &AppHandle<R>,
     pool: &Pool<Sqlite>,
 ) -> Result<(), sqlx::Error> {
-    let idle_timeout_secs =
-        tracker_settings::load_idle_timeout_secs(pool, DEFAULT_IDLE_TIMEOUT_SECS).await?;
-    tracker::cmd_set_idle_timeout(idle_timeout_secs);
+    let afk_threshold_secs =
+        tracker_settings::load_timeline_merge_gap_secs(pool, DEFAULT_AFK_THRESHOLD_SECS).await?;
+    tracker::cmd_set_afk_threshold(afk_threshold_secs);
 
     let mut repair_notes: Vec<String> = Vec::new();
 

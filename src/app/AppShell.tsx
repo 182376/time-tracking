@@ -26,7 +26,7 @@ import UpdateDialogProvider from "./providers/UpdateDialogProvider";
 import { useAppShellNavigation } from "./hooks/useAppShellNavigation";
 import { useAppShellToasts } from "./hooks/useAppShellToasts";
 import { useAppShellUpdateEntry } from "./hooks/useAppShellUpdateEntry";
-import { SettingsRuntimeAdapterService } from "../features/settings/services/settingsRuntimeAdapterService";
+import { saveMinSessionSecsSetting } from "./services/appSettingsRuntimeService.ts";
 
 const History = lazy(() => import("../features/history/components/History"));
 const Settings = lazy(() => import("../features/settings/components/Settings"));
@@ -103,7 +103,7 @@ function AppShellContent() {
       ...current,
       min_session_secs: nextValue,
     }));
-    void SettingsRuntimeAdapterService.saveMinSessionSecsSetting(nextValue).catch(console.warn);
+    void saveMinSessionSecsSetting(nextValue).catch(console.warn);
   }, [setAppSettings]);
 
   return (

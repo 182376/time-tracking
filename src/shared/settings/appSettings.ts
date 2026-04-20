@@ -1,4 +1,4 @@
-import { RELEASE_DEFAULT_SETTINGS } from "./releaseDefaultProfile";
+import { RELEASE_DEFAULT_SETTINGS } from "./releaseDefaultProfile.ts";
 
 export type CloseBehavior = "exit" | "tray";
 export type MinimizeBehavior = "taskbar" | "tray";

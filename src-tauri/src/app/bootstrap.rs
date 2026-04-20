@@ -65,7 +65,7 @@ fn register_invoke_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Build
         commands::apps::get_icon,
         commands::tracking::get_current_active_window,
         commands::tracking::get_current_tracking_snapshot,
-        commands::tracking::cmd_set_idle_timeout,
+        commands::tracking::cmd_set_afk_threshold,
         commands::settings::cmd_set_desktop_behavior,
         commands::settings::cmd_set_launch_behavior,
         commands::update::cmd_get_update_snapshot,

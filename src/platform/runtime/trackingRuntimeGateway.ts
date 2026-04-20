@@ -7,7 +7,7 @@ import {
   parseCurrentTrackingSnapshot,
   parseTrackingDataChangedPayload,
   parseTrackingWindowSnapshot,
-} from "../../shared/types/tracking";
+} from "../../shared/types/tracking.ts";
 
 export async function getCurrentWindow(): Promise<TrackingWindowSnapshot | null> {
   try {
@@ -27,8 +27,8 @@ export async function getCurrentTrackingSnapshot(): Promise<CurrentTrackingSnaps
   }
 }
 
-export async function setIdleTimeout(timeoutSecs: number): Promise<void> {
-  await invoke("cmd_set_idle_timeout", { timeoutSecs });
+export async function setAfkThreshold(thresholdSecs: number): Promise<void> {
+  await invoke("cmd_set_afk_threshold", { thresholdSecs });
 }
 
 export async function onActiveWindowChanged(

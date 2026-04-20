@@ -21,6 +21,43 @@ pub enum SustainedParticipationSignalSource {
     AudioSession,
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SustainedParticipationSignalMatchResult {
+    #[default]
+    Unavailable,
+    Inactive,
+    IdentityMismatch,
+    Matched,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SustainedParticipationState {
+    #[default]
+    Inactive,
+    Candidate,
+    Active,
+    Grace,
+    Expired,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SustainedParticipationStatusReason {
+    #[default]
+    NoSignal,
+    TrackingPaused,
+    EmptyWindow,
+    NotEligible,
+    SignalInactive,
+    IdentityMismatch,
+    SignalMatched,
+    GraceWindow,
+    GraceExpired,
+    SustainedWindowExpired,
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum SustainedParticipationAppIdentity {
@@ -56,11 +93,33 @@ pub struct SustainedParticipationSignalSnapshot {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SustainedParticipationSignalEvaluationSnapshot {
+    pub signal: SustainedParticipationSignalSnapshot,
+    pub match_result: SustainedParticipationSignalMatchResult,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SustainedParticipationDiagnosticsSnapshot {
+    pub state: SustainedParticipationState,
+    pub reason: SustainedParticipationStatusReason,
+    pub window_identity: Option<SustainedParticipationAppIdentity>,
+    pub effective_signal_source: Option<SustainedParticipationSignalSource>,
+    pub last_match_at_ms: Option<i64>,
+    pub grace_deadline_ms: Option<i64>,
+    pub system_media: SustainedParticipationSignalEvaluationSnapshot,
+    pub audio_session: SustainedParticipationSignalEvaluationSnapshot,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TrackingStatusSnapshot {
     pub is_tracking_active: bool,
     pub sustained_participation_eligible: bool,
     pub sustained_participation_active: bool,
     pub sustained_participation_kind: Option<SustainedParticipationKind>,
+    pub sustained_participation_state: SustainedParticipationState,
+    pub sustained_participation_signal_source: Option<SustainedParticipationSignalSource>,
+    pub sustained_participation_reason: SustainedParticipationStatusReason,
+    pub sustained_participation_diagnostics: SustainedParticipationDiagnosticsSnapshot,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -252,63 +311,52 @@ pub fn sustained_participation_app_identity(
 ) -> Option<SustainedParticipationAppIdentity> {
     let normalized_exe = normalize_process_value(exe_name);
     let normalized_path = normalize_process_value(process_path);
+    let normalized_exe_stem = normalized_exe
+        .strip_suffix(".exe")
+        .unwrap_or(&normalized_exe);
 
     if normalized_exe.is_empty() && normalized_path.is_empty() {
         return None;
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "chrome.exe" | "chrome"
-    ) || normalized_path.ends_with("\\chrome.exe")
+    if matches!(normalized_exe.as_str(), "chrome.exe" | "chrome")
+        || normalized_path.ends_with("\\chrome.exe")
     {
         return Some(SustainedParticipationAppIdentity::Chrome);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "msedge.exe" | "msedge"
-    ) || normalized_path.ends_with("\\msedge.exe")
+    if matches!(normalized_exe.as_str(), "msedge.exe" | "msedge")
+        || normalized_path.ends_with("\\msedge.exe")
     {
         return Some(SustainedParticipationAppIdentity::Edge);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "firefox.exe" | "firefox"
-    ) || normalized_path.ends_with("\\firefox.exe")
+    if matches!(normalized_exe.as_str(), "firefox.exe" | "firefox")
+        || normalized_path.ends_with("\\firefox.exe")
     {
         return Some(SustainedParticipationAppIdentity::Firefox);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "brave.exe" | "brave"
-    ) || normalized_path.ends_with("\\brave.exe")
+    if matches!(normalized_exe.as_str(), "brave.exe" | "brave")
+        || normalized_path.ends_with("\\brave.exe")
     {
         return Some(SustainedParticipationAppIdentity::Brave);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "zoom.exe" | "zoom"
-    ) || normalized_path.ends_with("\\zoom.exe")
+    if matches!(normalized_exe.as_str(), "zoom.exe" | "zoom")
+        || normalized_path.ends_with("\\zoom.exe")
     {
         return Some(SustainedParticipationAppIdentity::Zoom);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "teams.exe" | "teams"
-    ) || normalized_path.ends_with("\\teams.exe")
+    if matches!(normalized_exe.as_str(), "teams.exe" | "teams")
+        || normalized_path.ends_with("\\teams.exe")
     {
         return Some(SustainedParticipationAppIdentity::Teams);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "vlc.exe" | "vlc"
-    ) || normalized_path.ends_with("\\vlc.exe")
+    if matches!(normalized_exe.as_str(), "vlc.exe" | "vlc")
+        || normalized_path.ends_with("\\vlc.exe")
     {
         return Some(SustainedParticipationAppIdentity::Vlc);
     }
@@ -316,15 +364,16 @@ pub fn sustained_participation_app_identity(
     if matches!(
         normalized_exe.as_str(),
         "bilibili.exe" | "哔哩哔哩.exe" | "哔哩哔哩"
-    ) || normalized_path.contains("\\bilibili\\")
+    ) || normalized_exe_stem.starts_with("bilibili")
+        || normalized_path.contains("\\bilibili\\")
     {
         return Some(SustainedParticipationAppIdentity::Bilibili);
     }
 
-    if matches!(
-        normalized_exe.as_str(),
-        "douyin.exe" | "douyin"
-    ) || normalized_path.contains("\\douyin\\")
+    if matches!(normalized_exe.as_str(), "douyin.exe" | "douyin")
+        || normalized_exe_stem.starts_with("douyin")
+        || normalized_path.contains("\\douyin\\")
+        || normalized_path.contains("\\bytedance\\douyin\\")
     {
         return Some(SustainedParticipationAppIdentity::Douyin);
     }
@@ -341,9 +390,7 @@ pub fn sustained_participation_app_identity(
     None
 }
 
-pub fn source_app_id_identity(
-    source_app_id: &str,
-) -> Option<SustainedParticipationAppIdentity> {
+pub fn source_app_id_identity(source_app_id: &str) -> Option<SustainedParticipationAppIdentity> {
     let normalized_source = normalize_source_identifier(source_app_id);
     if normalized_source.is_empty() {
         return None;
@@ -415,7 +462,19 @@ pub fn sustained_participation_kind_for_identity(
     }
 }
 
-pub fn signal_matches_window(
+pub fn is_browser_sustained_participation_identity(
+    identity: SustainedParticipationAppIdentity,
+) -> bool {
+    matches!(
+        identity,
+        SustainedParticipationAppIdentity::Chrome
+            | SustainedParticipationAppIdentity::Edge
+            | SustainedParticipationAppIdentity::Firefox
+            | SustainedParticipationAppIdentity::Brave
+    )
+}
+
+pub fn signal_origin_matches_window(
     exe_name: &str,
     process_path: &str,
     signal: &SustainedParticipationSignalSnapshot,
@@ -431,9 +490,45 @@ pub fn signal_matches_window(
         .map(|source_app_id| source_app_id_matches_window(exe_name, process_path, source_app_id))
         .unwrap_or(false);
 
+    identity_matches || source_app_id_matches
+}
+
+pub fn signal_explicitly_stopped_for_window(
+    exe_name: &str,
+    process_path: &str,
+    signal: &SustainedParticipationSignalSnapshot,
+) -> bool {
     signal.is_available
-        && signal.is_active
-        && (identity_matches || source_app_id_matches)
+        && !signal.is_active
+        && signal_origin_matches_window(exe_name, process_path, signal)
+}
+
+pub fn signal_is_explicit_browser_video_match(
+    exe_name: &str,
+    process_path: &str,
+    signal: &SustainedParticipationSignalSnapshot,
+) -> bool {
+    if !signal_matches_window(exe_name, process_path, signal) {
+        return false;
+    }
+
+    let identity = signal
+        .source_app_identity
+        .or_else(|| sustained_participation_app_identity(exe_name, process_path));
+
+    identity
+        .map(is_browser_sustained_participation_identity)
+        .unwrap_or(false)
+        && signal.signal_source == Some(SustainedParticipationSignalSource::SystemMedia)
+        && signal.playback_type == Some(SystemMediaPlaybackType::Video)
+}
+
+pub fn signal_matches_window(
+    exe_name: &str,
+    process_path: &str,
+    signal: &SustainedParticipationSignalSnapshot,
+) -> bool {
+    signal.is_active && signal_origin_matches_window(exe_name, process_path, signal)
 }
 
 pub fn resolve_sustained_participation_kind(
@@ -445,13 +540,75 @@ pub fn resolve_sustained_participation_kind(
         return None;
     }
 
-    signal
+    let identity = signal
         .source_app_identity
         .or_else(|| sustained_participation_app_identity(exe_name, process_path))
-        .map(sustained_participation_kind_for_identity)
-        .or(Some(SustainedParticipationKind::Video))
+        .map(sustained_participation_kind_for_identity);
+
+    if signal
+        .source_app_identity
+        .or_else(|| sustained_participation_app_identity(exe_name, process_path))
+        .map(is_browser_sustained_participation_identity)
+        .unwrap_or(false)
+        && !signal_is_explicit_browser_video_match(exe_name, process_path, signal)
+    {
+        return None;
+    }
+
+    identity.or(Some(SustainedParticipationKind::Video))
 }
 
+pub fn evaluate_sustained_participation_signal(
+    exe_name: &str,
+    process_path: &str,
+    signal: &SustainedParticipationSignalSnapshot,
+) -> SustainedParticipationSignalEvaluationSnapshot {
+    if !signal.is_available {
+        return SustainedParticipationSignalEvaluationSnapshot {
+            signal: signal.clone(),
+            match_result: SustainedParticipationSignalMatchResult::Unavailable,
+        };
+    }
+
+    if !signal.is_active {
+        return SustainedParticipationSignalEvaluationSnapshot {
+            signal: signal.clone(),
+            match_result: SustainedParticipationSignalMatchResult::Inactive,
+        };
+    }
+
+    SustainedParticipationSignalEvaluationSnapshot {
+        signal: signal.clone(),
+        match_result: if signal_origin_matches_window(exe_name, process_path, signal) {
+            SustainedParticipationSignalMatchResult::Matched
+        } else {
+            SustainedParticipationSignalMatchResult::IdentityMismatch
+        },
+    }
+}
+
+pub fn resolve_sustained_participation_identity_key(
+    exe_name: &str,
+    process_path: &str,
+) -> Option<String> {
+    sustained_participation_app_identity(exe_name, process_path)
+        .map(|identity| format!("{identity:?}").to_lowercase())
+        .or_else(|| {
+            let normalized_path_name = normalize_process_file_name(process_path);
+            if !normalized_path_name.is_empty() {
+                return Some(normalized_path_name);
+            }
+
+            let normalized_exe = normalize_process_file_name(exe_name);
+            if normalized_exe.is_empty() {
+                None
+            } else {
+                Some(normalized_exe)
+            }
+        })
+}
+
+#[allow(dead_code)]
 pub fn resolve_tracking_status(
     exe_name: &str,
     process_path: &str,
@@ -468,15 +625,55 @@ pub fn resolve_tracking_status(
 
     let continuity_active = !is_afk && u64::from(idle_time_ms) <= continuity_window_secs * 1000;
     let eligible_kind = resolve_sustained_participation_kind(exe_name, process_path, signal);
-    let sustained_participation_active = !is_afk
-        && eligible_kind.is_some()
-        && u64::from(idle_time_ms) <= sustained_participation_secs * 1000;
+    let sustained_participation_active =
+        eligible_kind.is_some() && u64::from(idle_time_ms) <= sustained_participation_secs * 1000;
 
     TrackingStatusSnapshot {
         is_tracking_active: continuity_active || sustained_participation_active,
         sustained_participation_eligible: eligible_kind.is_some(),
         sustained_participation_active,
         sustained_participation_kind: eligible_kind,
+        sustained_participation_state: if sustained_participation_active {
+            SustainedParticipationState::Active
+        } else if signal.is_available {
+            SustainedParticipationState::Candidate
+        } else {
+            SustainedParticipationState::Inactive
+        },
+        sustained_participation_signal_source: signal.signal_source,
+        sustained_participation_reason: if sustained_participation_active {
+            SustainedParticipationStatusReason::SignalMatched
+        } else if signal.is_available && !signal.is_active {
+            SustainedParticipationStatusReason::SignalInactive
+        } else if signal.is_available {
+            SustainedParticipationStatusReason::IdentityMismatch
+        } else {
+            SustainedParticipationStatusReason::NoSignal
+        },
+        sustained_participation_diagnostics: SustainedParticipationDiagnosticsSnapshot {
+            state: if sustained_participation_active {
+                SustainedParticipationState::Active
+            } else if signal.is_available {
+                SustainedParticipationState::Candidate
+            } else {
+                SustainedParticipationState::Inactive
+            },
+            reason: if sustained_participation_active {
+                SustainedParticipationStatusReason::SignalMatched
+            } else if signal.is_available && !signal.is_active {
+                SustainedParticipationStatusReason::SignalInactive
+            } else if signal.is_available {
+                SustainedParticipationStatusReason::IdentityMismatch
+            } else {
+                SustainedParticipationStatusReason::NoSignal
+            },
+            window_identity: sustained_participation_app_identity(exe_name, process_path),
+            effective_signal_source: signal.signal_source,
+            last_match_at_ms: None,
+            grace_deadline_ms: None,
+            system_media: SustainedParticipationSignalEvaluationSnapshot::default(),
+            audio_session: SustainedParticipationSignalEvaluationSnapshot::default(),
+        },
     }
 }
 
@@ -750,8 +947,9 @@ pub struct ActiveSessionSnapshot {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_trackable_window, resolve_sustained_participation_kind, resolve_tracking_status,
-        should_track, signal_matches_window, source_app_id_identity,
+        is_browser_sustained_participation_identity, is_trackable_window,
+        resolve_sustained_participation_kind, resolve_tracking_status, should_track,
+        signal_is_explicit_browser_video_match, signal_matches_window, source_app_id_identity,
         sustained_participation_app_identity, sustained_participation_kind_for_identity,
         SustainedParticipationAppIdentity, SustainedParticipationKind,
         SustainedParticipationSignalSnapshot, SustainedParticipationSignalSource,
@@ -859,6 +1057,10 @@ mod tests {
             Some(SustainedParticipationAppIdentity::Douyin)
         );
         assert_eq!(
+            sustained_participation_app_identity("douyin_widget.exe", ""),
+            Some(SustainedParticipationAppIdentity::Douyin)
+        );
+        assert_eq!(
             sustained_participation_kind_for_identity(SustainedParticipationAppIdentity::Douyin),
             SustainedParticipationKind::Video
         );
@@ -870,7 +1072,10 @@ mod tests {
             Some(SustainedParticipationAppIdentity::Bilibili)
         );
         assert_eq!(
-            sustained_participation_app_identity("Chrome.exe", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            sustained_participation_app_identity(
+                "Chrome.exe",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            ),
             Some(SustainedParticipationAppIdentity::Chrome)
         );
         assert_eq!(sustained_participation_app_identity("QQ.exe", ""), None);
@@ -895,6 +1100,19 @@ mod tests {
             Some(SustainedParticipationAppIdentity::WeMeet)
         );
         assert_eq!(source_app_id_identity("Spotify"), None);
+    }
+
+    #[test]
+    fn browser_identity_detection_stays_explicit() {
+        assert!(is_browser_sustained_participation_identity(
+            SustainedParticipationAppIdentity::Chrome
+        ));
+        assert!(is_browser_sustained_participation_identity(
+            SustainedParticipationAppIdentity::Firefox
+        ));
+        assert!(!is_browser_sustained_participation_identity(
+            SustainedParticipationAppIdentity::Zoom
+        ));
     }
 
     #[test]
@@ -944,6 +1162,55 @@ mod tests {
             ),
             Some(SustainedParticipationKind::Video)
         );
+    }
+
+    #[test]
+    fn browser_audio_only_signal_requires_explicit_video_before_counting() {
+        let audio_only_signal = SustainedParticipationSignalSnapshot {
+            is_available: true,
+            is_active: true,
+            signal_source: Some(SustainedParticipationSignalSource::AudioSession),
+            source_app_id: Some("Chrome.exe".into()),
+            source_app_identity: Some(SustainedParticipationAppIdentity::Chrome),
+            playback_type: None,
+        };
+        let explicit_video_signal = SustainedParticipationSignalSnapshot {
+            signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
+            playback_type: Some(SystemMediaPlaybackType::Video),
+            ..audio_only_signal.clone()
+        };
+
+        assert!(signal_matches_window(
+            "chrome.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            &audio_only_signal
+        ));
+        assert_eq!(
+            resolve_sustained_participation_kind(
+                "chrome.exe",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                &audio_only_signal,
+            ),
+            None
+        );
+        assert!(!signal_is_explicit_browser_video_match(
+            "chrome.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            &audio_only_signal,
+        ));
+        assert_eq!(
+            resolve_sustained_participation_kind(
+                "chrome.exe",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                &explicit_video_signal,
+            ),
+            Some(SustainedParticipationKind::Video)
+        );
+        assert!(signal_is_explicit_browser_video_match(
+            "chrome.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            &explicit_video_signal,
+        ));
     }
 
     #[test]
@@ -1026,6 +1293,63 @@ mod tests {
         assert_eq!(
             status.sustained_participation_kind,
             Some(SustainedParticipationKind::Video)
+        );
+    }
+
+    #[test]
+    fn tracking_status_rejects_browser_audio_only_matches() {
+        let signal = SustainedParticipationSignalSnapshot {
+            is_available: true,
+            is_active: true,
+            signal_source: Some(SustainedParticipationSignalSource::AudioSession),
+            source_app_id: Some("Chrome.exe".into()),
+            source_app_identity: Some(SustainedParticipationAppIdentity::Chrome),
+            playback_type: None,
+        };
+
+        let status = resolve_tracking_status(
+            "Chrome.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            240_000,
+            true,
+            180,
+            900,
+            false,
+            &signal,
+        );
+
+        assert!(!status.sustained_participation_active);
+        assert_eq!(status.sustained_participation_kind, None);
+    }
+
+    #[test]
+    fn tracking_status_keeps_sustained_participation_active_after_generic_afk_threshold() {
+        let signal = SustainedParticipationSignalSnapshot {
+            is_available: true,
+            is_active: true,
+            signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
+            source_app_id: Some("Zoom".into()),
+            source_app_identity: Some(SustainedParticipationAppIdentity::Zoom),
+            playback_type: Some(SystemMediaPlaybackType::Video),
+        };
+
+        let status = resolve_tracking_status(
+            "zoom.exe",
+            r"C:\Program Files\Zoom\Zoom.exe",
+            240_000,
+            true,
+            180,
+            900,
+            false,
+            &signal,
+        );
+
+        assert!(status.is_tracking_active);
+        assert!(status.sustained_participation_eligible);
+        assert!(status.sustained_participation_active);
+        assert_eq!(
+            status.sustained_participation_kind,
+            Some(SustainedParticipationKind::Meeting)
         );
     }
 
