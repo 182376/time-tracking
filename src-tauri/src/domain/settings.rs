@@ -16,7 +16,7 @@ pub enum CloseBehavior {
 pub enum MinimizeBehavior {
     #[default]
     Taskbar,
-    Tray,
+    Widget,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,7 +90,6 @@ impl DesktopBehaviorSettings {
 
     pub fn should_keep_tray_visible(self) -> bool {
         self.close_behavior == CloseBehavior::Tray
-            || self.minimize_behavior == MinimizeBehavior::Tray
     }
 
     pub fn should_start_minimized_on_autostart(self) -> bool {
@@ -107,8 +106,8 @@ pub fn parse_close_behavior(raw: &str) -> CloseBehavior {
 }
 
 pub fn parse_minimize_behavior(raw: &str) -> MinimizeBehavior {
-    if raw.trim().eq_ignore_ascii_case("tray") {
-        MinimizeBehavior::Tray
+    if raw.trim().eq_ignore_ascii_case("widget") {
+        MinimizeBehavior::Widget
     } else {
         MinimizeBehavior::Taskbar
     }
@@ -134,7 +133,8 @@ mod tests {
     fn parse_desktop_behavior_defaults_to_safe_values() {
         assert_eq!(parse_close_behavior("tray"), CloseBehavior::Tray);
         assert_eq!(parse_close_behavior("unknown"), CloseBehavior::Exit);
-        assert_eq!(parse_minimize_behavior("tray"), MinimizeBehavior::Tray);
+        assert_eq!(parse_minimize_behavior("tray"), MinimizeBehavior::Taskbar);
+        assert_eq!(parse_minimize_behavior("widget"), MinimizeBehavior::Widget);
         assert_eq!(
             parse_minimize_behavior("anything-else"),
             MinimizeBehavior::Taskbar
@@ -172,12 +172,12 @@ mod tests {
 
         let merged = DesktopBehaviorSettings::from_storage_values(
             Some("tray"),
-            Some("tray"),
+            Some("widget"),
             Some("no"),
             Some("invalid"),
         );
         assert_eq!(merged.close_behavior, CloseBehavior::Tray);
-        assert_eq!(merged.minimize_behavior, MinimizeBehavior::Tray);
+        assert_eq!(merged.minimize_behavior, MinimizeBehavior::Widget);
         assert!(!merged.launch_at_login);
         assert_eq!(merged.start_minimized, DEFAULT_START_MINIMIZED);
     }
@@ -191,6 +191,10 @@ mod tests {
         let close_to_tray =
             hidden.with_desktop_behavior(CloseBehavior::Tray, MinimizeBehavior::Taskbar);
         assert!(close_to_tray.should_keep_tray_visible());
+
+        let minimize_to_widget =
+            hidden.with_desktop_behavior(CloseBehavior::Exit, MinimizeBehavior::Widget);
+        assert!(!minimize_to_widget.should_keep_tray_visible());
 
         let no_autostart_minimize = hidden.with_launch_behavior(false, true);
         assert!(!no_autostart_minimize.should_start_minimized_on_autostart());

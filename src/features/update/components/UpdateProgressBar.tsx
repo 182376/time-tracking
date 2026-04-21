@@ -14,7 +14,6 @@ export default function UpdateProgressBar({
   className,
 }: UpdateProgressBarProps) {
   const resolvedPercent = percent === null ? 0 : Math.max(0, Math.min(100, percent));
-  const visualPercent = indeterminate ? 36 : resolvedPercent;
 
   return (
     <div className={className}>
@@ -23,17 +22,21 @@ export default function UpdateProgressBar({
         {valueText ? <span className="shrink-0">{valueText}</span> : null}
       </div>
       <div
-        className="h-2 overflow-hidden rounded-full bg-[var(--qp-track-muted)]"
+        className="relative h-2 overflow-hidden rounded-full bg-[var(--qp-track-muted)]"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={indeterminate ? undefined : resolvedPercent}
         aria-valuetext={valueText ?? label}
       >
-        <div
-          className={`h-full rounded-full bg-[var(--qp-accent-default)] ${indeterminate ? "animate-pulse opacity-90" : "transition-[width] duration-300 ease-out"}`}
-          style={{ width: `${visualPercent}%` }}
-        />
+        {indeterminate ? (
+          <div className="qp-progress-indeterminate absolute inset-y-0 left-0 w-[32%] rounded-full bg-[var(--qp-accent-default)] opacity-90" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-[var(--qp-accent-default)] transition-[width] duration-300 ease-out"
+            style={{ width: `${resolvedPercent}%` }}
+          />
+        )}
       </div>
     </div>
   );

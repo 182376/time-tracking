@@ -9,6 +9,7 @@ import {
   runBackupRestoreFlow,
   runSettingsCleanupFlow,
 } from "../src/features/settings/services/settingsPageActions.ts";
+import { normalizeSettingsRecord } from "../src/shared/settings/appSettings.ts";
 
 interface AppSettings {
   idle_timeout_secs: number;
@@ -17,7 +18,7 @@ interface AppSettings {
   min_session_secs: number;
   tracking_paused: boolean;
   close_behavior: "exit" | "tray";
-  minimize_behavior: "taskbar" | "tray";
+  minimize_behavior: "taskbar" | "widget";
   launch_at_login: boolean;
   start_minimized: boolean;
   onboarding_completed: boolean;
@@ -79,6 +80,25 @@ await runTest("buildSettingsPatch only keeps changed keys", () => {
     min_session_secs: draft.min_session_secs,
     tracking_paused: true,
   });
+});
+
+await runTest("normalizeSettingsRecord accepts widget minimize behavior and maps legacy tray to taskbar", () => {
+  const widgetSettings = normalizeSettingsRecord({
+    minimize_behavior: "widget",
+    close_behavior: "tray",
+  });
+  assert.equal(widgetSettings.minimize_behavior, "widget");
+  assert.equal(widgetSettings.close_behavior, "tray");
+
+  const legacyTraySettings = normalizeSettingsRecord({
+    minimize_behavior: "tray",
+  });
+  assert.equal(legacyTraySettings.minimize_behavior, "taskbar");
+
+  const fallbackSettings = normalizeSettingsRecord({
+    minimize_behavior: "floating-sidebar",
+  });
+  assert.equal(fallbackSettings.minimize_behavior, "taskbar");
 });
 
 await runTest("runSettingsCleanupFlow executes confirmed cleanup and reloads", async () => {

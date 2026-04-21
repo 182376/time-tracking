@@ -7,6 +7,8 @@ interface Props {
   title: string;
   tone?: QuietIconActionTone;
   disabled?: boolean;
+  ariaLabel?: string;
+  className?: string;
   onClick?: () => void;
 }
 
@@ -15,15 +17,18 @@ export default function QuietIconAction({
   title,
   tone = "neutral",
   disabled = false,
+  ariaLabel,
+  className,
   onClick,
 }: Props) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel ?? title}
       disabled={disabled}
       onClick={onClick}
-      className={`qp-icon-action qp-icon-action-${tone}`}
+      className={`qp-icon-action qp-icon-action-${tone} ${className ?? ""}`.trim()}
     >
       {icon}
     </button>

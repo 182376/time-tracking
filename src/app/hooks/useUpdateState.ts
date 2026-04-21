@@ -9,6 +9,10 @@ import {
 } from "../../platform/runtime/updateRuntimeGateway";
 import { openExternalUrl } from "../../platform/desktop/externalUrlGateway";
 import { shouldShowSidebarUpdateEntry } from "../../features/update/services/updateViewModel";
+import {
+  clearPendingUpdateRelaunchViewRestore,
+  markPendingUpdateRelaunchViewRestore,
+} from "../services/updateRelaunchViewStorage";
 
 function createFallbackSnapshot(): UpdateSnapshot {
   return {
@@ -95,6 +99,7 @@ export function useUpdateState() {
   const runConfirmAction = useCallback(async () => {
     if (isInstalling) return snapshot;
     const canRetryInstall = snapshot.status === "error" && snapshot.error_stage === "install";
+    const shouldInstall = snapshot.status === "downloaded" || canRetryInstall;
     if (
       snapshot.status !== "available"
       && snapshot.status !== "downloaded"
@@ -103,12 +108,22 @@ export function useUpdateState() {
       return snapshot;
     }
     try {
-      const nextSnapshot = snapshot.status === "downloaded" || canRetryInstall
+      if (shouldInstall) {
+        markPendingUpdateRelaunchViewRestore();
+      }
+
+      const nextSnapshot = shouldInstall
         ? await installUpdate()
         : await downloadUpdate();
+      if (shouldInstall && nextSnapshot.status === "error") {
+        clearPendingUpdateRelaunchViewRestore();
+      }
       setSnapshot(nextSnapshot);
       return nextSnapshot;
     } catch (error) {
+      if (shouldInstall) {
+        clearPendingUpdateRelaunchViewRestore();
+      }
       const message = error instanceof Error ? error.message : String(error);
       const errorSnapshot = {
         ...snapshot,

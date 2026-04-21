@@ -1,5 +1,6 @@
 use crate::app::runtime::now_ms;
 use crate::app::state::{AppExitState, DesktopBehaviorState};
+use crate::app::widget;
 use crate::data::repositories::tracker_settings;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::settings::{CloseBehavior, DesktopBehaviorSettings, MinimizeBehavior};
@@ -24,6 +25,7 @@ fn should_redirect_close_to_tray(settings: DesktopBehaviorSettings, exit_request
 }
 
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+    widget::close_widget_window(app);
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         let _ = window.show();
         let _ = window.unminimize();
@@ -42,7 +44,7 @@ pub(crate) fn apply_tray_visibility<R: Runtime>(
     }
 }
 
-async fn toggle_tracking_paused<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+pub(crate) async fn toggle_tracking_paused<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let pool = wait_for_sqlite_pool(&app).await?;
     let reason = toggle_tracking_paused_in_pool(&pool)
         .await
@@ -109,11 +111,25 @@ pub(crate) fn handle_tray_icon_event<R: Runtime>(app: &AppHandle<R>, event: Tray
 }
 
 pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &WindowEvent) {
+    if window.label() == widget::WIDGET_WINDOW_LABEL {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            show_main_window(&window.app_handle());
+        }
+        return;
+    }
+
     if window.label() != MAIN_WINDOW_LABEL {
         return;
     }
 
     let app = window.app_handle();
+
+    if matches!(event, WindowEvent::Focused(true)) && window.is_visible().unwrap_or(false) {
+        widget::close_widget_window(&app);
+        return;
+    }
+
     let state = app.state::<DesktopBehaviorState>();
     let settings = state.snapshot();
     let exit_requested = app.state::<AppExitState>().is_exit_requested();
@@ -121,16 +137,29 @@ pub(crate) fn handle_window_event<R: Runtime>(window: &Window<R>, event: &Window
     if let WindowEvent::CloseRequested { api, .. } = event {
         if should_redirect_close_to_tray(settings, exit_requested) {
             api.prevent_close();
+            widget::close_widget_window(&app);
             let _ = window.hide();
         }
         return;
     }
 
-    if settings.minimize_behavior == MinimizeBehavior::Tray
-        && settings.should_keep_tray_visible()
-        && window.is_minimized().unwrap_or(false)
-    {
-        let _ = window.hide();
+    if !window.is_minimized().unwrap_or(false) {
+        return;
+    }
+
+    match settings.minimize_behavior {
+        MinimizeBehavior::Widget => {
+            let preferred_monitor = window.current_monitor().ok().flatten();
+            let _ = window.hide();
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = widget::show_widget_window(&app_handle, preferred_monitor).await
+                {
+                    eprintln!("[widget] failed to show widget window: {error}");
+                }
+            });
+        }
+        _ => {}
     }
 }
 

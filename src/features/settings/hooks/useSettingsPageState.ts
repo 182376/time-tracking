@@ -10,7 +10,10 @@ import {
   runBackupRestoreFlow,
   runSettingsCleanupFlow,
 } from "../services/settingsPageActions.ts";
-import { DEFAULT_SETTINGS, type AppSettings } from "../../../shared/settings/appSettings";
+import {
+  DEFAULT_SETTINGS,
+  type AppSettings,
+} from "../../../shared/settings/appSettings";
 import type { CleanupRange } from "../types";
 
 const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
@@ -22,9 +25,6 @@ const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 7, label: UI_TEXT.settings.cleanupRangeLabels[7] },
 ];
 
-const MINIMIZE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.minimize_behavior;
-const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
-  MINIMIZE_BEHAVIOR_DEFAULT === "taskbar" ? "tray" : "taskbar";
 const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.close_behavior;
 const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
   CLOSE_BEHAVIOR_DEFAULT === "tray" ? "exit" : "tray";
@@ -35,6 +35,10 @@ const MIN_SESSION_MINUTES_RANGE = { min: 1, max: 10 } as const;
 const clampMinute = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const secondsToMinute = (seconds: number, min: number, max: number) =>
   clampMinute(Math.round(seconds / 60), min, max);
+
+const MINIMIZE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.minimize_behavior;
+const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
+  MINIMIZE_BEHAVIOR_DEFAULT === "widget" ? "taskbar" : "widget";
 
 export interface UseSettingsPageStateOptions {
   onSettingsChanged: (settings: AppSettings) => void;

@@ -1,6 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UI_TEXT } from "../../shared/copy/uiText.ts";
 import type { View } from "../../shared/types/app";
+import {
+  consumePendingUpdateRelaunchView,
+  rememberLastActiveView,
+} from "../services/updateRelaunchViewStorage.ts";
 
 type SaveHandler = (() => Promise<boolean>) | null;
 
@@ -27,8 +31,14 @@ const INITIAL_DIRTY_STATE: ViewDirtyState = {
 export function useAppShellNavigation({ confirm }: UseAppShellNavigationParams) {
   const settingsSaveHandlerRef = useRef<SaveHandler>(null);
   const mappingSaveHandlerRef = useRef<SaveHandler>(null);
-  const [currentView, setCurrentView] = useState<View>("dashboard");
+  const [currentView, setCurrentView] = useState<View>(
+    () => consumePendingUpdateRelaunchView() ?? "dashboard",
+  );
   const [viewDirtyState, setViewDirtyState] = useState<ViewDirtyState>(INITIAL_DIRTY_STATE);
+
+  useEffect(() => {
+    rememberLastActiveView(currentView);
+  }, [currentView]);
 
   const registerSettingsSaveHandler = useCallback((handler: SaveHandler) => {
     settingsSaveHandlerRef.current = handler;

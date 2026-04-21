@@ -342,6 +342,19 @@ pub async fn install_downloaded<R: Runtime>(
         return Ok(snapshot);
     };
 
+    let post_install_reopen_pool = match wait_for_sqlite_pool(app).await {
+        Ok(pool) => {
+            if let Err(error) = update_state::request_post_install_reopen_main_window(&pool).await {
+                eprintln!("[updater] failed to persist post-install reopen intent: {error}");
+            }
+            Some(pool)
+        }
+        Err(error) => {
+            eprintln!("[updater] failed to load sqlite pool for reopen intent: {error}");
+            None
+        }
+    };
+
     let installing_snapshot = state.set_installing();
     emit_update_snapshot_changed(app, &installing_snapshot);
     let install_result = update.install(&downloaded_bytes);
@@ -356,6 +369,15 @@ pub async fn install_downloaded<R: Runtime>(
         Err(error) => {
             state.set_pending_update(update);
             state.set_downloaded_bytes(downloaded_bytes);
+            if let Some(pool) = post_install_reopen_pool.as_ref() {
+                if let Err(clear_error) =
+                    update_state::clear_post_install_reopen_main_window(pool).await
+                {
+                    eprintln!(
+                        "[updater] failed to clear post-install reopen intent after install error: {clear_error}"
+                    );
+                }
+            }
             let snapshot = state.set_error(
                 UpdateErrorStage::Install,
                 format!("failed to install update: {error}"),

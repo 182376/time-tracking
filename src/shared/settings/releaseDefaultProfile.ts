@@ -5,7 +5,7 @@ export interface ReleaseDefaultSettingsProfile {
   min_session_secs: number;
   tracking_paused: boolean;
   close_behavior: "exit" | "tray";
-  minimize_behavior: "taskbar" | "tray";
+  minimize_behavior: "taskbar" | "widget";
   launch_at_login: boolean;
   start_minimized: boolean;
   onboarding_completed: boolean;

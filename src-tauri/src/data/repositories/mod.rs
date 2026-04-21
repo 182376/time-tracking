@@ -4,3 +4,4 @@ pub mod sessions;
 pub mod settings;
 pub mod tracker_settings;
 pub mod update_state;
+pub mod widget_state;

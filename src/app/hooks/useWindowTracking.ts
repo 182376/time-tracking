@@ -23,7 +23,12 @@ import { startTrackerHealthPolling } from "../services/trackerHealthPollingServi
 import { applyTrackingDataChangedPayload } from "./trackingDataChangedRuntime";
 import { useDesktopLaunchBehaviorSync } from "./useDesktopLaunchBehaviorSync";
 
-export function useWindowTracking() {
+interface UseWindowTrackingOptions {
+  syncDesktopLaunchBehavior?: boolean;
+}
+
+export function useWindowTracking(options: UseWindowTrackingOptions = {}) {
+  const shouldSyncDesktopLaunchBehavior = options.syncDesktopLaunchBehavior ?? true;
   const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatusSnapshot>({
     is_tracking_active: false,
@@ -70,7 +75,7 @@ export function useWindowTracking() {
   const [trackerHealth, setTrackerHealth] = useState<TrackerHealthSnapshot>(() => (
     resolveTrackerHealth(null, Date.now(), TRACKER_HEARTBEAT_STALE_AFTER_MS)
   ));
-  useDesktopLaunchBehaviorSync(appSettings);
+  useDesktopLaunchBehaviorSync(appSettings, shouldSyncDesktopLaunchBehavior);
 
   useEffect(() => {
     let cancelled = false;

@@ -169,8 +169,8 @@ export default function Settings({
           />
 
           <SettingsResidentPanel
-            minimizeToTrayChecked={draftSettings.minimize_behavior !== minimizeBehaviorDefault}
-            onMinimizeToTrayChange={(nextChecked) => {
+            minimizeToWidgetChecked={draftSettings.minimize_behavior !== minimizeBehaviorDefault}
+            onMinimizeToWidgetChange={(nextChecked) => {
               handleChange(
                 "minimize_behavior",
                 nextChecked ? minimizeBehaviorAlternate : minimizeBehaviorDefault,

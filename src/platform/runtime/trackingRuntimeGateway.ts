@@ -31,6 +31,10 @@ export async function setAfkThreshold(thresholdSecs: number): Promise<void> {
   await invoke("cmd_set_afk_threshold", { thresholdSecs });
 }
 
+export async function toggleTrackingPaused(): Promise<void> {
+  await invoke("cmd_toggle_tracking_paused");
+}
+
 export async function onActiveWindowChanged(
   handler: (window: TrackingWindowSnapshot) => void | Promise<void>,
 ): Promise<() => void> {

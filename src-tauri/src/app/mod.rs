@@ -5,3 +5,4 @@ pub mod runtime;
 pub mod runtime_tasks;
 pub mod state;
 pub mod tray;
+pub mod widget;

@@ -119,7 +119,10 @@ fn continuity_window_ms(continuity_window_secs: u64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_pending_continuity, resolve_next_session_continuity_group_start_time};
+    use super::{
+        load_pending_continuity, resolve_next_pending_continuity,
+        resolve_next_session_continuity_group_start_time,
+    };
     use crate::data::migrations as db_schema;
     use crate::domain::tracking::{SustainedParticipationKind, TrackingStatusSnapshot};
     use crate::engine::tracking::{active_session, transition};
@@ -532,6 +535,250 @@ mod tests {
                     ("Code.exe".into(), 1_000, 1_000, Some(10_000)),
                     ("QQ.exe".into(), 10_000, 10_000, Some(250_000)),
                     ("Code.exe".into(), 250_000, 250_000, None),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn mixed_trackable_and_non_trackable_short_switch_reuses_original_continuity_group() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+            ]);
+            let widget = make_window(&[
+                ("exe_name", "time-tracker.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Time Tracker\time-tracker.exe",
+                ),
+            ]);
+            let chat = make_window(&[
+                ("exe_name", "QQ.exe"),
+                ("process_path", r"C:\Program Files\QQ\QQ.exe"),
+            ]);
+            let resumed_coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+                ("idle_time_ms", "1"),
+            ]);
+            let previous_status = TrackingStatusSnapshot {
+                is_tracking_active: true,
+                sustained_participation_eligible: false,
+                sustained_participation_active: false,
+                sustained_participation_kind: None,
+                ..TrackingStatusSnapshot::default()
+            };
+
+            assert!(active_session::start_session(&pool, &coding, 1_000)
+                .await
+                .unwrap());
+
+            let pending = load_pending_continuity(
+                &pool,
+                Some(&coding),
+                Some(&previous_status),
+                &widget,
+                180,
+                10_000,
+            )
+            .await
+            .unwrap();
+
+            transition::apply_window_transition(
+                &pool,
+                Some(&coding),
+                &widget,
+                10_000,
+                10_000,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let chat_continuity_group_start_time =
+                resolve_next_session_continuity_group_start_time(Some(&pending), &chat, 40_000);
+            transition::apply_window_transition(
+                &pool,
+                Some(&widget),
+                &chat,
+                40_000,
+                chat_continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let pending_after_chat = resolve_next_pending_continuity(
+                Some(pending),
+                None,
+                chat_continuity_group_start_time,
+                &chat,
+                40_000,
+            )
+            .unwrap();
+
+            let continuity_group_start_time = resolve_next_session_continuity_group_start_time(
+                Some(&pending_after_chat),
+                &resumed_coding,
+                70_000,
+            );
+            transition::apply_window_transition(
+                &pool,
+                Some(&chat),
+                &resumed_coding,
+                70_000,
+                continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let sessions: Vec<(String, i64, i64, Option<i64>)> = sqlx::query_as(
+                "SELECT exe_name, start_time, continuity_group_start_time, end_time
+                 FROM sessions
+                 ORDER BY start_time ASC",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(
+                sessions,
+                vec![
+                    ("Code.exe".into(), 1_000, 1_000, Some(10_000)),
+                    ("QQ.exe".into(), 40_000, 40_000, Some(70_000)),
+                    ("Code.exe".into(), 70_000, 1_000, None),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn mixed_trackable_and_non_trackable_return_after_total_window_starts_new_group() {
+        tauri::async_runtime::block_on(async {
+            let pool = setup_test_db().await;
+            let coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+            ]);
+            let widget = make_window(&[
+                ("exe_name", "time-tracker.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Time Tracker\time-tracker.exe",
+                ),
+            ]);
+            let chat = make_window(&[
+                ("exe_name", "QQ.exe"),
+                ("process_path", r"C:\Program Files\QQ\QQ.exe"),
+            ]);
+            let resumed_coding = make_window(&[
+                ("exe_name", "Code.exe"),
+                (
+                    "process_path",
+                    r"C:\Program Files\Microsoft VS Code\Code.exe",
+                ),
+                ("idle_time_ms", "1"),
+            ]);
+            let previous_status = TrackingStatusSnapshot {
+                is_tracking_active: true,
+                sustained_participation_eligible: false,
+                sustained_participation_active: false,
+                sustained_participation_kind: None,
+                ..TrackingStatusSnapshot::default()
+            };
+
+            assert!(active_session::start_session(&pool, &coding, 1_000)
+                .await
+                .unwrap());
+
+            let pending = load_pending_continuity(
+                &pool,
+                Some(&coding),
+                Some(&previous_status),
+                &widget,
+                180,
+                10_000,
+            )
+            .await
+            .unwrap();
+
+            transition::apply_window_transition(
+                &pool,
+                Some(&coding),
+                &widget,
+                10_000,
+                10_000,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let chat_continuity_group_start_time =
+                resolve_next_session_continuity_group_start_time(Some(&pending), &chat, 100_000);
+            transition::apply_window_transition(
+                &pool,
+                Some(&widget),
+                &chat,
+                100_000,
+                chat_continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let pending_after_chat = resolve_next_pending_continuity(
+                Some(pending),
+                None,
+                chat_continuity_group_start_time,
+                &chat,
+                100_000,
+            )
+            .unwrap();
+
+            let continuity_group_start_time = resolve_next_session_continuity_group_start_time(
+                Some(&pending_after_chat),
+                &resumed_coding,
+                220_000,
+            );
+            transition::apply_window_transition(
+                &pool,
+                Some(&chat),
+                &resumed_coding,
+                220_000,
+                continuity_group_start_time,
+                active_session::start_session_for_transition,
+            )
+            .await
+            .unwrap();
+
+            let sessions: Vec<(String, i64, i64, Option<i64>)> = sqlx::query_as(
+                "SELECT exe_name, start_time, continuity_group_start_time, end_time
+                 FROM sessions
+                 ORDER BY start_time ASC",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+            assert_eq!(
+                sessions,
+                vec![
+                    ("Code.exe".into(), 1_000, 1_000, Some(10_000)),
+                    ("QQ.exe".into(), 100_000, 100_000, Some(220_000)),
+                    ("Code.exe".into(), 220_000, 220_000, None),
                 ]
             );
         });

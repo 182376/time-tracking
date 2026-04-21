@@ -103,6 +103,17 @@ runTest("downloading builds determinate progress when total is known", () => {
   assert.equal(shouldShowSidebarUpdateEntry(makeSnapshot({ status: "downloading" })), true);
 });
 
+runTest("downloading without byte progress stays indeterminate", () => {
+  const panel = buildUpdateStatusPanelModel(makeSnapshot({
+    status: "downloading",
+    latest_version: "0.2.0",
+  }), false, true);
+
+  assert.equal(panel.progress?.label, "正在获取进度");
+  assert.equal(panel.progress?.valueText, null);
+  assert.equal(panel.progress?.indeterminate, true);
+});
+
 runTest("confirm dialog opens for active update states and structured error states", () => {
   assert.equal(shouldOpenUpdateDialogForSnapshot(makeSnapshot({ status: "available" })), true);
   assert.equal(shouldOpenUpdateDialogForSnapshot(makeSnapshot({ status: "downloaded" })), true);

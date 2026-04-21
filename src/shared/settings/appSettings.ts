@@ -1,7 +1,7 @@
 import { RELEASE_DEFAULT_SETTINGS } from "./releaseDefaultProfile.ts";
 
 export type CloseBehavior = "exit" | "tray";
-export type MinimizeBehavior = "taskbar" | "tray";
+export type MinimizeBehavior = "taskbar" | "widget";
 
 export interface AppSettings {
   idle_timeout_secs: number;
@@ -25,7 +25,7 @@ const TIMELINE_MERGE_GAP_SECONDS_RANGE = { min: 60, max: 300, step: 60 } as cons
 const REFRESH_INTERVAL_OPTIONS = [1, 3];
 const MIN_SESSION_SECONDS_RANGE = { min: 60, max: 600, step: 60 } as const;
 const CLOSE_BEHAVIOR_OPTIONS: CloseBehavior[] = ["exit", "tray"];
-const MINIMIZE_BEHAVIOR_OPTIONS: MinimizeBehavior[] = ["taskbar", "tray"];
+const MINIMIZE_BEHAVIOR_OPTIONS: MinimizeBehavior[] = ["taskbar", "widget"];
 
 function parseNumberSetting(value: string | undefined, fallback: number) {
   const parsed = Number(value);
