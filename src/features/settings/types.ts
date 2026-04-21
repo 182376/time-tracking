@@ -1,5 +1,5 @@
 import type { AppSettings } from "../../shared/settings/appSettings";
-import type { ToastTone } from "../../shared/components/ToastStack";
+import type { QuietToastTone } from "../../shared/components/QuietToast";
 import type { UpdateSnapshot } from "../../shared/types/update";
 
 export interface SettingsPageProps {
@@ -13,7 +13,7 @@ export interface SettingsPageProps {
   updateInstalling?: boolean;
   updateDialogOpen?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-  onToast?: (message: string, tone?: ToastTone) => void;
+  onToast?: (message: string, tone?: QuietToastTone) => void;
   onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
 }
 

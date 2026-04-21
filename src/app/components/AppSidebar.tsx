@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpCircle, Zap, Monitor, Clock, Settings2, Sparkles } from "lucide-react";
-import type { View } from "../types/app";
+import type { View } from "../types/view";
 
 interface Props {
   currentView: View;
@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { id: "settings" as View, icon: Settings2, label: "Settings" },
 ];
 
-export default function Sidebar({
+export default function AppSidebar({
   currentView,
   onNavigate,
   showUpdateEntry = false,

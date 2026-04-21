@@ -1,9 +1,9 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { UI_TEXT } from "../shared/copy/uiText.ts";
-import Sidebar from "../shared/components/Sidebar";
+import AppSidebar from "./components/AppSidebar";
 import Dashboard from "../features/dashboard/components/Dashboard";
-import ToastStack from "../shared/components/ToastStack";
+import QuietToastStack from "../shared/components/QuietToastStack";
 import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
 import {
@@ -108,9 +108,9 @@ function AppShellContent() {
 
   return (
     <div className="qp-shell h-screen p-4 md:p-5 lg:p-6 flex gap-4 md:gap-5 lg:gap-6 overflow-hidden">
-      <ToastStack toasts={toasts} />
+      <QuietToastStack toasts={toasts} />
       {dialogs}
-      <Sidebar
+      <AppSidebar
         currentView={currentView}
         onNavigate={handleNavigate}
         {...sidebarUpdateEntry}

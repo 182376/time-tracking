@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UI_TEXT } from "../../shared/copy/uiText.ts";
-import type { View } from "../../shared/types/app";
+import type { View } from "../types/view";
 import {
   consumePendingUpdateRelaunchView,
   rememberLastActiveView,

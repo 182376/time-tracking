@@ -1,4 +1,4 @@
-import type { View } from "../../shared/types/app";
+import type { View } from "../types/view";
 
 const LAST_ACTIVE_VIEW_KEY = "time-tracker:last-active-view";
 const PENDING_UPDATE_RELAUNCH_VIEW_KEY = "time-tracker:pending-update-relaunch-view";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
-import type { ToastTone } from "../../../shared/components/ToastStack";
+import type { QuietToastTone } from "../../../shared/components/QuietToast";
 import { useQuietDialogs } from "../../../shared/hooks/useQuietDialogs";
 import { getSettingsBootstrapCache, setSettingsBootstrapCache } from "../services/settingsBootstrapCache";
 import { loadSettingsPageBootstrap } from "../services/settingsBootstrapService.ts";
@@ -43,7 +43,7 @@ const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
 export interface UseSettingsPageStateOptions {
   onSettingsChanged: (settings: AppSettings) => void;
   onDirtyChange?: (dirty: boolean) => void;
-  onToast?: (message: string, tone?: ToastTone) => void;
+  onToast?: (message: string, tone?: QuietToastTone) => void;
   onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
 }
 
@@ -73,7 +73,7 @@ export function useSettingsPageState({
   const [appVersion, setAppVersion] = useState(() => initialBootstrap?.appVersion ?? "-");
   const hasUnsavedChangesRef = useRef(false);
 
-  const notify = useCallback((message: string, tone: ToastTone = "info") => {
+  const notify = useCallback((message: string, tone: QuietToastTone = "info") => {
     onToast?.(message, tone);
   }, [onToast]);
 

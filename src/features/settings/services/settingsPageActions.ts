@@ -1,5 +1,5 @@
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
-import type { ToastTone } from "../../../shared/components/ToastStack";
+import type { QuietToastTone } from "../../../shared/components/QuietToast";
 import type { CleanupRange } from "../types.ts";
 import type { BackupRestorePreparation } from "./settingsRuntimeAdapterService.ts";
 
@@ -11,7 +11,7 @@ interface ConfirmOptions {
 }
 
 type ConfirmAction = (options: ConfirmOptions) => Promise<boolean>;
-type NotifyAction = (message: string, tone?: ToastTone) => void;
+type NotifyAction = (message: string, tone?: QuietToastTone) => void;
 type BusyHook = () => void;
 type ErrorReporter = (message: string, error: unknown) => void;
 

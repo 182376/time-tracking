@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ToastItem, ToastTone } from "../../shared/components/ToastStack";
+import type { QuietToastTone } from "../../shared/components/QuietToast";
+import type { QuietToastItem } from "../../shared/components/QuietToastStack";
 
 const TOAST_AUTO_DISMISS_MS = 3200;
 const TOAST_ID_SALT_MAX = 1000;
 
 export function useAppShellToasts() {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [toasts, setToasts] = useState<QuietToastItem[]>([]);
   const toastTimerIdsRef = useRef<number[]>([]);
 
-  const pushToast = useCallback((message: string, tone: ToastTone = "info") => {
+  const pushToast = useCallback((message: string, tone: QuietToastTone = "info") => {
     const id = Date.now() + Math.floor(Math.random() * TOAST_ID_SALT_MAX);
     setToasts((current) => [...current, { id, message, tone }]);
 

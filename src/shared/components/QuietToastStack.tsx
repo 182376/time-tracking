@@ -2,19 +2,17 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import QuietToast, { type QuietToastTone } from "./QuietToast";
 
-export type ToastTone = QuietToastTone;
-
-export interface ToastItem {
+export interface QuietToastItem {
   id: number;
   message: string;
-  tone: ToastTone;
+  tone: QuietToastTone;
 }
 
 interface Props {
-  toasts: ToastItem[];
+  toasts: QuietToastItem[];
 }
 
-export default function ToastStack({ toasts }: Props) {
+export default function QuietToastStack({ toasts }: Props) {
   const content = (
     <div className="pointer-events-none fixed right-4 top-4 md:right-6 md:top-6 z-[80] flex w-[320px] max-w-[calc(100vw-2rem)] flex-col gap-2">
       <AnimatePresence initial={false}>
