@@ -44,8 +44,8 @@ export function shouldOpenUpdateDialogForSnapshot(snapshot: UpdateSnapshot): boo
     || snapshot.status === "downloaded"
     || snapshot.status === "downloading"
     || snapshot.status === "installing"
-    || (snapshot.status === "error" && snapshot.error_stage !== null && Boolean(
-      snapshot.release_page_url || snapshot.asset_download_url || snapshot.latest_version,
+    || (snapshot.status === "error" && snapshot.errorStage !== null && Boolean(
+      snapshot.releasePageUrl || snapshot.assetDownloadUrl || snapshot.latestVersion,
     ));
 }
 
@@ -101,8 +101,8 @@ function buildErrorDetail(
 }
 
 function buildUpdateProgressModel(snapshot: UpdateSnapshot): UpdateProgressModel | null {
-  const downloadedBytes = snapshot.downloaded_bytes;
-  const totalBytes = snapshot.total_bytes;
+  const downloadedBytes = snapshot.downloadedBytes;
+  const totalBytes = snapshot.totalBytes;
   const hasDownloadedBytes = typeof downloadedBytes === "number" && Number.isFinite(downloadedBytes);
   const hasTotalBytes = typeof totalBytes === "number" && Number.isFinite(totalBytes) && totalBytes > 0;
   const percent = hasDownloadedBytes && hasTotalBytes
@@ -110,6 +110,10 @@ function buildUpdateProgressModel(snapshot: UpdateSnapshot): UpdateProgressModel
     : null;
 
   if (snapshot.status === "downloading") {
+    if (!hasDownloadedBytes) {
+      return null;
+    }
+
     return {
       percent,
       label: hasDownloadedBytes && hasTotalBytes
@@ -144,7 +148,7 @@ function buildUpdateProgressModel(snapshot: UpdateSnapshot): UpdateProgressModel
 }
 
 function buildOpenReleaseAction(snapshot: UpdateSnapshot, label = "手动下载"): UpdateActionModel | null {
-  if (!snapshot.release_page_url) return null;
+  if (!snapshot.releasePageUrl) return null;
   return {
     label,
     action: "open_release_page",
@@ -155,7 +159,7 @@ function buildOpenReleaseAction(snapshot: UpdateSnapshot, label = "手动下载"
 }
 
 function buildOpenDownloadAction(snapshot: UpdateSnapshot, label = "下载安装包"): UpdateActionModel | null {
-  if (!snapshot.asset_download_url) return null;
+  if (!snapshot.assetDownloadUrl) return null;
   return {
     label,
     action: "open_download_url",
@@ -170,7 +174,7 @@ export function buildUpdateStatusPanelModel(
   isChecking: boolean,
   isInstalling: boolean,
 ): UpdateStatusPanelModel {
-  const latestVersion = snapshot.latest_version ? formatVersion(snapshot.latest_version) : null;
+  const latestVersion = snapshot.latestVersion ? formatVersion(snapshot.latestVersion) : null;
   const progress = buildUpdateProgressModel(snapshot);
 
   if (snapshot.status === "available") {
@@ -272,9 +276,9 @@ export function buildUpdateStatusPanelModel(
   if (snapshot.status === "error") {
     const releaseAction = buildOpenReleaseAction(snapshot, "手动下载");
     const downloadAction = buildOpenDownloadAction(snapshot, "下载安装包");
-    const primaryAction = snapshot.error_stage === "download" && downloadAction
+    const primaryAction = snapshot.errorStage === "download" && downloadAction
       ? downloadAction
-      : snapshot.error_stage === "install"
+      : snapshot.errorStage === "install"
         ? {
           label: "再次安装",
           action: "open_confirm" as const,
@@ -291,7 +295,7 @@ export function buildUpdateStatusPanelModel(
         };
     const secondaryAction = primaryAction.action === "check"
       ? releaseAction ?? downloadAction
-      : snapshot.error_stage === "install"
+      : snapshot.errorStage === "install"
         ? downloadAction ?? releaseAction ?? {
           label: "重新检查",
           action: "check" as const,
@@ -308,14 +312,14 @@ export function buildUpdateStatusPanelModel(
         };
 
     return {
-      statusTitle: snapshot.error_stage === "check"
+      statusTitle: snapshot.errorStage === "check"
         ? "无法检查更新"
-        : snapshot.error_stage === "download"
+        : snapshot.errorStage === "download"
           ? "无法下载安装包"
-          : snapshot.error_stage === "install"
+          : snapshot.errorStage === "install"
             ? "更新安装失败"
             : "更新失败",
-      statusDetail: buildErrorDetail(snapshot.error_stage, snapshot.error_message),
+      statusDetail: buildErrorDetail(snapshot.errorStage, snapshot.errorMessage),
       primaryAction,
       secondaryAction,
       progress,
@@ -338,16 +342,16 @@ export function buildUpdateStatusPanelModel(
 }
 
 export function buildUpdateConfirmDialogModel(snapshot: UpdateSnapshot): UpdateConfirmDialogModel {
-  const currentVersion = formatVersion(snapshot.current_version);
-  const latestVersion = formatVersion(snapshot.latest_version ?? snapshot.current_version);
+  const currentVersion = formatVersion(snapshot.currentVersion);
+  const latestVersion = formatVersion(snapshot.latestVersion ?? snapshot.currentVersion);
   const isDownloaded = snapshot.status === "downloaded";
   const isDownloading = snapshot.status === "downloading";
   const isInstalling = snapshot.status === "installing";
 
   if (snapshot.status === "error") {
-    const primaryAction = snapshot.error_stage === "download"
+    const primaryAction = snapshot.errorStage === "download"
       ? buildOpenDownloadAction(snapshot, "下载安装包") ?? buildOpenReleaseAction(snapshot)
-      : snapshot.error_stage === "install"
+      : snapshot.errorStage === "install"
         ? {
           label: "再次安装",
           action: "open_confirm" as const,
@@ -358,22 +362,22 @@ export function buildUpdateConfirmDialogModel(snapshot: UpdateSnapshot): UpdateC
         : buildOpenReleaseAction(snapshot, "手动下载");
 
     return {
-      title: snapshot.error_stage === "check"
+      title: snapshot.errorStage === "check"
         ? "无法检查更新"
-        : snapshot.error_stage === "download"
+        : snapshot.errorStage === "download"
           ? "下载更新失败"
-          : snapshot.error_stage === "install"
+          : snapshot.errorStage === "install"
             ? "安装更新失败"
             : "更新失败",
       versionCompareLabel: `${currentVersion} -> ${latestVersion}`,
-      confirmDescription: buildErrorDetail(snapshot.error_stage, snapshot.error_message)
+      confirmDescription: buildErrorDetail(snapshot.errorStage, snapshot.errorMessage)
         ?? "更新流程未能完成。",
-      notesPreview: getReleaseNotesPreview(snapshot.release_notes),
+      notesPreview: getReleaseNotesPreview(snapshot.releaseNotes),
       progress: buildUpdateProgressModel(snapshot),
       primaryAction,
       secondaryAction: primaryAction?.action === "check"
         ? buildOpenReleaseAction(snapshot, "手动下载")
-        : snapshot.error_stage === "install"
+        : snapshot.errorStage === "install"
           ? buildOpenDownloadAction(snapshot, "重新下载安装包")
             ?? buildOpenReleaseAction(snapshot, "手动下载")
           : {
@@ -402,7 +406,7 @@ export function buildUpdateConfirmDialogModel(snapshot: UpdateSnapshot): UpdateC
         : isDownloaded
           ? "更新包已准备完成，确认后将重启并完成安装。"
           : "新版本已就绪，确认后将先下载更新包，下载完成后需要再次确认安装。",
-    notesPreview: getReleaseNotesPreview(snapshot.release_notes),
+    notesPreview: getReleaseNotesPreview(snapshot.releaseNotes),
     progress: buildUpdateProgressModel(snapshot),
     primaryAction: isInstalling
       ? null

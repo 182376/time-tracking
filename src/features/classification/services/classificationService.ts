@@ -35,12 +35,18 @@ export interface ClassificationCommitDeps {
   setDeletedCategories: (categories: AppCategory[]) => void;
 }
 
-const defaultClassificationCommitDeps: ClassificationCommitDeps = {
-  commitChangePlan: classificationStore.commitDraftChangePlan,
-  setUserOverrides: ProcessMapper.setUserOverrides,
-  setCategoryColorOverrides: ProcessMapper.setCategoryColorOverrides,
-  setDeletedCategories: ProcessMapper.setDeletedCategories,
-};
+export function createClassificationCommitDeps(
+  commitChangePlan: ClassificationCommitDeps["commitChangePlan"] = classificationStore.commitDraftChangePlan,
+): ClassificationCommitDeps {
+  return {
+    commitChangePlan,
+    setUserOverrides: (overrides) => ProcessMapper.setUserOverrides(overrides),
+    setCategoryColorOverrides: (overrides) => ProcessMapper.setCategoryColorOverrides(overrides),
+    setDeletedCategories: (categories) => ProcessMapper.setDeletedCategories(categories),
+  };
+}
+
+const defaultClassificationCommitDeps: ClassificationCommitDeps = createClassificationCommitDeps();
 
 export class ClassificationService {
   static async loadObservedAppCandidates(days: number = 30, limit: number = 120): Promise<ObservedAppCandidate[]> {

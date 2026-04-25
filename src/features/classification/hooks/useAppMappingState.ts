@@ -39,6 +39,14 @@ import {
 } from "../config/categoryTokens";
 
 const CATEGORY_OPTIONS: UserAssignableAppCategory[] = USER_ASSIGNABLE_CATEGORIES;
+const USER_ASSIGNABLE_CATEGORY_SET = new Set<string>(USER_ASSIGNABLE_CATEGORIES);
+
+function resolveUserAssignableCategory(category: AppCategory | undefined): UserAssignableAppCategory {
+  if (category && (isCustomCategory(category) || USER_ASSIGNABLE_CATEGORY_SET.has(category))) {
+    return category as UserAssignableAppCategory;
+  }
+  return "other";
+}
 
 export interface UseAppMappingStateOptions {
   icons: Record<string, string>;
@@ -150,8 +158,7 @@ export function useAppMappingState({
   const resolveMappedCategory = useCallback((candidate: ObservedAppCandidate): UserAssignableAppCategory => {
     const mapped = AppClassification.mapApp(candidate.exeName, { appName: candidate.appName });
     const overrideCategory = draftOverrides[candidate.exeName]?.category;
-    const category = overrideCategory ?? mapped.category;
-    return category === "system" ? "other" : category;
+    return resolveUserAssignableCategory(overrideCategory ?? mapped.category);
   }, [draftOverrides]);
 
   const resolveEffectiveDisplayName = useCallback((candidate: ObservedAppCandidate) => {
@@ -552,6 +559,11 @@ export function useAppMappingState({
       setSaveStatus(result.nextSaveStatus);
       if (result.nextSaveStatus === "saved") {
         window.setTimeout(() => setSaveStatus("idle"), 1800);
+      }
+      if (!result.accepted && !result.skippedReason) {
+        if (result.error) {
+          console.error("save app mapping failed", result.error);
+        }
       }
       return result.accepted;
     } catch (error) {

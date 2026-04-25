@@ -193,7 +193,7 @@ mod tests {
                 is_tracking_active: true,
                 sustained_participation_eligible: true,
                 sustained_participation_active: true,
-                sustained_participation_kind: Some(SustainedParticipationKind::Meeting),
+                sustained_participation_kind: Some(SustainedParticipationKind::Audio),
                 ..TrackingStatusSnapshot::default()
             };
 
@@ -283,7 +283,7 @@ mod tests {
                 is_tracking_active: true,
                 sustained_participation_eligible: true,
                 sustained_participation_active: true,
-                sustained_participation_kind: Some(SustainedParticipationKind::Meeting),
+                sustained_participation_kind: Some(SustainedParticipationKind::Audio),
                 ..TrackingStatusSnapshot::default()
             };
 

@@ -1,10 +1,11 @@
-import type { AppSettings } from "../../shared/settings/appSettings";
+import type { AppSettings } from "../../shared/settings/appSettings.ts";
 import type {
   CurrentTrackingSnapshot,
   TrackingDataChangedPayload,
   TrackingStatusSnapshot,
   TrackingWindowSnapshot,
-} from "../../shared/types/tracking";
+} from "../../shared/types/tracking.ts";
+import { DEFAULT_TRACKING_STATUS } from "../../shared/types/tracking.ts";
 import type { TrackingDataChangedEffects } from "./trackingDataChangedPolicy.ts";
 import { resolveTrackingDataChangedEffects } from "./trackingDataChangedPolicy.ts";
 
@@ -42,7 +43,7 @@ export async function applyTrackingDataChangedPayload(
       const trackingPaused = await loadLatestTrackingPauseSetting();
       setAppSettings((current) => ({
         ...current,
-        tracking_paused: trackingPaused,
+        trackingPaused: trackingPaused,
       }));
     } catch (error) {
       warn("Failed to sync tracking pause setting", error);
@@ -53,45 +54,7 @@ export async function applyTrackingDataChangedPayload(
     try {
       const nextSnapshot = await loadCurrentTrackingSnapshot();
       setActiveWindow(nextSnapshot?.window ?? null);
-      setTrackingStatus(nextSnapshot?.status ?? {
-        is_tracking_active: false,
-        sustained_participation_eligible: false,
-        sustained_participation_active: false,
-        sustained_participation_kind: null,
-        sustained_participation_state: "inactive",
-        sustained_participation_signal_source: null,
-        sustained_participation_reason: "no-signal",
-        sustained_participation_diagnostics: {
-          state: "inactive",
-          reason: "no-signal",
-          window_identity: null,
-          effective_signal_source: null,
-          last_match_at_ms: null,
-          grace_deadline_ms: null,
-          system_media: {
-            signal: {
-              is_available: false,
-              is_active: false,
-              signal_source: null,
-              source_app_id: null,
-              source_app_identity: null,
-              playback_type: null,
-            },
-            match_result: "unavailable",
-          },
-          audio_session: {
-            signal: {
-              is_available: false,
-              is_active: false,
-              signal_source: null,
-              source_app_id: null,
-              source_app_identity: null,
-              playback_type: null,
-            },
-            match_result: "unavailable",
-          },
-        },
-      });
+      setTrackingStatus(nextSnapshot?.status ?? DEFAULT_TRACKING_STATUS);
     } catch (error) {
       warn("Failed to sync tracking snapshot", error);
     }

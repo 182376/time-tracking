@@ -18,9 +18,9 @@ export function runHistoryReadModelTests() {
     const dashboard = buildDashboardView([
       makeSession({
         id: 1,
-        exe_name: "QQ.exe",
-        start_time: 1_000,
-        end_time: null,
+        exeName: "QQ.exe",
+        startTime: 1_000,
+        endTime: null,
         duration: null,
       }),
     ], trackerHealth, 19_000);
@@ -38,7 +38,7 @@ export function runHistoryReadModelTests() {
 
     assert.equal(view.timelineSessions.length, 1);
     assert.equal(view.timelineSessions[0].duration, 120_000);
-    assert.equal(view.timelineSessions[0].end_time, 150_000);
+    assert.equal(view.timelineSessions[0].endTime, 150_000);
     const qqSummary = view.appSummary.find((item) => item.exeName === "QQ.exe");
 
     assert.ok(qqSummary);
@@ -71,30 +71,30 @@ export function runHistoryReadModelTests() {
     const sessions = [
       makeSession({
         id: 1,
-        exe_name: "Zoom.exe",
-        app_name: "Zoom",
-        start_time: 0,
-        end_time: 60_000,
+        exeName: "Zoom.exe",
+        appName: "Zoom",
+        startTime: 0,
+        endTime: 60_000,
         duration: 60_000,
-        continuity_group_start_time: 0,
+        continuityGroupStartTime: 0,
       }),
       makeSession({
         id: 2,
-        exe_name: "QQ.exe",
-        app_name: "QQ",
-        start_time: 60_000,
-        end_time: 120_000,
+        exeName: "QQ.exe",
+        appName: "QQ",
+        startTime: 60_000,
+        endTime: 120_000,
         duration: 60_000,
-        continuity_group_start_time: 60_000,
+        continuityGroupStartTime: 60_000,
       }),
       makeSession({
         id: 3,
-        exe_name: "Zoom.exe",
-        app_name: "Zoom",
-        start_time: 120_000,
-        end_time: 180_000,
+        exeName: "Zoom.exe",
+        appName: "Zoom",
+        startTime: 120_000,
+        endTime: 180_000,
         duration: 60_000,
-        continuity_group_start_time: 0,
+        continuityGroupStartTime: 0,
       }),
     ];
 
@@ -106,8 +106,8 @@ export function runHistoryReadModelTests() {
     const qqSummary = view.appSummary.find((item) => item.exeName === "QQ.exe");
 
     assert.equal(view.timelineSessions.length, 1);
-    assert.equal(view.timelineSessions[0].start_time, 0);
-    assert.equal(view.timelineSessions[0].end_time, 180_000);
+    assert.equal(view.timelineSessions[0].startTime, 0);
+    assert.equal(view.timelineSessions[0].endTime, 180_000);
     assert.equal(view.timelineSessions[0].duration, 120_000);
     assert.ok(qqSummary);
     assert.equal(qqSummary.duration, 60_000);
@@ -117,18 +117,18 @@ export function runHistoryReadModelTests() {
     const sessions = [
       makeSession({
         id: 1,
-        exe_name: "cursor.exe",
-        app_name: "Cursor",
-        start_time: 0,
-        end_time: 60_000,
+        exeName: "cursor.exe",
+        appName: "Cursor",
+        startTime: 0,
+        endTime: 60_000,
         duration: 60_000,
       }),
       makeSession({
         id: 2,
-        exe_name: "cursor.exe",
-        app_name: "Cursor",
-        start_time: 90_000,
-        end_time: 150_000,
+        exeName: "cursor.exe",
+        appName: "Cursor",
+        startTime: 90_000,
+        endTime: 150_000,
         duration: 60_000,
       }),
     ];
@@ -141,7 +141,7 @@ export function runHistoryReadModelTests() {
 
     assert.equal(view.timelineSessions.length, 1);
     assert.equal(view.timelineSessions[0].duration, 120_000);
-    assert.equal(view.timelineSessions[0].end_time, 150_000);
+    assert.equal(view.timelineSessions[0].endTime, 150_000);
     assert.equal(
       view.appSummary.reduce((sum, item) => sum + item.duration, 0),
       120_000,
@@ -160,7 +160,7 @@ export function runHistoryReadModelTests() {
 
     assert.equal(view.timelineSessions.length, 0);
     assert.equal(view.appSummary.reduce((sum, item) => sum + item.duration, 0), 40_000);
-    assert.equal(view.weekly.reduce((sum, item) => sum + item.total_duration, 0), 40_000);
+    assert.equal(view.weekly.reduce((sum, item) => sum + item.totalDuration, 0), 40_000);
   });
 
   runTest("history timeline keeps latest live session visible below min threshold and hides it once ended", () => {
@@ -170,10 +170,10 @@ export function runHistoryReadModelTests() {
       daySessions: [
         makeSession({
           id: 1,
-          exe_name: "vscodium.exe",
-          app_name: "VSCodium",
-          start_time: 195_000,
-          end_time: null,
+          exeName: "vscodium.exe",
+          appName: "VSCodium",
+          startTime: 195_000,
+          endTime: null,
           duration: null,
         }),
       ],
@@ -189,10 +189,10 @@ export function runHistoryReadModelTests() {
       daySessions: [
         makeSession({
           id: 1,
-          exe_name: "vscodium.exe",
-          app_name: "VSCodium",
-          start_time: 195_000,
-          end_time: 197_000,
+          exeName: "vscodium.exe",
+          appName: "VSCodium",
+          startTime: 195_000,
+          endTime: 197_000,
           duration: 2_000,
         }),
       ],
@@ -208,29 +208,29 @@ export function runHistoryReadModelTests() {
     const sessions = [
       makeSession({
         id: 1,
-        exe_name: "vscodium.exe",
-        app_name: "VSCodium",
-        start_time: 0,
-        end_time: 20_000,
+        exeName: "vscodium.exe",
+        appName: "VSCodium",
+        startTime: 0,
+        endTime: 20_000,
         duration: 20_000,
       }),
       makeSession({
         id: 2,
-        exe_name: "qq.exe",
-        app_name: "QQ",
-        start_time: 20_000,
-        end_time: 22_000,
+        exeName: "qq.exe",
+        appName: "QQ",
+        startTime: 20_000,
+        endTime: 22_000,
         duration: 2_000,
-        window_title: "Chat",
+        windowTitle: "Chat",
       }),
       makeSession({
         id: 3,
-        exe_name: "vscodium.exe",
-        app_name: "VSCodium",
-        start_time: 22_000,
-        end_time: 42_000,
+        exeName: "vscodium.exe",
+        appName: "VSCodium",
+        startTime: 22_000,
+        endTime: 42_000,
         duration: 20_000,
-        window_title: "Code",
+        windowTitle: "Code",
       }),
     ];
 
@@ -251,7 +251,7 @@ export function runHistoryReadModelTests() {
     assert.equal(thresholdView.timelineSessions.length, 1);
     assert.equal(baseView.timelineSessions[0].duration, 40_000);
     assert.equal(thresholdView.timelineSessions[0].duration, 40_000);
-    assert.equal(baseView.timelineSessions[0].end_time, 42_000);
-    assert.equal(thresholdView.timelineSessions[0].end_time, 42_000);
+    assert.equal(baseView.timelineSessions[0].endTime, 42_000);
+    assert.equal(thresholdView.timelineSessions[0].endTime, 42_000);
   });
 }

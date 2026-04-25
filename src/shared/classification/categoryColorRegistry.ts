@@ -125,7 +125,14 @@ export class CategoryColorRegistry {
     }
 
     if (!isCustomCategory(category)) {
-      const releaseDefaultColor = RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS[category];
+      const releaseDefaultColor = Object.prototype.hasOwnProperty.call(
+        RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS,
+        category,
+      )
+        ? RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS[
+          category as keyof typeof RELEASE_DEFAULT_CATEGORY_COLOR_ASSIGNMENTS
+        ]
+        : undefined;
       if (releaseDefaultColor) {
         return releaseDefaultColor;
       }

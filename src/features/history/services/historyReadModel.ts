@@ -62,8 +62,8 @@ function filterTimelineSessionsForDisplay(
       return session;
     }
 
-    const latestEnd = latest.end_time ?? latest.start_time;
-    const sessionEnd = session.end_time ?? session.start_time;
+    const latestEnd = latest.endTime ?? latest.startTime;
+    const sessionEnd = session.endTime ?? session.startTime;
     return sessionEnd >= latestEnd ? session : latest;
   }, null);
 

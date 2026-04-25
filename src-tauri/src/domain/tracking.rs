@@ -204,35 +204,6 @@ pub fn source_app_id_identity(source_app_id: &str) -> Option<SustainedParticipat
     None
 }
 
-pub fn sustained_participation_kind_for_identity(
-    identity: SustainedParticipationAppIdentity,
-) -> SustainedParticipationKind {
-    match identity {
-        SustainedParticipationAppIdentity::Zoom
-        | SustainedParticipationAppIdentity::Teams
-        | SustainedParticipationAppIdentity::WeMeet => SustainedParticipationKind::Meeting,
-        SustainedParticipationAppIdentity::Chrome
-        | SustainedParticipationAppIdentity::Edge
-        | SustainedParticipationAppIdentity::Firefox
-        | SustainedParticipationAppIdentity::Brave
-        | SustainedParticipationAppIdentity::Vlc
-        | SustainedParticipationAppIdentity::Bilibili
-        | SustainedParticipationAppIdentity::Douyin => SustainedParticipationKind::Video,
-    }
-}
-
-pub fn is_browser_sustained_participation_identity(
-    identity: SustainedParticipationAppIdentity,
-) -> bool {
-    matches!(
-        identity,
-        SustainedParticipationAppIdentity::Chrome
-            | SustainedParticipationAppIdentity::Edge
-            | SustainedParticipationAppIdentity::Firefox
-            | SustainedParticipationAppIdentity::Brave
-    )
-}
-
 pub fn signal_origin_matches_window(
     exe_name: &str,
     process_path: &str,
@@ -262,26 +233,6 @@ pub fn signal_explicitly_stopped_for_window(
         && signal_origin_matches_window(exe_name, process_path, signal)
 }
 
-pub fn signal_is_explicit_browser_video_match(
-    exe_name: &str,
-    process_path: &str,
-    signal: &SustainedParticipationSignalSnapshot,
-) -> bool {
-    if !signal_matches_window(exe_name, process_path, signal) {
-        return false;
-    }
-
-    let identity = signal
-        .source_app_identity
-        .or_else(|| sustained_participation_app_identity(exe_name, process_path));
-
-    identity
-        .map(is_browser_sustained_participation_identity)
-        .unwrap_or(false)
-        && signal.signal_source == Some(SustainedParticipationSignalSource::SystemMedia)
-        && signal.playback_type == Some(SystemMediaPlaybackType::Video)
-}
-
 pub fn signal_matches_window(
     exe_name: &str,
     process_path: &str,
@@ -299,22 +250,7 @@ pub fn resolve_sustained_participation_kind(
         return None;
     }
 
-    let identity = signal
-        .source_app_identity
-        .or_else(|| sustained_participation_app_identity(exe_name, process_path))
-        .map(sustained_participation_kind_for_identity);
-
-    if signal
-        .source_app_identity
-        .or_else(|| sustained_participation_app_identity(exe_name, process_path))
-        .map(is_browser_sustained_participation_identity)
-        .unwrap_or(false)
-        && !signal_is_explicit_browser_video_match(exe_name, process_path, signal)
-    {
-        return None;
-    }
-
-    identity.or(Some(SustainedParticipationKind::Video))
+    Some(SustainedParticipationKind::Audio)
 }
 
 pub fn evaluate_sustained_participation_signal(
@@ -698,14 +634,13 @@ fn is_likely_system_process(lower_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_browser_sustained_participation_identity, is_trackable_window,
-        resolve_sustained_participation_kind, resolve_tracking_status, should_track,
-        signal_is_explicit_browser_video_match, signal_matches_window, source_app_id_identity,
-        sustained_participation_app_identity, sustained_participation_kind_for_identity,
-        SustainedParticipationAppIdentity, SustainedParticipationKind,
-        SustainedParticipationSignalSnapshot, SustainedParticipationSignalSource,
-        SystemMediaPlaybackType, TrackingDataChangedPayload, WindowSessionIdentity,
-        WindowTrackingCandidate, WindowTransitionDecision, TRACKING_REASON_STARTUP_SEALED,
+        is_trackable_window, resolve_sustained_participation_kind, resolve_tracking_status,
+        should_track, signal_matches_window, source_app_id_identity,
+        sustained_participation_app_identity, SustainedParticipationAppIdentity,
+        SustainedParticipationKind, SustainedParticipationSignalSnapshot,
+        SustainedParticipationSignalSource, SystemMediaPlaybackType, TrackingDataChangedPayload,
+        WindowSessionIdentity, WindowTrackingCandidate, WindowTransitionDecision,
+        TRACKING_REASON_STARTUP_SEALED, TRACKING_REASON_STATUS_CHANGED,
         TRACKING_REASON_TRACKING_PAUSED_SEALED, TRACKING_REASON_WATCHDOG_SEALED,
     };
 
@@ -779,6 +714,7 @@ mod tests {
             TRACKING_REASON_TRACKING_PAUSED_SEALED,
             "tracking-paused-sealed"
         );
+        assert_eq!(TRACKING_REASON_STATUS_CHANGED, "tracking-status-changed");
     }
 
     #[test]
@@ -791,14 +727,10 @@ mod tests {
     }
 
     #[test]
-    fn sustained_participation_profiles_cover_video_meeting_and_browser_media_apps() {
+    fn sustained_participation_profiles_cover_known_audio_signal_apps() {
         assert_eq!(
             sustained_participation_app_identity("Zoom.exe", r"C:\Program Files\Zoom\Zoom.exe"),
             Some(SustainedParticipationAppIdentity::Zoom)
-        );
-        assert_eq!(
-            sustained_participation_kind_for_identity(SustainedParticipationAppIdentity::Zoom),
-            SustainedParticipationKind::Meeting
         );
         assert_eq!(
             sustained_participation_app_identity(
@@ -810,10 +742,6 @@ mod tests {
         assert_eq!(
             sustained_participation_app_identity("douyin_widget.exe", ""),
             Some(SustainedParticipationAppIdentity::Douyin)
-        );
-        assert_eq!(
-            sustained_participation_kind_for_identity(SustainedParticipationAppIdentity::Douyin),
-            SustainedParticipationKind::Video
         );
         assert_eq!(
             sustained_participation_app_identity(
@@ -851,19 +779,6 @@ mod tests {
             Some(SustainedParticipationAppIdentity::WeMeet)
         );
         assert_eq!(source_app_id_identity("Spotify"), None);
-    }
-
-    #[test]
-    fn browser_identity_detection_stays_explicit() {
-        assert!(is_browser_sustained_participation_identity(
-            SustainedParticipationAppIdentity::Chrome
-        ));
-        assert!(is_browser_sustained_participation_identity(
-            SustainedParticipationAppIdentity::Firefox
-        ));
-        assert!(!is_browser_sustained_participation_identity(
-            SustainedParticipationAppIdentity::Zoom
-        ));
     }
 
     #[test]
@@ -911,12 +826,12 @@ mod tests {
                 r"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe",
                 &signal,
             ),
-            Some(SustainedParticipationKind::Video)
+            Some(SustainedParticipationKind::Audio)
         );
     }
 
     #[test]
-    fn browser_audio_only_signal_requires_explicit_video_before_counting() {
+    fn browser_audio_signal_counts_as_sustained_participation() {
         let audio_only_signal = SustainedParticipationSignalSnapshot {
             is_available: true,
             is_active: true,
@@ -925,12 +840,6 @@ mod tests {
             source_app_identity: Some(SustainedParticipationAppIdentity::Chrome),
             playback_type: None,
         };
-        let explicit_video_signal = SustainedParticipationSignalSnapshot {
-            signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            playback_type: Some(SystemMediaPlaybackType::Video),
-            ..audio_only_signal.clone()
-        };
-
         assert!(signal_matches_window(
             "chrome.exe",
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -942,26 +851,8 @@ mod tests {
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                 &audio_only_signal,
             ),
-            None
+            Some(SustainedParticipationKind::Audio)
         );
-        assert!(!signal_is_explicit_browser_video_match(
-            "chrome.exe",
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            &audio_only_signal,
-        ));
-        assert_eq!(
-            resolve_sustained_participation_kind(
-                "chrome.exe",
-                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                &explicit_video_signal,
-            ),
-            Some(SustainedParticipationKind::Video)
-        );
-        assert!(signal_is_explicit_browser_video_match(
-            "chrome.exe",
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            &explicit_video_signal,
-        ));
     }
 
     #[test]
@@ -991,7 +882,7 @@ mod tests {
         assert!(status.sustained_participation_active);
         assert_eq!(
             status.sustained_participation_kind,
-            Some(SustainedParticipationKind::Video)
+            Some(SustainedParticipationKind::Audio)
         );
     }
 
@@ -1043,12 +934,12 @@ mod tests {
         assert!(status.sustained_participation_active);
         assert_eq!(
             status.sustained_participation_kind,
-            Some(SustainedParticipationKind::Video)
+            Some(SustainedParticipationKind::Audio)
         );
     }
 
     #[test]
-    fn tracking_status_rejects_browser_audio_only_matches() {
+    fn tracking_status_accepts_browser_audio_only_matches() {
         let signal = SustainedParticipationSignalSnapshot {
             is_available: true,
             is_active: true,
@@ -1069,8 +960,11 @@ mod tests {
             &signal,
         );
 
-        assert!(!status.sustained_participation_active);
-        assert_eq!(status.sustained_participation_kind, None);
+        assert!(status.sustained_participation_active);
+        assert_eq!(
+            status.sustained_participation_kind,
+            Some(SustainedParticipationKind::Audio)
+        );
     }
 
     #[test]
@@ -1100,7 +994,7 @@ mod tests {
         assert!(status.sustained_participation_active);
         assert_eq!(
             status.sustained_participation_kind,
-            Some(SustainedParticipationKind::Meeting)
+            Some(SustainedParticipationKind::Audio)
         );
     }
 

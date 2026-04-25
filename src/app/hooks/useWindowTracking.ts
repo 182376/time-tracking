@@ -5,7 +5,7 @@ import type {
   TrackingStatusSnapshot,
   TrackingWindowSnapshot,
 } from "../../shared/types/tracking";
-import { resolveTrackerHealth } from "../../shared/types/tracking";
+import { DEFAULT_TRACKING_STATUS, resolveTrackerHealth } from "../../shared/types/tracking";
 import {
   loadAppRuntimeBootstrapSnapshot,
   TRACKER_HEARTBEAT_STALE_AFTER_MS,
@@ -30,45 +30,7 @@ interface UseWindowTrackingOptions {
 export function useWindowTracking(options: UseWindowTrackingOptions = {}) {
   const shouldSyncDesktopLaunchBehavior = options.syncDesktopLaunchBehavior ?? true;
   const [activeWindow, setActiveWindow] = useState<TrackingWindowSnapshot | null>(null);
-  const [trackingStatus, setTrackingStatus] = useState<TrackingStatusSnapshot>({
-    is_tracking_active: false,
-    sustained_participation_eligible: false,
-    sustained_participation_active: false,
-    sustained_participation_kind: null,
-    sustained_participation_state: "inactive",
-    sustained_participation_signal_source: null,
-    sustained_participation_reason: "no-signal",
-    sustained_participation_diagnostics: {
-      state: "inactive",
-      reason: "no-signal",
-      window_identity: null,
-      effective_signal_source: null,
-      last_match_at_ms: null,
-      grace_deadline_ms: null,
-      system_media: {
-        signal: {
-          is_available: false,
-          is_active: false,
-          signal_source: null,
-          source_app_id: null,
-          source_app_identity: null,
-          playback_type: null,
-        },
-        match_result: "unavailable",
-      },
-      audio_session: {
-        signal: {
-          is_available: false,
-          is_active: false,
-          signal_source: null,
-          source_app_id: null,
-          source_app_identity: null,
-          playback_type: null,
-        },
-        match_result: "unavailable",
-      },
-    },
-  });
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatusSnapshot>(DEFAULT_TRACKING_STATUS);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [syncTick, setSyncTick] = useState(0);
   const [classificationReady, setClassificationReady] = useState(false);

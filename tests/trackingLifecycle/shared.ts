@@ -21,12 +21,14 @@ import { buildDashboardReadModel } from "../../src/features/dashboard/services/d
 import { buildHistoryReadModel } from "../../src/features/history/services/historyReadModel.ts";
 import type { HistorySession } from "../../src/shared/lib/sessionReadRepository.ts";
 import {
-  isCurrentTrackingSnapshot,
-  isTrackingDataChangedPayload,
   resolveTrackerHealth,
-  isTrackingWindowSnapshot,
   type TrackedWindow,
 } from "../../src/shared/types/tracking.ts";
+import {
+  isRawCurrentTrackingSnapshot,
+  isRawTrackingDataChangedPayload,
+  isRawTrackingWindowSnapshot,
+} from "../../src/platform/runtime/trackingRawDtos.ts";
 import { AppClassification } from "../../src/shared/classification/appClassification.ts";
 import { ProcessMapper } from "../../src/shared/classification/processMapper.ts";
 import { shouldSyncTrackingPause } from "../../src/app/services/trackingPauseSettingsPolicy.ts";
@@ -67,9 +69,9 @@ export {
   buildHistoryReadModel,
   INITIAL_READ_MODEL_REFRESH_STATE,
   isTrackableWindow,
-  isCurrentTrackingSnapshot,
-  isTrackingDataChangedPayload,
-  isTrackingWindowSnapshot,
+  isRawCurrentTrackingSnapshot,
+  isRawTrackingDataChangedPayload,
+  isRawTrackingWindowSnapshot,
   materializeLiveSessions,
   makeSession,
   makeWindow,

@@ -24,9 +24,9 @@ export function isTrackableWindow(
   win: TrackedWindow | null,
   shouldTrack: (exeName: string) => boolean,
 ) {
-  if (!win?.exe_name) return false;
-  if (win.is_afk) return false;
-  return shouldTrack(win.exe_name);
+  if (!win?.exeName) return false;
+  if (win.isAfk) return false;
+  return shouldTrack(win.exeName);
 }
 
 export function resolveWindowSessionIdentity(
@@ -37,13 +37,13 @@ export function resolveWindowSessionIdentity(
     return null;
   }
 
-  const appKey = win.exe_name.toLowerCase();
-  const rootOwnerKey = win.root_owner_hwnd || win.hwnd;
-  const classKey = win.window_class.toLowerCase();
+  const appKey = win.exeName.toLowerCase();
+  const rootOwnerKey = win.rootOwnerHwnd || win.hwnd;
+  const classKey = win.windowClass.toLowerCase();
 
   return {
     appKey,
-    instanceKey: `${appKey}|pid:${win.process_id}|root:${rootOwnerKey}|class:${classKey}`,
+    instanceKey: `${appKey}|pid:${win.processId}|root:${rootOwnerKey}|class:${classKey}`,
   };
 }
 
@@ -84,8 +84,8 @@ export function planWindowTransition(args: {
     shouldStartNext,
     shouldRefreshMetadata,
     endTimeOverride:
-      shouldEndPrevious && !nextTrackable && nextWindow.is_afk
-        ? nowMs - nextWindow.idle_time_ms
+      shouldEndPrevious && !nextTrackable && nextWindow.isAfk
+        ? nowMs - nextWindow.idleTimeMs
         : undefined,
   };
 }

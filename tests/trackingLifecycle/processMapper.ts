@@ -110,7 +110,7 @@ export function runProcessMapperTests() {
     const cases: Array<{ exeName: string; appName: string; expectedCategory: string }> = [
       { exeName: "vscodium.exe", appName: "VSCodium", expectedCategory: "development" },
       { exeName: "alma.exe", appName: "Alma", expectedCategory: "ai" },
-      { exeName: "zotero.exe", appName: "Zotero", expectedCategory: "reading" },
+      { exeName: "zotero.exe", appName: "Zotero", expectedCategory: "browser" },
       { exeName: "ToDesk.exe", appName: "ToDesk", expectedCategory: "utility" },
       { exeName: "HoYoPlay.exe", appName: "HoYoPlay", expectedCategory: "game" },
       { exeName: "atlas.exe", appName: "Atlas", expectedCategory: "other" },
@@ -133,10 +133,10 @@ export function runProcessMapperTests() {
     const compiled = compileSessions([
       makeSession({
         id: 1,
-        exe_name: "vscodium.exe",
-        app_name: "VSCodium",
-        start_time: 0,
-        end_time: 60_000,
+        exeName: "vscodium.exe",
+        appName: "VSCodium",
+        startTime: 0,
+        endTime: 60_000,
         duration: 60_000,
       }),
     ], {
@@ -146,7 +146,7 @@ export function runProcessMapperTests() {
     });
     const stats = buildNormalizedAppStats(compiled);
     assert.equal(stats.length, 1);
-    assert.equal(stats[0].app_name, "CodeLab");
+    assert.equal(stats[0].appName, "CodeLab");
     ProcessMapper.clearUserOverrides();
   });
 
@@ -163,10 +163,10 @@ export function runProcessMapperTests() {
       daySessions: [
         makeSession({
           id: 1,
-          exe_name: "vscodium.exe",
-          app_name: "VSCodium",
-          start_time: 0,
-          end_time: 60_000,
+          exeName: "vscodium.exe",
+          appName: "VSCodium",
+          startTime: 0,
+          endTime: 60_000,
           duration: 60_000,
         }),
       ],
@@ -198,18 +198,18 @@ export function runProcessMapperTests() {
       daySessions: [
         makeSession({
           id: 1,
-          exe_name: "QQ.exe",
-          app_name: "QQ",
-          start_time: 0,
-          end_time: 60_000,
+          exeName: "QQ.exe",
+          appName: "QQ",
+          startTime: 0,
+          endTime: 60_000,
           duration: 60_000,
         }),
         makeSession({
           id: 2,
-          exe_name: "chrome.exe",
-          app_name: "Google Chrome",
-          start_time: 65_000,
-          end_time: 125_000,
+          exeName: "chrome.exe",
+          appName: "Google Chrome",
+          startTime: 65_000,
+          endTime: 125_000,
           duration: 60_000,
         }),
       ],
@@ -224,7 +224,7 @@ export function runProcessMapperTests() {
     assert.equal(historyView.appSummary.length, 1);
     assert.equal(historyView.appSummary[0].exeName.toLowerCase(), "chrome.exe");
     assert.equal(historyView.timelineSessions.length, 1);
-    assert.equal(historyView.timelineSessions[0].exe_name.toLowerCase(), "chrome.exe");
+    assert.equal(historyView.timelineSessions[0].exeName.toLowerCase(), "chrome.exe");
     ProcessMapper.clearUserOverrides();
   });
 

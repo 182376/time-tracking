@@ -31,16 +31,16 @@ export function materializeLiveSessions(
   const liveCutoffMs = resolveLiveCutoffMs(trackerHealth, nowMs);
 
   return sessions.map((session) => {
-    if (session.end_time !== null) {
+    if (session.endTime !== null) {
       return session;
     }
 
     return {
       ...session,
-      duration: Math.max(0, liveCutoffMs - session.start_time),
+      duration: Math.max(0, liveCutoffMs - session.startTime),
       diagnosticCodes: trackerHealth.status === "stale" ? ["tracker_stale_live_session"] : [],
       suspiciousDuration: trackerHealth.status === "stale"
-        ? Math.max(0, liveCutoffMs - session.start_time)
+        ? Math.max(0, liveCutoffMs - session.startTime)
         : 0,
     };
   });

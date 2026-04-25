@@ -26,16 +26,16 @@ import {
 import type { AppSettings } from "../src/shared/settings/appSettings.ts";
 
 const BASE_SETTINGS: AppSettings = {
-  idle_timeout_secs: 300,
-  timeline_merge_gap_secs: 60,
-  refresh_interval_secs: 1,
-  min_session_secs: 60,
-  tracking_paused: false,
-  close_behavior: "tray",
-  minimize_behavior: "taskbar",
-  launch_at_login: false,
-  start_minimized: false,
-  onboarding_completed: false,
+  idleTimeoutSecs: 300,
+  timelineMergeGapSecs: 60,
+  refreshIntervalSecs: 1,
+  minSessionSecs: 60,
+  trackingPaused: false,
+  closeBehavior: "tray",
+  minimizeBehavior: "taskbar",
+  launchAtLogin: false,
+  startMinimized: false,
+  onboardingCompleted: false,
 };
 
 function buildSettings(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -107,8 +107,8 @@ async function runTest(name: string, fn: () => Promise<void> | void) {
 await runTest("settings interaction helpers cover save, cancel, and failed save semantics", async () => {
   const savedSettings = buildSettings();
   const draftSettings = buildSettings({
-    tracking_paused: true,
-    timeline_merge_gap_secs: 180,
+    trackingPaused: true,
+    timelineMergeGapSecs: 180,
   });
 
   const saveResult = await saveSettingsPageStateWithDeps({
@@ -119,8 +119,8 @@ await runTest("settings interaction helpers cover save, cancel, and failed save 
     saveStatus: "idle",
   }, {
     buildPatch: (saved, draft) => ({
-      tracking_paused: draft.tracking_paused !== saved.tracking_paused ? draft.tracking_paused : saved.tracking_paused,
-      timeline_merge_gap_secs: draft.timeline_merge_gap_secs,
+      trackingPaused: draft.trackingPaused !== saved.trackingPaused ? draft.trackingPaused : saved.trackingPaused,
+      timelineMergeGapSecs: draft.timelineMergeGapSecs,
     }),
     commitPatch: async () => ({
       persisted: true,
@@ -132,8 +132,8 @@ await runTest("settings interaction helpers cover save, cancel, and failed save 
   assert.equal(saveResult.accepted, true);
   assert.equal(saveResult.toastKind, "saved");
   assert.equal(saveResult.nextSaveStatus, "saved");
-  assert.equal(saveResult.nextSavedSettings?.tracking_paused, true);
-  assert.equal(saveResult.nextBootstrap?.settings.timeline_merge_gap_secs, 180);
+  assert.equal(saveResult.nextSavedSettings?.trackingPaused, true);
+  assert.equal(saveResult.nextBootstrap?.settings.timelineMergeGapSecs, 180);
 
   const cancelResult = cancelSettingsPageState({
     savedSettings,
@@ -149,7 +149,7 @@ await runTest("settings interaction helpers cover save, cancel, and failed save 
     hasUnsavedChanges: true,
     saveStatus: "idle",
   }, {
-    buildPatch: () => ({ tracking_paused: true }),
+    buildPatch: () => ({ trackingPaused: true }),
     commitPatch: async () => {
       throw new Error("db busy");
     },
@@ -157,9 +157,9 @@ await runTest("settings interaction helpers cover save, cancel, and failed save 
 
   assert.equal(failedSaveResult.accepted, false);
   assert.equal(failedSaveResult.toastKind, "save-failed");
-  assert.equal(failedSaveResult.nextDraftSettings?.tracking_paused, true);
+  assert.equal(failedSaveResult.nextDraftSettings?.trackingPaused, true);
   assert.equal(
-    failedSaveResult.nextSavedSettings?.tracking_paused !== failedSaveResult.nextDraftSettings?.tracking_paused,
+    failedSaveResult.nextSavedSettings?.trackingPaused !== failedSaveResult.nextDraftSettings?.trackingPaused,
     true,
   );
 });
@@ -275,12 +275,12 @@ await runTest("widget window controller covers expand collapse focus-loss collap
   };
 
   const controller = createWidgetWindowController(true, {
-    loadPlacement: async () => ({ side: "left", anchor_y: 0.4 }),
+    loadPlacement: async () => ({ side: "left", anchorY: 0.4 }),
     persistExpanded: async (nextExpanded, showObjectSlot) => {
       events.push(`expanded:${nextExpanded}:${showObjectSlot}`);
     },
     applyLayout: async (placement, nextExpanded, showObjectSlot) => {
-      events.push(`layout:${placement.side}:${placement.anchor_y.toFixed(2)}:${nextExpanded}:${showObjectSlot}`);
+      events.push(`layout:${placement.side}:${placement.anchorY.toFixed(2)}:${nextExpanded}:${showObjectSlot}`);
     },
     readWindowRect: async () => currentRect,
     resolveMonitorForWindowRect: async (
@@ -290,7 +290,7 @@ await runTest("widget window controller covers expand collapse focus-loss collap
     schedule: (callback) => scheduler.schedule(callback),
     clearScheduled: (handle) => scheduler.clear(handle),
     onPlacementChange: (placement) => {
-      placementFromCallback = `${placement.side}:${placement.anchor_y.toFixed(2)}`;
+      placementFromCallback = `${placement.side}:${placement.anchorY.toFixed(2)}`;
     },
     onExpandedChange: (nextExpanded) => {
       expandedFromCallback = nextExpanded;

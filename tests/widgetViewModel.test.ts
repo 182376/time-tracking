@@ -8,54 +8,54 @@ import type {
 } from "../src/shared/types/tracking.ts";
 
 const BASE_SETTINGS: AppSettings = {
-  idle_timeout_secs: 900,
-  timeline_merge_gap_secs: 180,
-  refresh_interval_secs: 1,
-  min_session_secs: 120,
-  tracking_paused: false,
-  close_behavior: "exit",
-  minimize_behavior: "widget",
-  launch_at_login: true,
-  start_minimized: true,
-  onboarding_completed: true,
+  idleTimeoutSecs: 900,
+  timelineMergeGapSecs: 180,
+  refreshIntervalSecs: 1,
+  minSessionSecs: 120,
+  trackingPaused: false,
+  closeBehavior: "exit",
+  minimizeBehavior: "widget",
+  launchAtLogin: true,
+  startMinimized: true,
+  onboardingCompleted: true,
 };
 
 const BASE_TRACKING_STATUS: TrackingStatusSnapshot = {
-  is_tracking_active: true,
-  sustained_participation_eligible: false,
-  sustained_participation_active: false,
-  sustained_participation_kind: null,
-  sustained_participation_state: "inactive",
-  sustained_participation_signal_source: null,
-  sustained_participation_reason: "no-signal",
-  sustained_participation_diagnostics: {
+  isTrackingActive: true,
+  sustainedParticipationEligible: false,
+  sustainedParticipationActive: false,
+  sustainedParticipationKind: null,
+  sustainedParticipationState: "inactive",
+  sustainedParticipationSignalSource: null,
+  sustainedParticipationReason: "no-signal",
+  sustainedParticipationDiagnostics: {
     state: "inactive",
     reason: "no-signal",
-    window_identity: null,
-    effective_signal_source: null,
-    last_match_at_ms: null,
-    grace_deadline_ms: null,
-    system_media: {
+    windowIdentity: null,
+    effectiveSignalSource: null,
+    lastMatchAtMs: null,
+    graceDeadlineMs: null,
+    systemMedia: {
       signal: {
-        is_available: false,
-        is_active: false,
-        signal_source: null,
-        source_app_id: null,
-        source_app_identity: null,
-        playback_type: null,
+        isAvailable: false,
+        isActive: false,
+        signalSource: null,
+        sourceAppId: null,
+        sourceAppIdentity: null,
+        playbackType: null,
       },
-      match_result: "unavailable",
+      matchResult: "unavailable",
     },
-    audio_session: {
+    audioSession: {
       signal: {
-        is_available: false,
-        is_active: false,
-        signal_source: null,
-        source_app_id: null,
-        source_app_identity: null,
-        playback_type: null,
+        isAvailable: false,
+        isActive: false,
+        signalSource: null,
+        sourceAppId: null,
+        sourceAppIdentity: null,
+        playbackType: null,
       },
-      match_result: "unavailable",
+      matchResult: "unavailable",
     },
   },
 };
@@ -69,27 +69,27 @@ const BASE_TRACKER_HEALTH: TrackerHealthSnapshot = {
 
 const ACTIVE_WINDOW: TrackingWindowSnapshot = {
   hwnd: "1",
-  root_owner_hwnd: "1",
-  process_id: 7,
-  window_class: "Chrome_WidgetWin_1",
+  rootOwnerHwnd: "1",
+  processId: 7,
+  windowClass: "Chrome_WidgetWin_1",
   title: "Docs",
-  exe_name: "chrome.exe",
-  process_path: "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  is_afk: false,
-  idle_time_ms: 0,
+  exeName: "chrome.exe",
+  processPath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  isAfk: false,
+  idleTimeMs: 0,
 };
 
 const UNTRACKED_WINDOW: TrackingWindowSnapshot = {
   ...ACTIVE_WINDOW,
-  exe_name: "explorer.exe",
-  process_path: "C:/Windows/explorer.exe",
+  exeName: "explorer.exe",
+  processPath: "C:/Windows/explorer.exe",
 };
 
 const WIDGET_WINDOW: TrackingWindowSnapshot = {
   ...ACTIVE_WINDOW,
   title: "Time Tracker Widget",
-  exe_name: "time-tracker.exe",
-  process_path: "C:/Program Files/Time Tracker/time-tracker.exe",
+  exeName: "time-tracker.exe",
+  processPath: "C:/Program Files/Time Tracker/time-tracker.exe",
 };
 
 let passed = 0;
@@ -121,12 +121,12 @@ await runTest("buildWidgetViewModel distinguishes sustained participation tracki
     ACTIVE_WINDOW,
     {
       ...BASE_TRACKING_STATUS,
-      sustained_participation_eligible: true,
-      sustained_participation_active: true,
-      sustained_participation_kind: "video",
-      sustained_participation_state: "active",
-      sustained_participation_signal_source: "system-media",
-      sustained_participation_reason: "signal-matched",
+      sustainedParticipationEligible: true,
+      sustainedParticipationActive: true,
+      sustainedParticipationKind: "audio",
+      sustainedParticipationState: "active",
+      sustainedParticipationSignalSource: "system-media",
+      sustainedParticipationReason: "signal-matched",
     },
     BASE_SETTINGS,
     BASE_TRACKER_HEALTH,
@@ -142,7 +142,7 @@ await runTest("buildWidgetViewModel prioritizes paused state", () => {
   const viewModel = buildWidgetViewModel(
     ACTIVE_WINDOW,
     BASE_TRACKING_STATUS,
-    { ...BASE_SETTINGS, tracking_paused: true },
+    { ...BASE_SETTINGS, trackingPaused: true },
     BASE_TRACKER_HEALTH,
   );
 
@@ -155,7 +155,7 @@ await runTest("buildWidgetViewModel prioritizes paused state", () => {
 
 await runTest("buildWidgetViewModel treats afk or inactive tracking as idle", () => {
   const idleViewModel = buildWidgetViewModel(
-    { ...ACTIVE_WINDOW, is_afk: true },
+    { ...ACTIVE_WINDOW, isAfk: true },
     BASE_TRACKING_STATUS,
     BASE_SETTINGS,
     BASE_TRACKER_HEALTH,
@@ -166,7 +166,7 @@ await runTest("buildWidgetViewModel treats afk or inactive tracking as idle", ()
 
   const inactiveViewModel = buildWidgetViewModel(
     ACTIVE_WINDOW,
-    { ...BASE_TRACKING_STATUS, is_tracking_active: false },
+    { ...BASE_TRACKING_STATUS, isTrackingActive: false },
     BASE_SETTINGS,
     BASE_TRACKER_HEALTH,
   );

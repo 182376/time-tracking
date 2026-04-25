@@ -21,42 +21,42 @@ runTest("history replay filters pickerhost and keeps alias aggregation stable", 
   const daySessions = [
     makeSession({
       id: 1,
-      app_name: "Google Chrome",
-      exe_name: "chrome.exe",
-      start_time: 0,
-      end_time: 60_000,
+      appName: "Google Chrome",
+      exeName: "chrome.exe",
+      startTime: 0,
+      endTime: 60_000,
       duration: 60_000,
     }),
     makeSession({
       id: 2,
-      app_name: "Douyin_tray",
-      exe_name: "Douyin_tray.exe",
-      start_time: 65_000,
-      end_time: 125_000,
+      appName: "Douyin_tray",
+      exeName: "Douyin_tray.exe",
+      startTime: 65_000,
+      endTime: 125_000,
       duration: 60_000,
     }),
     makeSession({
       id: 3,
-      app_name: "抖音",
-      exe_name: "douyin.exe",
-      start_time: 130_000,
-      end_time: 190_000,
+      appName: "抖音",
+      exeName: "douyin.exe",
+      startTime: 130_000,
+      endTime: 190_000,
       duration: 60_000,
     }),
     makeSession({
       id: 4,
-      app_name: "QQ",
-      exe_name: "QQ.exe",
-      start_time: 200_000,
-      end_time: 260_000,
+      appName: "QQ",
+      exeName: "QQ.exe",
+      startTime: 200_000,
+      endTime: 260_000,
       duration: 60_000,
     }),
     makeSession({
       id: 5,
-      app_name: "PickerHost",
-      exe_name: "PickerHost.exe",
-      start_time: 270_000,
-      end_time: 330_000,
+      appName: "PickerHost",
+      exeName: "PickerHost.exe",
+      startTime: 270_000,
+      endTime: 330_000,
       duration: 60_000,
     }),
   ];
@@ -89,42 +89,42 @@ runTest("dashboard replay keeps alias aggregation stable and filters pickerhost"
   const sessions = [
     makeSession({
       id: 1,
-      app_name: "Google Chrome",
-      exe_name: "chrome.exe",
-      start_time: 0,
-      end_time: 60_000,
+      appName: "Google Chrome",
+      exeName: "chrome.exe",
+      startTime: 0,
+      endTime: 60_000,
       duration: 60_000,
     }),
     makeSession({
       id: 2,
-      app_name: "Douyin_tray",
-      exe_name: "Douyin_tray.exe",
-      start_time: 65_000,
-      end_time: 125_000,
+      appName: "Douyin_tray",
+      exeName: "Douyin_tray.exe",
+      startTime: 65_000,
+      endTime: 125_000,
       duration: 60_000,
     }),
     makeSession({
       id: 3,
-      app_name: "抖音",
-      exe_name: "douyin.exe",
-      start_time: 130_000,
-      end_time: 190_000,
+      appName: "抖音",
+      exeName: "douyin.exe",
+      startTime: 130_000,
+      endTime: 190_000,
       duration: 60_000,
     }),
     makeSession({
       id: 4,
-      app_name: "QQ",
-      exe_name: "QQ.exe",
-      start_time: 200_000,
-      end_time: 260_000,
+      appName: "QQ",
+      exeName: "QQ.exe",
+      startTime: 200_000,
+      endTime: 260_000,
       duration: 60_000,
     }),
     makeSession({
       id: 5,
-      app_name: "PickerHost",
-      exe_name: "PickerHost.exe",
-      start_time: 270_000,
-      end_time: 330_000,
+      appName: "PickerHost",
+      exeName: "PickerHost.exe",
+      startTime: 270_000,
+      endTime: 330_000,
       duration: 60_000,
     }),
   ];
@@ -149,12 +149,12 @@ runTest("replay keeps stale live session growth capped in history and dashboard"
   const sessions = [
     makeSession({
       id: 1,
-      app_name: "Cursor",
-      exe_name: "cursor.exe",
-      start_time: 10_000,
-      end_time: null,
+      appName: "Cursor",
+      exeName: "cursor.exe",
+      startTime: 10_000,
+      endTime: null,
       duration: null,
-      window_title: "Refactor",
+      windowTitle: "Refactor",
     }),
   ];
 
@@ -184,12 +184,12 @@ runTest("replay keeps startup-sealed sessions closed under stale tracker", () =>
   const sessions = [
     makeSession({
       id: 1,
-      app_name: "Cursor",
-      exe_name: "cursor.exe",
-      start_time: 10_000,
-      end_time: 18_000,
+      appName: "Cursor",
+      exeName: "cursor.exe",
+      startTime: 10_000,
+      endTime: 18_000,
       duration: 8_000,
-      window_title: "Recovered",
+      windowTitle: "Recovered",
     }),
   ];
 
@@ -220,25 +220,25 @@ runTest("replay keeps startup-sealed sessions stable after cleanup on stale trac
   const allSessions = [
     makeSession({
       id: 1,
-      app_name: "Old Active",
-      exe_name: "old-active.exe",
-      start_time: 10_000,
-      end_time: null,
+      appName: "Old Active",
+      exeName: "old-active.exe",
+      startTime: 10_000,
+      endTime: null,
       duration: null,
-      window_title: "Old Active",
+      windowTitle: "Old Active",
     }),
     makeSession({
       id: 2,
-      app_name: "Cursor",
-      exe_name: "cursor.exe",
-      start_time: 21_000,
-      end_time: 24_000,
+      appName: "Cursor",
+      exeName: "cursor.exe",
+      startTime: 21_000,
+      endTime: 24_000,
       duration: 3_000,
-      window_title: "Recovered",
+      windowTitle: "Recovered",
     }),
   ];
   const sessions = allSessions.filter((session) => (
-    !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
+    !shouldDeleteSessionByStartTime(session.startTime, cutoffTime)
   ));
 
   const history = buildHistoryReadModel({
@@ -270,25 +270,25 @@ runTest("replay keeps sessions starting at cleanup cutoff in stale tracker views
   const allSessions = [
     makeSession({
       id: 1,
-      app_name: "Before Cutoff",
-      exe_name: "before-cutoff.exe",
-      start_time: 19_999,
-      end_time: 22_000,
+      appName: "Before Cutoff",
+      exeName: "before-cutoff.exe",
+      startTime: 19_999,
+      endTime: 22_000,
       duration: 2_001,
-      window_title: "Before Cutoff",
+      windowTitle: "Before Cutoff",
     }),
     makeSession({
       id: 2,
-      app_name: "At Cutoff",
-      exe_name: "at-cutoff.exe",
-      start_time: cutoffTime,
-      end_time: 24_000,
+      appName: "At Cutoff",
+      exeName: "at-cutoff.exe",
+      startTime: cutoffTime,
+      endTime: 24_000,
       duration: 4_000,
-      window_title: "At Cutoff",
+      windowTitle: "At Cutoff",
     }),
   ];
   const sessions = allSessions.filter((session) => (
-    !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
+    !shouldDeleteSessionByStartTime(session.startTime, cutoffTime)
   ));
 
   const history = buildHistoryReadModel({
@@ -307,11 +307,11 @@ runTest("replay keeps sessions starting at cleanup cutoff in stale tracker views
   );
 
   assert.equal(history.timelineSessions.length, 1);
-  assert.equal(history.timelineSessions[0]?.exe_name, "at-cutoff.exe");
+  assert.equal(history.timelineSessions[0]?.exeName, "at-cutoff.exe");
   assert.equal(history.timelineSessions[0]?.duration, 4_000);
   assert.equal(history.diagnostics.suspiciousSessionCount, 0);
   assert.equal(dashboard.compiledSessions.length, 1);
-  assert.equal(dashboard.compiledSessions[0]?.exe_name, "at-cutoff.exe");
+  assert.equal(dashboard.compiledSessions[0]?.exeName, "at-cutoff.exe");
   assert.equal(dashboard.compiledSessions[0]?.duration, 4_000);
   assert.equal(dashboard.diagnostics.suspiciousSessionCount, 0);
 });
@@ -322,25 +322,25 @@ runTest("replay keeps active sessions starting at cleanup cutoff and caps them f
   const allSessions = [
     makeSession({
       id: 1,
-      app_name: "Old Active",
-      exe_name: "old-active.exe",
-      start_time: 10_000,
-      end_time: null,
+      appName: "Old Active",
+      exeName: "old-active.exe",
+      startTime: 10_000,
+      endTime: null,
       duration: null,
-      window_title: "Old Active",
+      windowTitle: "Old Active",
     }),
     makeSession({
       id: 2,
-      app_name: "Boundary Active",
-      exe_name: "boundary-active.exe",
-      start_time: cutoffTime,
-      end_time: null,
+      appName: "Boundary Active",
+      exeName: "boundary-active.exe",
+      startTime: cutoffTime,
+      endTime: null,
       duration: null,
-      window_title: "Boundary Active",
+      windowTitle: "Boundary Active",
     }),
   ];
   const sessions = allSessions.filter((session) => (
-    !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
+    !shouldDeleteSessionByStartTime(session.startTime, cutoffTime)
   ));
 
   const history = buildHistoryReadModel({
@@ -359,11 +359,11 @@ runTest("replay keeps active sessions starting at cleanup cutoff and caps them f
   );
 
   assert.equal(history.timelineSessions.length, 1);
-  assert.equal(history.timelineSessions[0]?.exe_name, "boundary-active.exe");
+  assert.equal(history.timelineSessions[0]?.exeName, "boundary-active.exe");
   assert.equal(history.timelineSessions[0]?.duration, 6_000);
   assert.equal(history.diagnostics.suspiciousSessionCount, 1);
   assert.equal(dashboard.compiledSessions.length, 1);
-  assert.equal(dashboard.compiledSessions[0]?.exe_name, "boundary-active.exe");
+  assert.equal(dashboard.compiledSessions[0]?.exeName, "boundary-active.exe");
   assert.equal(dashboard.compiledSessions[0]?.duration, 6_000);
   assert.equal(dashboard.diagnostics.suspiciousSessionCount, 1);
 });
@@ -378,10 +378,10 @@ runTest("dashboard formatting replay honors display name overrides", () => {
 
   try {
     const overriddenTopApps = buildTopApplications([{
-      app_name: "Dism++主程序",
-      exe_name: "Dism++x64.exe",
-      total_duration: 60_000,
-      suspicious_duration: 0,
+      appName: "Dism++主程序",
+      exeName: "Dism++x64.exe",
+      totalDuration: 60_000,
+      suspiciousDuration: 0,
     }]);
     assert.equal(overriddenTopApps[0]?.name, "Dism++");
   } finally {

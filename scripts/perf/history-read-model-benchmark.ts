@@ -8,12 +8,13 @@ import { measureBenchmark, printBenchmarkReport } from "./benchmarkUtils.ts";
 function makeSession(id: number, startTime: number, duration: number, exeName: string): HistorySession {
   return {
     id,
-    app_name: exeName.replace(/\.exe$/i, ""),
-    exe_name: exeName,
-    window_title: `${exeName} Window ${id}`,
-    start_time: startTime,
-    end_time: startTime + duration,
+    appName: exeName.replace(/\.exe$/i, ""),
+    exeName,
+    windowTitle: `${exeName} Window ${id}`,
+    startTime,
+    endTime: startTime + duration,
     duration,
+    continuityGroupStartTime: startTime,
   };
 }
 

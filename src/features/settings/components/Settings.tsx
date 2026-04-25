@@ -75,17 +75,17 @@ export default function Settings({
   }
 
   const effectiveUpdateSnapshot = updateSnapshot ?? {
-    current_version: appVersion,
+    currentVersion: appVersion,
     status: "idle",
-    latest_version: null,
-    release_notes: null,
-    release_date: null,
-    error_message: null,
-    error_stage: null,
-    downloaded_bytes: null,
-    total_bytes: null,
-    release_page_url: null,
-    asset_download_url: null,
+    latestVersion: null,
+    releaseNotes: null,
+    releaseDate: null,
+    errorMessage: null,
+    errorStage: null,
+    downloadedBytes: null,
+    totalBytes: null,
+    releasePageUrl: null,
+    assetDownloadUrl: null,
   };
 
   return (
@@ -146,7 +146,7 @@ export default function Settings({
               minutes: timelineMergeGapMinutes,
               minMinutes: timelineMergeGapMinutesRange.min,
               maxMinutes: timelineMergeGapMinutesRange.max,
-              onMinutesChange: (nextMinutes) => handleChange("timeline_merge_gap_secs", nextMinutes * 60),
+              onMinutesChange: (nextMinutes) => handleChange("timelineMergeGapSecs", nextMinutes * 60),
             }}
             idleTimeoutControl={{
               label: UI_TEXT.settings.idleTimeoutLabel,
@@ -154,7 +154,7 @@ export default function Settings({
               minutes: idleTimeoutMinutes,
               minMinutes: idleTimeoutMinutesRange.min,
               maxMinutes: idleTimeoutMinutesRange.max,
-              onMinutesChange: (nextMinutes) => handleChange("idle_timeout_secs", nextMinutes * 60),
+              onMinutesChange: (nextMinutes) => handleChange("idleTimeoutSecs", nextMinutes * 60),
             }}
             minSessionControl={{
               label: UI_TEXT.settings.minSessionLabel,
@@ -162,32 +162,32 @@ export default function Settings({
               minutes: minSessionMinutes,
               minMinutes: minSessionMinutesRange.min,
               maxMinutes: minSessionMinutesRange.max,
-              onMinutesChange: (nextMinutes) => handleChange("min_session_secs", nextMinutes * 60),
+              onMinutesChange: (nextMinutes) => handleChange("minSessionSecs", nextMinutes * 60),
             }}
-            trackingPaused={draftSettings.tracking_paused}
-            onTrackingPausedChange={(nextChecked) => handleChange("tracking_paused", nextChecked)}
+            trackingPaused={draftSettings.trackingPaused}
+            onTrackingPausedChange={(nextChecked) => handleChange("trackingPaused", nextChecked)}
           />
 
           <SettingsResidentPanel
-            minimizeToWidgetChecked={draftSettings.minimize_behavior !== minimizeBehaviorDefault}
+            minimizeToWidgetChecked={draftSettings.minimizeBehavior !== minimizeBehaviorDefault}
             onMinimizeToWidgetChange={(nextChecked) => {
               handleChange(
-                "minimize_behavior",
+                "minimizeBehavior",
                 nextChecked ? minimizeBehaviorAlternate : minimizeBehaviorDefault,
               );
             }}
-            closeToTrayChecked={draftSettings.close_behavior !== closeBehaviorDefault}
+            closeToTrayChecked={draftSettings.closeBehavior !== closeBehaviorDefault}
             onCloseToTrayChange={(nextChecked) => {
               handleChange(
-                "close_behavior",
+                "closeBehavior",
                 nextChecked ? closeBehaviorAlternate : closeBehaviorDefault,
               );
             }}
-            launchAtLoginChecked={draftSettings.launch_at_login}
-            onLaunchAtLoginChange={(nextChecked) => handleChange("launch_at_login", nextChecked)}
-            startMinimizedChecked={draftSettings.start_minimized}
-            startMinimizedDisabled={!draftSettings.launch_at_login}
-            onStartMinimizedChange={(nextChecked) => handleChange("start_minimized", nextChecked)}
+            launchAtLoginChecked={draftSettings.launchAtLogin}
+            onLaunchAtLoginChange={(nextChecked) => handleChange("launchAtLogin", nextChecked)}
+            startMinimizedChecked={draftSettings.startMinimized}
+            startMinimizedDisabled={!draftSettings.launchAtLogin}
+            onStartMinimizedChange={(nextChecked) => handleChange("startMinimized", nextChecked)}
           />
 
           <SettingsDataSafetyPanel

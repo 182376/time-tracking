@@ -1,7 +1,7 @@
 import { getDB } from "./sqlite.ts";
 import { AppClassification } from "../../shared/classification/appClassification.ts";
 
-export interface HistorySession {
+interface RawHistorySessionRow {
   id: number;
   app_name: string;
   exe_name: string;
@@ -12,9 +12,33 @@ export interface HistorySession {
   continuity_group_start_time: number | null;
 }
 
+export interface HistorySession {
+  id: number;
+  appName: string;
+  exeName: string;
+  windowTitle: string;
+  startTime: number;
+  endTime: number | null;
+  duration: number | null;
+  continuityGroupStartTime: number | null;
+}
+
 export interface DailySummary {
   date: string;
-  total_duration: number;
+  totalDuration: number;
+}
+
+function mapRawHistorySession(row: RawHistorySessionRow): HistorySession {
+  return {
+    id: row.id,
+    appName: row.app_name,
+    exeName: row.exe_name,
+    windowTitle: row.window_title,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    duration: row.duration,
+    continuityGroupStartTime: row.continuity_group_start_time,
+  };
 }
 
 export async function getIconMap(): Promise<Record<string, string>> {
@@ -42,10 +66,12 @@ export async function getIconMap(): Promise<Record<string, string>> {
 export async function getSessionsInRange(startMs: number, endMs: number): Promise<HistorySession[]> {
   const db = await getDB();
   const now = Date.now();
-  return db.select<HistorySession[]>(
+  const rows = await db.select<RawHistorySessionRow[]>(
     "SELECT id, app_name, exe_name, window_title, start_time, end_time, COALESCE(duration, MAX(0, ? - start_time)) as duration, continuity_group_start_time FROM sessions WHERE start_time < ? AND COALESCE(end_time, ?) > ? ORDER BY start_time ASC",
     [now, endMs, now, startMs],
   );
+
+  return rows.map(mapRawHistorySession);
 }
 
 export async function getHistoryByDate(date: Date): Promise<HistorySession[]> {

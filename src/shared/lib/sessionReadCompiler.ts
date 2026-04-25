@@ -25,7 +25,7 @@ export interface CompileSessionsOptions extends SessionRange {
 export interface CompiledSession extends HistorySession {
   // Stable grouping key for stats and timeline merges.
   appKey: string;
-  continuity_group_start_time: number;
+  continuityGroupStartTime: number;
   mergedCount: number;
   // User-facing display name produced by normalization rules.
   displayName: string;
@@ -49,7 +49,7 @@ export interface NormalizedAppSummaryItem {
 
 function getSessionRawEndTime(session: HistorySession) {
   const duration = Math.max(0, session.duration ?? 0);
-  return session.end_time ?? (session.start_time + duration);
+  return session.endTime ?? (session.startTime + duration);
 }
 
 function normalizeTitle(title: string, displayName: string) {
@@ -76,11 +76,11 @@ function mergeDiagnosticCodes(
 }
 
 function shouldTrackInReadModel(session: HistorySession) {
-  const exeName = session.exe_name;
+  const exeName = session.exeName;
   const canonicalExe = AppClassification.resolveCanonicalExecutable(exeName);
   return AppClassification.shouldTrackProcess(exeName, {
-    appName: session.app_name,
-    windowTitle: session.window_title,
+    appName: session.appName,
+    windowTitle: session.windowTitle,
   }) && AppClassification.shouldTrackApp(canonicalExe);
 }
 
@@ -98,7 +98,7 @@ function resolveCompiledDisplayName(
     return canonicalName;
   }
 
-  const rawExeKey = AppClassification.normalizeExecutable(session.exe_name);
+  const rawExeKey = AppClassification.normalizeExecutable(session.exeName);
 
   if (appKey !== rawExeKey) {
     // For alias executables (installer/updater/tray variants), prefer the
@@ -106,8 +106,8 @@ function resolveCompiledDisplayName(
     return AppClassification.mapApp(appKey).name;
   }
 
-  const mapped = AppClassification.mapApp(appKey, { appName: session.app_name });
-  const appName = session.app_name.trim();
+  const mapped = AppClassification.mapApp(appKey, { appName: session.appName });
+  const appName = session.appName.trim();
   if (appName) {
     return appName;
   }
@@ -116,10 +116,10 @@ function resolveCompiledDisplayName(
 }
 
 function resolveStatsExeName(session: CompiledSession) {
-  const rawExeKey = AppClassification.normalizeExecutable(session.exe_name);
-  // Keep original exe_name only when it already matches the canonical key.
+  const rawExeKey = AppClassification.normalizeExecutable(session.exeName);
+  // Keep original exeName only when it already matches the canonical key.
   // Otherwise persist the canonical executable as the stats identity.
-  return session.appKey === rawExeKey ? session.exe_name : session.appKey;
+  return session.appKey === rawExeKey ? session.exeName : session.appKey;
 }
 
 function containsCjkCharacters(value: string) {
@@ -146,18 +146,18 @@ function pickPreferredAppName(current: string, next: string) {
 function prepareSession(
   session: DiagnosableHistorySession,
 ): CompiledSession {
-  const rawEndTime = Math.max(session.start_time, getSessionRawEndTime(session));
-  const appKey = AppClassification.resolveCanonicalExecutable(session.exe_name);
+  const rawEndTime = Math.max(session.startTime, getSessionRawEndTime(session));
+  const appKey = AppClassification.resolveCanonicalExecutable(session.exeName);
   const displayName = resolveCompiledDisplayName(session, appKey);
-  const cleanedTitle = cleanWindowTitle(session.window_title, session.exe_name);
+  const cleanedTitle = cleanWindowTitle(session.windowTitle, session.exeName);
   const normalizedTitle = normalizeTitle(cleanedTitle, displayName);
 
   return {
     ...session,
-    end_time: rawEndTime,
-    duration: rawEndTime - session.start_time,
-    continuity_group_start_time:
-      session.continuity_group_start_time ?? session.start_time,
+    endTime: rawEndTime,
+    duration: rawEndTime - session.startTime,
+    continuityGroupStartTime:
+      session.continuityGroupStartTime ?? session.startTime,
     appKey,
     mergedCount: 1,
     displayName,
@@ -166,7 +166,7 @@ function prepareSession(
     sourceIds: [session.id],
     diagnosticCodes: [...(session.diagnosticCodes ?? [])],
     suspiciousDuration: Math.max(0, session.suspiciousDuration ?? 0),
-    isLive: session.end_time === null,
+    isLive: session.endTime === null,
   };
 }
 
@@ -175,8 +175,8 @@ function clipCompiledSession(
   rangeStartMs: number,
   rangeEndMs: number,
 ): CompiledSession | null {
-  const clippedStart = Math.max(session.start_time, rangeStartMs);
-  const clippedEnd = Math.min(session.end_time ?? session.start_time, rangeEndMs);
+  const clippedStart = Math.max(session.startTime, rangeStartMs);
+  const clippedEnd = Math.min(session.endTime ?? session.startTime, rangeEndMs);
 
   if (clippedEnd <= clippedStart) {
     return null;
@@ -184,8 +184,8 @@ function clipCompiledSession(
 
   return {
     ...session,
-    start_time: clippedStart,
-    end_time: clippedEnd,
+    startTime: clippedStart,
+    endTime: clippedEnd,
     duration: clippedEnd - clippedStart,
     suspiciousDuration: Math.min(Math.max(0, session.suspiciousDuration), clippedEnd - clippedStart),
   };
@@ -196,7 +196,7 @@ function finalizeCompiledSession(session: CompiledSession): CompiledSession {
 
   return {
     ...session,
-    window_title: displayTitle,
+    windowTitle: displayTitle,
     displayTitle,
   };
 }
@@ -210,7 +210,7 @@ function buildCompiledSessionBase(
   const prepared = sessions
     .filter((session) => shouldTrackInReadModel(session))
     .map((session) => prepareSession(session))
-    .sort((a, b) => a.start_time - b.start_time);
+    .sort((a, b) => a.startTime - b.startTime);
 
   const merged = prepared.reduce<CompiledSession[]>((acc, session) => {
     const previous = acc[acc.length - 1];
@@ -219,16 +219,16 @@ function buildCompiledSessionBase(
       return acc;
     }
 
-    const previousEnd = previous.end_time ?? previous.start_time;
-    const gap = session.start_time - previousEnd;
+    const previousEnd = previous.endTime ?? previous.startTime;
+    const gap = session.startTime - previousEnd;
     const sameApp = previous.appKey === session.appKey;
 
     if (sameApp && gap >= 0 && gap <= directMergeGapMs) {
-      previous.end_time = Math.max(previousEnd, session.end_time ?? session.start_time);
-      previous.duration = (previous.end_time ?? previousEnd) - previous.start_time;
-      previous.continuity_group_start_time = Math.min(
-        previous.continuity_group_start_time,
-        session.continuity_group_start_time,
+      previous.endTime = Math.max(previousEnd, session.endTime ?? session.startTime);
+      previous.duration = (previous.endTime ?? previousEnd) - previous.startTime;
+      previous.continuityGroupStartTime = Math.min(
+        previous.continuityGroupStartTime,
+        session.continuityGroupStartTime,
       );
       previous.mergedCount += session.mergedCount;
       previous.titleSamples = mergeTitleSamples(previous.titleSamples, session.titleSamples);
@@ -253,8 +253,8 @@ function buildCompiledSessionBase(
       return session;
     }
 
-    const latestEnd = latest.end_time ?? latest.start_time;
-    const sessionEnd = session.end_time ?? session.start_time;
+    const latestEnd = latest.endTime ?? latest.startTime;
+    const sessionEnd = session.endTime ?? session.startTime;
     return sessionEnd >= latestEnd ? session : latest;
   }, null);
 
@@ -271,8 +271,8 @@ function getClippedDuration(
   rangeStartMs: number,
   rangeEndMs: number,
 ) {
-  const clippedStart = Math.max(session.start_time, rangeStartMs);
-  const clippedEnd = Math.min(session.end_time ?? session.start_time, rangeEndMs);
+  const clippedStart = Math.max(session.startTime, rangeStartMs);
+  const clippedEnd = Math.min(session.endTime ?? session.startTime, rangeEndMs);
   return Math.max(0, clippedEnd - clippedStart);
 }
 
@@ -319,10 +319,10 @@ export function compileSessions(
 
 export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] {
   const totals = new Map<string, {
-    app_name: string;
-    exe_name: string;
-    total_duration: number;
-    suspicious_duration: number;
+    appName: string;
+    exeName: string;
+    totalDuration: number;
+    suspiciousDuration: number;
   }>();
 
   for (const session of sessions) {
@@ -331,34 +331,34 @@ export function buildNormalizedAppStats(sessions: CompiledSession[]): AppStat[] 
     const existing = totals.get(session.appKey);
 
     if (existing) {
-      existing.total_duration += duration;
-      existing.suspicious_duration += suspiciousDuration;
-      existing.app_name = pickPreferredAppName(existing.app_name, session.displayName);
+      existing.totalDuration += duration;
+      existing.suspiciousDuration += suspiciousDuration;
+      existing.appName = pickPreferredAppName(existing.appName, session.displayName);
       continue;
     }
 
     totals.set(session.appKey, {
-      app_name: session.displayName,
-      exe_name: resolveStatsExeName(session),
-      total_duration: duration,
-      suspicious_duration: suspiciousDuration,
+      appName: session.displayName,
+      exeName: resolveStatsExeName(session),
+      totalDuration: duration,
+      suspiciousDuration: suspiciousDuration,
     });
   }
 
-  return Array.from(totals.values()).sort((a, b) => b.total_duration - a.total_duration);
+  return Array.from(totals.values()).sort((a, b) => b.totalDuration - a.totalDuration);
 }
 
 export function buildAppSummary(
   stats: AppStat[],
 ): NormalizedAppSummaryItem[] {
-  const totalDayDuration = stats.reduce((sum, item) => sum + item.total_duration, 0);
+  const totalDayDuration = stats.reduce((sum, item) => sum + item.totalDuration, 0);
 
   return stats.map((item) => ({
-    exeName: item.exe_name,
-    appName: item.app_name,
-    duration: item.total_duration,
-    suspiciousDuration: item.suspicious_duration,
-    percentage: totalDayDuration > 0 ? (item.total_duration / totalDayDuration) * 100 : 0,
+    exeName: item.exeName,
+    appName: item.appName,
+    duration: item.totalDuration,
+    suspiciousDuration: item.suspiciousDuration,
+    percentage: totalDayDuration > 0 ? (item.totalDuration / totalDayDuration) * 100 : 0,
   }));
 }
 
@@ -382,26 +382,26 @@ export function buildTimelineSessions(
     while (j < sessions.length) {
       const nextCandidate = sessions[j];
       const prevSession = sessions[j - 1];
-      const prevEnd = prevSession.end_time ?? prevSession.start_time;
-      const gapToNext = nextCandidate.start_time - prevEnd;
+      const prevEnd = prevSession.endTime ?? prevSession.startTime;
+      const gapToNext = nextCandidate.startTime - prevEnd;
 
       if (gapToNext > mergeThresholdMs) {
         break;
       }
 
       if (nextCandidate.appKey === current.appKey) {
-        const currentEnd = current.end_time ?? current.start_time;
-        const gapFromCurrent = nextCandidate.start_time - currentEnd;
+        const currentEnd = current.endTime ?? current.startTime;
+        const gapFromCurrent = nextCandidate.startTime - currentEnd;
         const sharesContinuityGroup =
-          current.continuity_group_start_time ===
-          nextCandidate.continuity_group_start_time;
+          current.continuityGroupStartTime ===
+          nextCandidate.continuityGroupStartTime;
 
         if (sharesContinuityGroup || gapFromCurrent <= mergeThresholdMs) {
-          current.end_time = Math.max(currentEnd, nextCandidate.end_time ?? nextCandidate.start_time);
+          current.endTime = Math.max(currentEnd, nextCandidate.endTime ?? nextCandidate.startTime);
           current.duration = Math.max(0, current.duration ?? 0) + Math.max(0, nextCandidate.duration ?? 0);
-          current.continuity_group_start_time = Math.min(
-            current.continuity_group_start_time,
-            nextCandidate.continuity_group_start_time,
+          current.continuityGroupStartTime = Math.min(
+            current.continuityGroupStartTime,
+            nextCandidate.continuityGroupStartTime,
           );
           current.mergedCount += nextCandidate.mergedCount;
           current.titleSamples = mergeTitleSamples(current.titleSamples, nextCandidate.titleSamples);
@@ -410,7 +410,7 @@ export function buildTimelineSessions(
           current.suspiciousDuration += nextCandidate.suspiciousDuration;
           current.isLive = current.isLive || nextCandidate.isLive;
           current.displayTitle = summarizeTitleSamples(current.titleSamples);
-          current.window_title = current.displayTitle;
+          current.windowTitle = current.displayTitle;
           i = j;
           j += 1;
           continue;
@@ -439,7 +439,7 @@ export function buildDailySummaries(
   return dayRanges.map((range) => {
     return {
       date: formatDateKey(range.startMs),
-      total_duration: compiled.reduce(
+      totalDuration: compiled.reduce(
         (sum, session) => sum + getClippedDuration(session, range.startMs, range.endMs),
         0,
       ),

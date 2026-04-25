@@ -3,12 +3,14 @@ use sqlx::migrate::{Migration as SqlxMigration, MigrationType};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Row, Sqlite};
 use std::env;
+use std::fs::create_dir_all;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_sql::{DbInstances, DbPool};
 use tokio::time::{sleep, Duration};
 
 pub const SQLITE_DB_NAME: &str = "sqlite:timetracker.db";
+const SQLITE_DB_FILE_NAME: &str = "timetracker.db";
 
 fn resolve_app_config_db_path(app_identifier: &str) -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
@@ -58,6 +60,65 @@ fn expected_migration_metadata() -> Vec<(i64, &'static str, Vec<u8>)> {
             )
         })
         .collect()
+}
+
+fn resolve_tauri_app_config_db_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let mut app_path = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("failed to resolve app config dir: {error}"))?;
+    create_dir_all(&app_path)
+        .map_err(|error| format!("failed to create app config dir `{}`: {error}", app_path.display()))?;
+    app_path.push(SQLITE_DB_FILE_NAME);
+    Ok(app_path)
+}
+
+async fn open_single_connection_sqlite_pool(db_path: PathBuf) -> Result<Pool<Sqlite>, String> {
+    let connect_options = SqliteConnectOptions::new()
+        .filename(&db_path)
+        .create_if_missing(true)
+        .pragma("busy_timeout", "5000");
+
+    SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(connect_options)
+        .await
+        .map_err(|error| format!("failed to open sqlite db `{}`: {error}", db_path.display()))
+}
+
+pub fn is_recoverable_sqlite_error(error: &str) -> bool {
+    let normalized = error.to_ascii_lowercase();
+    normalized.contains("database is locked")
+        || normalized.contains("database is busy")
+        || normalized.contains("sqlite_busy")
+        || normalized.contains("sqlite_locked")
+        || normalized.contains("pool closed")
+        || normalized.contains("pooltimedout")
+}
+
+pub async fn reopen_sqlite_pool<R: Runtime>(app: &AppHandle<R>) -> Result<Pool<Sqlite>, String> {
+    let db_path = resolve_tauri_app_config_db_path(app)?;
+    let next_pool = open_single_connection_sqlite_pool(db_path).await?;
+
+    let instances = app
+        .try_state::<DbInstances>()
+        .ok_or_else(|| "sqlite db instances state is not available".to_string())?;
+
+    let previous_pool = {
+        let mut instances = instances.0.write().await;
+        match instances
+            .insert(SQLITE_DB_NAME.to_string(), DbPool::Sqlite(next_pool.clone()))
+        {
+            Some(DbPool::Sqlite(pool)) => Some(pool),
+            _ => None,
+        }
+    };
+
+    if let Some(pool) = previous_pool {
+        pool.close().await;
+    }
+
+    Ok(next_pool)
 }
 
 pub async fn repair_legacy_migration_history(app_identifier: &str) -> Result<(), String> {

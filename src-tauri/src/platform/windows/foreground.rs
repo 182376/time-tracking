@@ -13,7 +13,7 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-    IsIconic, IsWindowVisible, GA_ROOTOWNER,
+    IsIconic, IsWindow, IsWindowVisible, GA_ROOTOWNER,
 };
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -68,7 +68,7 @@ pub fn get_active_window() -> WindowInfo {
         let is_afk = idle_time > afk_threshold_ms;
 
         let hwnd = GetForegroundWindow();
-        if hwnd.0.is_null() {
+        if should_treat_window_as_inactive(hwnd) {
             return build_inactive_window(idle_time, is_afk);
         }
 
@@ -80,6 +80,9 @@ pub fn get_active_window() -> WindowInfo {
         let title = get_window_title(hwnd);
         let window_class = get_window_class(hwnd);
         let (process_id, exe_name, process_path) = get_process_info(root_owner_hwnd);
+        if !has_resolved_window_process(process_id, &exe_name) {
+            return build_inactive_window(idle_time, is_afk);
+        }
 
         WindowInfo {
             hwnd: format_hwnd(hwnd),
@@ -114,7 +117,14 @@ fn format_hwnd(hwnd: HWND) -> String {
 }
 
 unsafe fn should_treat_window_as_inactive(hwnd: HWND) -> bool {
-    hwnd.0.is_null() || !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool()
+    hwnd.0.is_null()
+        || !IsWindow(Some(hwnd)).as_bool()
+        || !IsWindowVisible(hwnd).as_bool()
+        || IsIconic(hwnd).as_bool()
+}
+
+fn has_resolved_window_process(process_id: u32, exe_name: &str) -> bool {
+    process_id != 0 && !exe_name.trim().is_empty()
 }
 
 unsafe fn get_root_owner_window(hwnd: HWND) -> HWND {
@@ -252,7 +262,9 @@ pub fn get_current_active_window() -> WindowInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_inactive_window, should_treat_window_as_inactive};
+    use super::{
+        build_inactive_window, has_resolved_window_process, should_treat_window_as_inactive,
+    };
     use windows::Win32::Foundation::HWND;
 
     #[test]
@@ -270,5 +282,12 @@ mod tests {
         let hwnd = HWND::default();
 
         assert!(unsafe { should_treat_window_as_inactive(hwnd) });
+    }
+
+    #[test]
+    fn unresolved_window_process_is_not_trackable_foreground() {
+        assert!(!has_resolved_window_process(0, ""));
+        assert!(!has_resolved_window_process(42, ""));
+        assert!(has_resolved_window_process(42, "Code.exe"));
     }
 }

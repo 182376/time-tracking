@@ -1,8 +1,8 @@
-use super::support::log_tracker_error;
 use super::super::sustained_participation::{
     apply_tracking_mode_window_state, load_sustained_participation_signals,
     resolve_tracking_status_with_runtime, SustainedParticipationRuntimeState,
 };
+use super::support::log_tracker_error;
 use crate::data::repositories::tracker_settings;
 use crate::domain::tracking::TrackingStatusSnapshot;
 use crate::platform::windows::foreground as tracker;

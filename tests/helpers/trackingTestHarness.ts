@@ -4,14 +4,14 @@ import type { TrackedWindow } from "../../src/shared/types/tracking.ts";
 export function makeWindow(overrides: Partial<TrackedWindow> = {}): TrackedWindow {
   return {
     hwnd: "0x100",
-    root_owner_hwnd: "0x100",
-    process_id: 123,
-    window_class: "Chrome_WidgetWin_1",
+    rootOwnerHwnd: "0x100",
+    processId: 123,
+    windowClass: "Chrome_WidgetWin_1",
     title: "Window",
-    exe_name: "QQ.exe",
-    process_path: "C:\\Program Files\\QQ\\QQ.exe",
-    is_afk: false,
-    idle_time_ms: 0,
+    exeName: "QQ.exe",
+    processPath: "C:\\Program Files\\QQ\\QQ.exe",
+    isAfk: false,
+    idleTimeMs: 0,
     ...overrides,
   };
 }
@@ -19,20 +19,20 @@ export function makeWindow(overrides: Partial<TrackedWindow> = {}): TrackedWindo
 export function makeSession(overrides: Partial<HistorySession> = {}): HistorySession {
   const session: HistorySession = {
     id: 1,
-    app_name: "QQ",
-    exe_name: "QQ.exe",
-    window_title: "QQ Chat",
-    start_time: 1_000,
-    end_time: 11_000,
+    appName: "QQ",
+    exeName: "QQ.exe",
+    windowTitle: "QQ Chat",
+    startTime: 1_000,
+    endTime: 11_000,
     duration: 10_000,
-    continuity_group_start_time: null,
+    continuityGroupStartTime: null,
     ...overrides,
   };
 
   return {
     ...session,
-    continuity_group_start_time:
-      session.continuity_group_start_time ?? session.start_time,
+    continuityGroupStartTime:
+      session.continuityGroupStartTime ?? session.startTime,
   };
 }
 

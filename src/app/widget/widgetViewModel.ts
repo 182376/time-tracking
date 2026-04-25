@@ -60,7 +60,7 @@ export function isWidgetSelfWindow(activeWindow: TrackingWindowSnapshot | null):
     return false;
   }
 
-  const normalizedExeName = AppClassification.normalizeExecutable(activeWindow.exe_name);
+  const normalizedExeName = AppClassification.normalizeExecutable(activeWindow.exeName);
   if (WIDGET_SELF_EXECUTABLES.has(normalizedExeName)) {
     return true;
   }
@@ -69,7 +69,7 @@ export function isWidgetSelfWindow(activeWindow: TrackingWindowSnapshot | null):
 }
 
 function resolveTrackableAppName(activeWindow: TrackingWindowSnapshot | null): string | null {
-  const exeName = activeWindow?.exe_name?.trim();
+  const exeName = activeWindow?.exeName?.trim();
   if (!exeName || !AppClassification.shouldTrackApp(exeName)) {
     return null;
   }
@@ -81,7 +81,7 @@ function isSustainedParticipationTracking(
   trackingStatus: TrackingStatusSnapshot,
   isTrackingForegroundApp: boolean,
 ) {
-  return isTrackingForegroundApp && trackingStatus.sustained_participation_active;
+  return isTrackingForegroundApp && trackingStatus.sustainedParticipationActive;
 }
 
 function buildActiveTrackingViewModel(
@@ -100,7 +100,7 @@ function buildActiveTrackingViewModel(
     helperText: options.helperText,
     pauseActionLabel: TEXT.pause,
     showObjectSlot: true,
-    objectIconKey: activeWindow ? AppClassification.resolveCanonicalExecutable(activeWindow.exe_name) : null,
+    objectIconKey: activeWindow ? AppClassification.resolveCanonicalExecutable(activeWindow.exeName) : null,
   };
 }
 
@@ -114,9 +114,9 @@ export function buildWidgetViewModel(
   const hasTrackableForegroundApp = trackableAppName !== null;
   const isTrackingForegroundApp = Boolean(
     activeWindow
-    && !activeWindow.is_afk
+    && !activeWindow.isAfk
     && hasTrackableForegroundApp
-    && trackingStatus.is_tracking_active,
+    && trackingStatus.isTrackingActive,
   );
 
   if (trackerHealth.status !== "healthy") {
@@ -125,13 +125,13 @@ export function buildWidgetViewModel(
       statusLabel: TEXT.error,
       appName: hasTrackableForegroundApp ? trackableAppName : TEXT.trackingService,
       helperText: TEXT.trackingNotSynced,
-      pauseActionLabel: appSettings.tracking_paused ? TEXT.resume : TEXT.pause,
+      pauseActionLabel: appSettings.trackingPaused ? TEXT.resume : TEXT.pause,
       showObjectSlot: false,
       objectIconKey: null,
     };
   }
 
-  if (appSettings.tracking_paused) {
+  if (appSettings.trackingPaused) {
     return {
       statusTone: "paused",
       statusLabel: TEXT.paused,
@@ -147,12 +147,12 @@ export function buildWidgetViewModel(
     return {
       statusTone: "idle",
       statusLabel: TEXT.idle,
-      appName: activeWindow?.is_afk
+      appName: activeWindow?.isAfk
         ? TEXT.currentlyIdle
         : hasTrackableForegroundApp
           ? trackableAppName
           : TEXT.currentAppNotTracked,
-      helperText: activeWindow?.is_afk
+      helperText: activeWindow?.isAfk
         ? TEXT.noTrackableActivity
         : hasTrackableForegroundApp
           ? TEXT.noTrackableActivity

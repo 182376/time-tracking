@@ -57,12 +57,12 @@ export function useDashboardStats(
   }, [refreshKey, fetchData]);
 
   useEffect(() => {
-    const hasLiveSession = rawSessions.some((session) => session.end_time === null);
+    const hasLiveSession = rawSessions.some((session) => session.endTime === null);
     if (!classificationReady || !hasLiveSession || trackerHealth.status !== "healthy") {
       return;
     }
 
-    const hasMissingIcons = rawSessions.some((session) => !icons[session.exe_name]);
+    const hasMissingIcons = rawSessions.some((session) => !icons[session.exeName]);
 
     const timer = window.setInterval(() => {
       setNowMs(Date.now());

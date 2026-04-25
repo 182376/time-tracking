@@ -106,11 +106,14 @@
 
 它串行执行：
 
+- `npm run check:naming`
 - `npm test`
 - `npm run test:replay`
 - `npm run test:update`
 - `npm run test:settings`
+- `npm run test:widget`
 - `npm run test:classification`
+- `npm run test:persistence`
 - `npm run test:interaction`
 - `npm run build`
 
@@ -129,6 +132,8 @@
 - 准备正式发布：本地执行 `npm run release:check`，安装包构建与 updater 产物生成默认交给 GitHub Actions
 
 当前仓库默认 CI gate 与 release workflow 的质量校验入口统一为 `npm run check:full`。
+
+`check:naming` 是前端边界的轻量命名防线。它默认扫描 `src/app/**`、`src/features/**`、`src/shared/types/**` 与 `src/shared/lib/**`，阻止 tracking / update IPC、backup preview、widget placement、settings persistence 与 SQLite read row 的常见 raw 字段重新扩散到业务层。Raw DTO、协议字段与数据库字段应继续留在 `src/platform/**`、`src-tauri/**` 或明确的 read model 内部边界。
 
 性能优化的额外规则：
 

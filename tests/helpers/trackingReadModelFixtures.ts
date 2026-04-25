@@ -14,16 +14,16 @@ export function makeStaleTrackerHealth(lastHeartbeatMs: number = 15_000, checked
 
 export function makeInterruptedSameAppSessions(): HistorySession[] {
   return [
-    makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 60_000, duration: 60_000 }),
-    makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 60_000, end_time: 90_000, duration: 30_000 }),
-    makeSession({ id: 3, exe_name: "QQ.exe", start_time: 90_000, end_time: 150_000, duration: 60_000 }),
+    makeSession({ id: 1, exeName: "QQ.exe", startTime: 0, endTime: 60_000, duration: 60_000 }),
+    makeSession({ id: 2, exeName: "Chrome.exe", appName: "Chrome", startTime: 60_000, endTime: 90_000, duration: 30_000 }),
+    makeSession({ id: 3, exeName: "QQ.exe", startTime: 90_000, endTime: 150_000, duration: 60_000 }),
   ];
 }
 
 export function makeShortTimelineSessions(): HistorySession[] {
   return [
-    makeSession({ id: 1, exe_name: "QQ.exe", start_time: 0, end_time: 20_000, duration: 20_000 }),
-    makeSession({ id: 2, exe_name: "Chrome.exe", app_name: "Chrome", start_time: 25_000, end_time: 45_000, duration: 20_000 }),
+    makeSession({ id: 1, exeName: "QQ.exe", startTime: 0, endTime: 20_000, duration: 20_000 }),
+    makeSession({ id: 2, exeName: "Chrome.exe", appName: "Chrome", startTime: 25_000, endTime: 45_000, duration: 20_000 }),
   ];
 }
 

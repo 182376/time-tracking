@@ -9,7 +9,11 @@ import {
   loadSettingRowsByKeyPrefix,
   upsertSettingValue,
 } from "../../../platform/persistence/classificationPersistence.ts";
-import { executeWriteTransaction, type SqlWriteOperation } from "../../../platform/persistence/sqlite.ts";
+import {
+  commitClassificationSettingMutations,
+  type ClassificationSettingMutation,
+} from "../../../platform/persistence/classificationSettingsGateway.ts";
+import type { SqlWriteOperation } from "../../../platform/persistence/sqlite.ts";
 import { ProcessMapper, type AppOverride } from "./ProcessMapper.ts";
 import {
   isAppCategory,
@@ -93,10 +97,10 @@ export async function saveAppOverride(exeName: string, override: AppOverride | n
   await upsertSettingValue(key, ProcessMapper.toOverrideStorageValue(override));
 }
 
-function buildSaveAppOverrideOperations(
+function buildSaveAppOverrideMutations(
   exeName: string,
   override: AppOverride | null,
-): SqlWriteOperation[] {
+): ClassificationSettingMutation[] {
   const canonicalExe = resolveCanonicalExecutable(exeName);
   if (!canonicalExe) {
     return [];
@@ -106,14 +110,14 @@ function buildSaveAppOverrideOperations(
 
   if (!override || override.enabled === false) {
     return [{
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [key],
+      key,
+      value: null,
     }];
   }
 
   return [{
-    query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    values: [key, ProcessMapper.toOverrideStorageValue(override)],
+    key,
+    value: ProcessMapper.toOverrideStorageValue(override),
   }];
 }
 
@@ -154,22 +158,22 @@ export async function saveCategoryColorOverride(
   await upsertSettingValue(key, normalizedColor);
 }
 
-function buildSaveCategoryColorOverrideOperations(
+function buildSaveCategoryColorOverrideMutations(
   category: AppCategory,
   colorValue: string | null,
-): SqlWriteOperation[] {
+): ClassificationSettingMutation[] {
   const key = `${CATEGORY_COLOR_OVERRIDE_KEY_PREFIX}${category}`;
   const normalizedColor = normalizeHexColor(colorValue ?? undefined);
   if (!normalizedColor) {
     return [{
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [key],
+      key,
+      value: null,
     }];
   }
 
   return [{
-    query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    values: [key, normalizedColor],
+    key,
+    value: normalizedColor,
   }];
 }
 
@@ -230,10 +234,10 @@ export async function saveCustomCategory(category: CustomAppCategory): Promise<v
   await upsertSettingValue(key, String(Date.now()));
 }
 
-function buildSaveCustomCategoryOperations(category: CustomAppCategory): SqlWriteOperation[] {
+function buildSaveCustomCategoryMutations(category: CustomAppCategory): ClassificationSettingMutation[] {
   return [{
-    query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    values: [`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`, String(Date.now())],
+    key: `${CUSTOM_CATEGORY_KEY_PREFIX}${category}`,
+    value: String(Date.now()),
   }];
 }
 
@@ -243,19 +247,19 @@ export async function deleteCustomCategory(category: CustomAppCategory): Promise
   await deleteSettingValue(`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`);
 }
 
-function buildDeleteCustomCategoryOperations(category: CustomAppCategory): SqlWriteOperation[] {
+function buildDeleteCustomCategoryMutations(category: CustomAppCategory): ClassificationSettingMutation[] {
   return [
     {
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [`${CUSTOM_CATEGORY_KEY_PREFIX}${category}`],
+      key: `${CUSTOM_CATEGORY_KEY_PREFIX}${category}`,
+      value: null,
     },
     {
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [`${DELETED_CATEGORY_KEY_PREFIX}${category}`],
+      key: `${DELETED_CATEGORY_KEY_PREFIX}${category}`,
+      value: null,
     },
     {
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`],
+      key: `${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`,
+      value: null,
     },
   ];
 }
@@ -290,63 +294,83 @@ export async function saveDeletedCategory(category: AppCategory, deleted: boolea
   await deleteSettingValue(`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`);
 }
 
-function buildSaveDeletedCategoryOperations(
+function buildSaveDeletedCategoryMutations(
   category: AppCategory,
   deleted: boolean,
-): SqlWriteOperation[] {
+): ClassificationSettingMutation[] {
   const key = `${DELETED_CATEGORY_KEY_PREFIX}${category}`;
   if (!isPersistableDeletedCategory(category) || !deleted) {
     return [{
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [key],
+      key,
+      value: null,
     }];
   }
 
   return [
     {
-      query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      values: [key, String(Date.now())],
+      key,
+      value: String(Date.now()),
     },
     {
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [`${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`],
+      key: `${CATEGORY_DEFAULT_COLOR_ASSIGNMENT_KEY_PREFIX}${category}`,
+      value: null,
     },
   ];
+}
+
+export function buildCommitDraftChangePlanSettingMutations(
+  changePlan: ClassificationDraftChangePlan,
+): ClassificationSettingMutation[] {
+  const mutations: ClassificationSettingMutation[] = [];
+
+  for (const update of changePlan.overrideUpserts) {
+    mutations.push(...buildSaveAppOverrideMutations(update.exeName, update.override));
+  }
+
+  for (const update of changePlan.categoryColorUpdates) {
+    mutations.push(...buildSaveCategoryColorOverrideMutations(update.category, update.colorValue));
+  }
+
+  for (const category of changePlan.customCategoriesToAdd) {
+    mutations.push(...buildSaveCustomCategoryMutations(category));
+    mutations.push(...buildSaveDeletedCategoryMutations(category, false));
+  }
+
+  for (const category of changePlan.customCategoriesToRemove) {
+    mutations.push(...buildDeleteCustomCategoryMutations(category));
+    mutations.push(...buildSaveDeletedCategoryMutations(category, false));
+    mutations.push(...buildSaveCategoryColorOverrideMutations(category, null));
+  }
+
+  for (const update of changePlan.deletedCategoryUpdates) {
+    mutations.push(...buildSaveDeletedCategoryMutations(update.category, update.deleted));
+  }
+
+  return mutations;
+}
+
+function settingMutationToWriteOperation(mutation: ClassificationSettingMutation): SqlWriteOperation {
+  if (mutation.value === null) {
+    return {
+      query: "DELETE FROM settings WHERE key = ?",
+      values: [mutation.key],
+    };
+  }
+
+  return {
+    query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    values: [mutation.key, mutation.value],
+  };
 }
 
 export function buildCommitDraftChangePlanOperations(
   changePlan: ClassificationDraftChangePlan,
 ): SqlWriteOperation[] {
-  const operations: SqlWriteOperation[] = [];
-
-  for (const update of changePlan.overrideUpserts) {
-    operations.push(...buildSaveAppOverrideOperations(update.exeName, update.override));
-  }
-
-  for (const update of changePlan.categoryColorUpdates) {
-    operations.push(...buildSaveCategoryColorOverrideOperations(update.category, update.colorValue));
-  }
-
-  for (const category of changePlan.customCategoriesToAdd) {
-    operations.push(...buildSaveCustomCategoryOperations(category));
-    operations.push(...buildSaveDeletedCategoryOperations(category, false));
-  }
-
-  for (const category of changePlan.customCategoriesToRemove) {
-    operations.push(...buildDeleteCustomCategoryOperations(category));
-    operations.push(...buildSaveDeletedCategoryOperations(category, false));
-    operations.push(...buildSaveCategoryColorOverrideOperations(category, null));
-  }
-
-  for (const update of changePlan.deletedCategoryUpdates) {
-    operations.push(...buildSaveDeletedCategoryOperations(update.category, update.deleted));
-  }
-
-  return operations;
+  return buildCommitDraftChangePlanSettingMutations(changePlan).map(settingMutationToWriteOperation);
 }
 
 export async function commitDraftChangePlan(changePlan: ClassificationDraftChangePlan): Promise<void> {
-  await executeWriteTransaction(buildCommitDraftChangePlanOperations(changePlan));
+  await commitClassificationSettingMutations(buildCommitDraftChangePlanSettingMutations(changePlan));
 }
 
 export async function loadOtherCategoryCandidates(
@@ -371,19 +395,19 @@ export async function loadObservedAppCandidates(
   const merged = new Map<string, ObservedAppCandidate>();
 
   for (const row of rows) {
-    const canonicalExe = resolveCanonicalExecutable(row.exe_name);
-    if (!canonicalExe || !shouldTrackProcess(row.exe_name)) {
+    const canonicalExe = resolveCanonicalExecutable(row.exeName);
+    if (!canonicalExe || !shouldTrackProcess(row.exeName)) {
       continue;
     }
 
-    const mapped = ProcessMapper.map(canonicalExe, { appName: row.app_name });
+    const mapped = ProcessMapper.map(canonicalExe, { appName: row.appName });
     if (mapped.category === "system") {
       continue;
     }
     const previous = merged.get(canonicalExe);
-    const duration = Math.max(0, Number(row.total_duration ?? 0));
-    const lastSeenMs = Math.max(0, Number(row.last_seen_ms ?? 0));
-    const appName = row.app_name?.trim() || mapped.name;
+    const duration = Math.max(0, Number(row.totalDuration ?? 0));
+    const lastSeenMs = Math.max(0, Number(row.lastSeenMs ?? 0));
+    const appName = row.appName?.trim() || mapped.name;
 
     if (!previous) {
       merged.set(canonicalExe, {
@@ -418,7 +442,7 @@ export async function deleteObservedAppSessions(
 
   const rows = await loadDistinctSessionExeNames();
   const matchedExeNames = rows
-    .map((row) => row.exe_name)
+    .map((row) => row.exeName)
     .filter((rawExeName) => resolveCanonicalExecutable(rawExeName) === canonicalExe);
 
   if (matchedExeNames.length === 0) {

@@ -13,7 +13,7 @@ export async function loadCurrentAppSettings(): Promise<AppSettings> {
 
 export async function loadLatestTrackingPauseSetting(): Promise<boolean> {
   const settings = await loadCurrentAppSettings();
-  return settings.tracking_paused;
+  return settings.trackingPaused;
 }
 
 export async function loadTrackerHealthTimestampMs(): Promise<number | null> {
@@ -21,5 +21,5 @@ export async function loadTrackerHealthTimestampMs(): Promise<number | null> {
 }
 
 export async function saveMinSessionSecsSetting(nextValue: number): Promise<void> {
-  await saveAppSetting("min_session_secs", nextValue);
+  await saveAppSetting("minSessionSecs", nextValue);
 }

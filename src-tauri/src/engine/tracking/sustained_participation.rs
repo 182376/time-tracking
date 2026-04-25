@@ -1,8 +1,7 @@
 use crate::domain::tracking::{
     evaluate_sustained_participation_signal, resolve_sustained_participation_identity_key,
     resolve_sustained_participation_kind, signal_explicitly_stopped_for_window,
-    signal_is_explicit_browser_video_match, sustained_participation_app_identity,
-    sustained_participation_kind_for_identity, SustainedParticipationAppIdentity,
+    sustained_participation_app_identity, SustainedParticipationAppIdentity,
     SustainedParticipationDiagnosticsSnapshot, SustainedParticipationKind,
     SustainedParticipationSignalEvaluationSnapshot, SustainedParticipationSignalMatchResult,
     SustainedParticipationSignalSnapshot, SustainedParticipationSignalSource,
@@ -11,9 +10,7 @@ use crate::domain::tracking::{
 use crate::platform::windows::{audio, foreground as tracker, media};
 
 const SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD: u8 = 3;
-const MEETING_GRACE_WINDOW_SECS: u64 = 20;
-const DEDICATED_VIDEO_GRACE_WINDOW_SECS: u64 = 12;
-const BROWSER_VIDEO_GRACE_WINDOW_SECS: u64 = 8;
+const SUSTAINED_PARTICIPATION_GRACE_WINDOW_SECS: u64 = 12;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct SustainedParticipationRuntimeState {
@@ -22,7 +19,6 @@ pub(super) struct SustainedParticipationRuntimeState {
     pub grace_deadline_ms: Option<i64>,
     pub last_signal_source: Option<SustainedParticipationSignalSource>,
     pub last_kind: Option<SustainedParticipationKind>,
-    pub has_explicit_browser_video_match: bool,
     pub transient_miss_count: u8,
 }
 
@@ -55,10 +51,10 @@ pub(super) async fn load_sustained_participation_signals(
         );
     }
 
-    (
-        media::get_sustained_participation_signal(tracked_window).await,
-        audio::get_sustained_participation_signal(tracked_window).await,
-    )
+    let system_media_signal = media::get_sustained_participation_signal(tracked_window).await;
+    let audio_signal = audio::get_sustained_participation_signal(tracked_window).await;
+
+    (system_media_signal, audio_signal)
 }
 
 pub(super) fn resolve_tracking_status_with_runtime(
@@ -89,207 +85,192 @@ pub(super) fn resolve_tracking_status_with_runtime(
     let same_identity =
         window_identity_key.is_some() && previous_state.identity_key == window_identity_key;
     let within_sustained_window = u64::from(idle_time_ms) <= sustained_participation_secs * 1000;
-    let eligible_kind =
-        matched_kind.or_else(|| window_identity.map(sustained_participation_kind_for_identity));
-    let grace_kind = matched_kind.or(previous_state.last_kind).or(eligible_kind);
+    let grace_kind = matched_kind.or(previous_state.last_kind);
     let explicit_stop_detected =
         signal_explicitly_stopped_for_window(exe_name, process_path, system_media_signal);
     let next_transient_miss_count = previous_state.transient_miss_count.saturating_add(1);
-    let browser_grace_allowed = !window_identity.map(is_browser_window).unwrap_or(false)
-        || previous_state.has_explicit_browser_video_match;
 
-    let (state, reason, effective_signal_source, sustained_participation_active, next_state) =
-        if tracking_paused {
+    let (
+        state,
+        reason,
+        effective_signal_source,
+        sustained_participation_active,
+        status_kind,
+        next_state,
+    ) = if tracking_paused {
+        (
+            SustainedParticipationState::Inactive,
+            SustainedParticipationStatusReason::TrackingPaused,
+            None,
+            false,
+            None,
+            SustainedParticipationRuntimeState::default(),
+        )
+    } else if exe_name.trim().is_empty() {
+        (
+            SustainedParticipationState::Inactive,
+            SustainedParticipationStatusReason::EmptyWindow,
+            None,
+            false,
+            None,
+            SustainedParticipationRuntimeState::default(),
+        )
+    } else if let Some(matched_signal) = matched_signal {
+        let last_kind = matched_kind;
+        if within_sustained_window {
             (
-                SustainedParticipationState::Inactive,
-                SustainedParticipationStatusReason::TrackingPaused,
-                None,
-                false,
-                SustainedParticipationRuntimeState::default(),
-            )
-        } else if exe_name.trim().is_empty() {
-            (
-                SustainedParticipationState::Inactive,
-                SustainedParticipationStatusReason::EmptyWindow,
-                None,
-                false,
-                SustainedParticipationRuntimeState::default(),
-            )
-        } else if let Some(matched_signal) = matched_signal {
-            let last_kind = matched_kind.or(eligible_kind);
-            let has_explicit_browser_video_match = signal_is_explicit_browser_video_match(
-                exe_name,
-                process_path,
-                &matched_signal.signal,
-            );
-            if within_sustained_window {
-                (
-                    SustainedParticipationState::Active,
-                    SustainedParticipationStatusReason::SignalMatched,
-                    matched_signal.signal.signal_source,
-                    true,
-                    SustainedParticipationRuntimeState {
-                        identity_key: window_identity_key.clone(),
-                        last_match_at_ms: Some(now_ms),
-                        grace_deadline_ms: None,
-                        last_signal_source: matched_signal.signal.signal_source,
-                        last_kind,
-                        has_explicit_browser_video_match,
-                        transient_miss_count: 0,
-                    },
-                )
-            } else {
-                (
-                    SustainedParticipationState::Expired,
-                    SustainedParticipationStatusReason::SustainedWindowExpired,
-                    matched_signal.signal.signal_source,
-                    false,
-                    SustainedParticipationRuntimeState {
-                        identity_key: window_identity_key.clone(),
-                        last_match_at_ms: previous_state.last_match_at_ms.or(Some(now_ms)),
-                        grace_deadline_ms: None,
-                        last_signal_source: matched_signal.signal.signal_source,
-                        last_kind,
-                        has_explicit_browser_video_match,
-                        transient_miss_count: 0,
-                    },
-                )
-            }
-        } else if same_identity
-            && previous_state.last_match_at_ms.is_some()
-            && !within_sustained_window
-        {
-            (
-                SustainedParticipationState::Expired,
-                SustainedParticipationStatusReason::SustainedWindowExpired,
-                previous_state.last_signal_source,
-                false,
+                SustainedParticipationState::Active,
+                SustainedParticipationStatusReason::SignalMatched,
+                matched_signal.signal.signal_source,
+                true,
+                last_kind,
                 SustainedParticipationRuntimeState {
                     identity_key: window_identity_key.clone(),
-                    last_match_at_ms: previous_state.last_match_at_ms,
+                    last_match_at_ms: Some(now_ms),
                     grace_deadline_ms: None,
-                    last_signal_source: previous_state.last_signal_source,
-                    last_kind: grace_kind,
-                    has_explicit_browser_video_match: previous_state
-                        .has_explicit_browser_video_match,
-                    transient_miss_count: 0,
-                },
-            )
-        } else if same_identity
-            && previous_state.last_match_at_ms.is_some()
-            && explicit_stop_detected
-        {
-            (
-                SustainedParticipationState::Candidate,
-                SustainedParticipationStatusReason::SignalInactive,
-                previous_state.last_signal_source,
-                false,
-                SustainedParticipationRuntimeState {
-                    identity_key: window_identity_key.clone(),
-                    last_match_at_ms: previous_state.last_match_at_ms,
-                    grace_deadline_ms: None,
-                    last_signal_source: previous_state.last_signal_source,
-                    last_kind: grace_kind,
-                    has_explicit_browser_video_match: previous_state
-                        .has_explicit_browser_video_match,
-                    transient_miss_count: 0,
-                },
-            )
-        } else if same_identity && previous_state.last_match_at_ms.is_some() {
-            let grace_deadline_ms = if next_transient_miss_count
-                >= SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD
-                && browser_grace_allowed
-            {
-                previous_state.grace_deadline_ms.or_else(|| {
-                    grace_kind.map(|kind| {
-                        now_ms.saturating_add(resolve_grace_window_ms(
-                            kind,
-                            previous_state.has_explicit_browser_video_match,
-                        ))
-                    })
-                })
-            } else {
-                None
-            };
-            let still_in_grace = grace_deadline_ms
-                .map(|deadline| deadline >= now_ms)
-                .unwrap_or(false);
-
-            if browser_grace_allowed
-                && (next_transient_miss_count < SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD
-                    || still_in_grace)
-            {
-                (
-                    SustainedParticipationState::Grace,
-                    SustainedParticipationStatusReason::GraceWindow,
-                    previous_state.last_signal_source,
-                    true,
-                    SustainedParticipationRuntimeState {
-                        identity_key: window_identity_key.clone(),
-                        last_match_at_ms: previous_state.last_match_at_ms,
-                        grace_deadline_ms,
-                        last_signal_source: previous_state.last_signal_source,
-                        last_kind: grace_kind,
-                        has_explicit_browser_video_match: previous_state
-                            .has_explicit_browser_video_match,
-                        transient_miss_count: next_transient_miss_count,
-                    },
-                )
-            } else {
-                (
-                    SustainedParticipationState::Candidate,
-                    if next_transient_miss_count >= SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD
-                        && browser_grace_allowed
-                    {
-                        SustainedParticipationStatusReason::GraceExpired
-                    } else {
-                        resolve_candidate_reason(&system_media, &audio_session)
-                    },
-                    previous_state.last_signal_source,
-                    false,
-                    SustainedParticipationRuntimeState {
-                        identity_key: window_identity_key.clone(),
-                        last_match_at_ms: previous_state.last_match_at_ms,
-                        grace_deadline_ms: None,
-                        last_signal_source: previous_state.last_signal_source,
-                        last_kind: grace_kind,
-                        has_explicit_browser_video_match: previous_state
-                            .has_explicit_browser_video_match,
-                        transient_miss_count: next_transient_miss_count,
-                    },
-                )
-            }
-        } else if eligible_kind.is_some() {
-            (
-                SustainedParticipationState::Candidate,
-                resolve_candidate_reason(&system_media, &audio_session),
-                None,
-                false,
-                SustainedParticipationRuntimeState {
-                    identity_key: window_identity_key.clone(),
-                    last_match_at_ms: None,
-                    grace_deadline_ms: None,
-                    last_signal_source: None,
-                    last_kind: eligible_kind,
-                    has_explicit_browser_video_match: false,
+                    last_signal_source: matched_signal.signal.signal_source,
+                    last_kind,
                     transient_miss_count: 0,
                 },
             )
         } else {
             (
-                SustainedParticipationState::Inactive,
-                resolve_inactive_reason(&system_media, &audio_session, window_identity),
-                None,
+                SustainedParticipationState::Expired,
+                SustainedParticipationStatusReason::SustainedWindowExpired,
+                matched_signal.signal.signal_source,
                 false,
-                SustainedParticipationRuntimeState::default(),
+                last_kind,
+                SustainedParticipationRuntimeState {
+                    identity_key: window_identity_key.clone(),
+                    last_match_at_ms: previous_state.last_match_at_ms.or(Some(now_ms)),
+                    grace_deadline_ms: None,
+                    last_signal_source: matched_signal.signal.signal_source,
+                    last_kind,
+                    transient_miss_count: 0,
+                },
             )
-        };
+        }
+    } else if same_identity && previous_state.last_match_at_ms.is_some() && !within_sustained_window
+    {
+        (
+            SustainedParticipationState::Expired,
+            SustainedParticipationStatusReason::SustainedWindowExpired,
+            previous_state.last_signal_source,
+            false,
+            grace_kind,
+            SustainedParticipationRuntimeState {
+                identity_key: window_identity_key.clone(),
+                last_match_at_ms: previous_state.last_match_at_ms,
+                grace_deadline_ms: None,
+                last_signal_source: previous_state.last_signal_source,
+                last_kind: grace_kind,
+                transient_miss_count: 0,
+            },
+        )
+    } else if same_identity && previous_state.last_match_at_ms.is_some() && explicit_stop_detected {
+        (
+            SustainedParticipationState::Candidate,
+            SustainedParticipationStatusReason::SignalInactive,
+            previous_state.last_signal_source,
+            false,
+            grace_kind,
+            SustainedParticipationRuntimeState {
+                identity_key: window_identity_key.clone(),
+                last_match_at_ms: previous_state.last_match_at_ms,
+                grace_deadline_ms: None,
+                last_signal_source: previous_state.last_signal_source,
+                last_kind: grace_kind,
+                transient_miss_count: 0,
+            },
+        )
+    } else if same_identity && previous_state.last_match_at_ms.is_some() {
+        let grace_deadline_ms =
+            if next_transient_miss_count >= SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD {
+                Some(
+                    previous_state
+                        .grace_deadline_ms
+                        .unwrap_or_else(|| now_ms.saturating_add(resolve_grace_window_ms())),
+                )
+            } else {
+                None
+            };
+        let still_in_grace = grace_deadline_ms
+            .map(|deadline| deadline >= now_ms)
+            .unwrap_or(false);
+
+        if next_transient_miss_count < SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD
+            || still_in_grace
+        {
+            (
+                SustainedParticipationState::Grace,
+                SustainedParticipationStatusReason::GraceWindow,
+                previous_state.last_signal_source,
+                true,
+                grace_kind,
+                SustainedParticipationRuntimeState {
+                    identity_key: window_identity_key.clone(),
+                    last_match_at_ms: previous_state.last_match_at_ms,
+                    grace_deadline_ms,
+                    last_signal_source: previous_state.last_signal_source,
+                    last_kind: grace_kind,
+                    transient_miss_count: next_transient_miss_count,
+                },
+            )
+        } else {
+            (
+                SustainedParticipationState::Candidate,
+                if next_transient_miss_count >= SUSTAINED_PARTICIPATION_TRANSIENT_MISS_THRESHOLD {
+                    SustainedParticipationStatusReason::GraceExpired
+                } else {
+                    resolve_candidate_reason(&system_media, &audio_session)
+                },
+                previous_state.last_signal_source,
+                false,
+                grace_kind,
+                SustainedParticipationRuntimeState {
+                    identity_key: window_identity_key.clone(),
+                    last_match_at_ms: previous_state.last_match_at_ms,
+                    grace_deadline_ms: None,
+                    last_signal_source: previous_state.last_signal_source,
+                    last_kind: grace_kind,
+                    transient_miss_count: next_transient_miss_count,
+                },
+            )
+        }
+    } else if system_media.match_result != SustainedParticipationSignalMatchResult::Unavailable
+        || audio_session.match_result != SustainedParticipationSignalMatchResult::Unavailable
+    {
+        (
+            SustainedParticipationState::Candidate,
+            resolve_candidate_reason(&system_media, &audio_session),
+            None,
+            false,
+            None,
+            SustainedParticipationRuntimeState {
+                identity_key: window_identity_key.clone(),
+                last_match_at_ms: None,
+                grace_deadline_ms: None,
+                last_signal_source: None,
+                last_kind: None,
+                transient_miss_count: 0,
+            },
+        )
+    } else {
+        (
+            SustainedParticipationState::Inactive,
+            resolve_inactive_reason(&system_media, &audio_session, window_identity),
+            None,
+            false,
+            None,
+            SustainedParticipationRuntimeState::default(),
+        )
+    };
 
     let tracking_status = TrackingStatusSnapshot {
         is_tracking_active: continuity_active || sustained_participation_active,
-        sustained_participation_eligible: eligible_kind.is_some(),
+        sustained_participation_eligible: status_kind.is_some(),
         sustained_participation_active,
-        sustained_participation_kind: eligible_kind,
+        sustained_participation_kind: status_kind,
         sustained_participation_state: state,
         sustained_participation_signal_source: effective_signal_source,
         sustained_participation_reason: reason,
@@ -315,12 +296,9 @@ fn select_matched_signal<'a>(
     audio_session: &'a SustainedParticipationSignalEvaluationSnapshot,
 ) -> Option<&'a SustainedParticipationSignalEvaluationSnapshot> {
     for evaluation in [system_media, audio_session] {
-        if evaluation.match_result != SustainedParticipationSignalMatchResult::Matched {
-            continue;
-        }
-
-        if resolve_sustained_participation_kind(exe_name, process_path, &evaluation.signal)
-            .is_some()
+        if evaluation.match_result == SustainedParticipationSignalMatchResult::Matched
+            && resolve_sustained_participation_kind(exe_name, process_path, &evaluation.signal)
+                .is_some()
         {
             return Some(evaluation);
         }
@@ -329,27 +307,10 @@ fn select_matched_signal<'a>(
     None
 }
 
-fn is_browser_window(identity: SustainedParticipationAppIdentity) -> bool {
-    matches!(
-        identity,
-        SustainedParticipationAppIdentity::Chrome
-            | SustainedParticipationAppIdentity::Edge
-            | SustainedParticipationAppIdentity::Firefox
-            | SustainedParticipationAppIdentity::Brave
-    )
-}
-
-fn resolve_grace_window_ms(
-    kind: SustainedParticipationKind,
-    has_explicit_browser_video_match: bool,
-) -> i64 {
-    let grace_window_secs = match (kind, has_explicit_browser_video_match) {
-        (SustainedParticipationKind::Meeting, _) => MEETING_GRACE_WINDOW_SECS,
-        (SustainedParticipationKind::Video, true) => BROWSER_VIDEO_GRACE_WINDOW_SECS,
-        (SustainedParticipationKind::Video, false) => DEDICATED_VIDEO_GRACE_WINDOW_SECS,
-    };
-
-    grace_window_secs.saturating_mul(1000).min(i64::MAX as u64) as i64
+fn resolve_grace_window_ms() -> i64 {
+    SUSTAINED_PARTICIPATION_GRACE_WINDOW_SECS
+        .saturating_mul(1000)
+        .min(i64::MAX as u64) as i64
 }
 
 fn resolve_candidate_reason(
@@ -377,19 +338,15 @@ fn resolve_candidate_reason(
 fn resolve_inactive_reason(
     system_media: &SustainedParticipationSignalEvaluationSnapshot,
     audio_session: &SustainedParticipationSignalEvaluationSnapshot,
-    window_identity: Option<SustainedParticipationAppIdentity>,
+    _window_identity: Option<SustainedParticipationAppIdentity>,
 ) -> SustainedParticipationStatusReason {
-    if window_identity.is_some() {
-        return resolve_candidate_reason(system_media, audio_session);
-    }
-
     if system_media.match_result == SustainedParticipationSignalMatchResult::IdentityMismatch
         || audio_session.match_result == SustainedParticipationSignalMatchResult::IdentityMismatch
     {
         return SustainedParticipationStatusReason::IdentityMismatch;
     }
 
-    SustainedParticipationStatusReason::NotEligible
+    SustainedParticipationStatusReason::NoSignal
 }
 
 #[cfg(test)]
@@ -438,7 +395,7 @@ mod tests {
             is_tracking_active: true,
             sustained_participation_eligible: true,
             sustained_participation_active: true,
-            sustained_participation_kind: Some(SustainedParticipationKind::Meeting),
+            sustained_participation_kind: Some(SustainedParticipationKind::Audio),
             ..TrackingStatusSnapshot::default()
         };
 
@@ -454,7 +411,7 @@ mod tests {
             identity_key: Some("zoom".into()),
             last_match_at_ms: Some(10_000),
             last_signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            last_kind: Some(SustainedParticipationKind::Meeting),
+            last_kind: Some(SustainedParticipationKind::Audio),
             ..SustainedParticipationRuntimeState::default()
         };
 
@@ -493,7 +450,7 @@ mod tests {
             identity_key: Some("zoom".into()),
             last_match_at_ms: Some(10_000),
             last_signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            last_kind: Some(SustainedParticipationKind::Meeting),
+            last_kind: Some(SustainedParticipationKind::Audio),
             transient_miss_count: 2,
             ..SustainedParticipationRuntimeState::default()
         };
@@ -518,7 +475,7 @@ mod tests {
             SustainedParticipationState::Grace
         );
         assert_eq!(next_state.transient_miss_count, 3);
-        assert_eq!(next_state.grace_deadline_ms, Some(32_000));
+        assert_eq!(next_state.grace_deadline_ms, Some(24_000));
     }
 
     #[test]
@@ -528,7 +485,7 @@ mod tests {
             last_match_at_ms: Some(10_000),
             grace_deadline_ms: Some(11_000),
             last_signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            last_kind: Some(SustainedParticipationKind::Meeting),
+            last_kind: Some(SustainedParticipationKind::Audio),
             transient_miss_count: 3,
             ..SustainedParticipationRuntimeState::default()
         };
@@ -564,7 +521,7 @@ mod tests {
             identity_key: Some("zoom".into()),
             last_match_at_ms: Some(10_000),
             last_signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            last_kind: Some(SustainedParticipationKind::Meeting),
+            last_kind: Some(SustainedParticipationKind::Audio),
             ..SustainedParticipationRuntimeState::default()
         };
         let inactive_system_media = SustainedParticipationSignalSnapshot {
@@ -692,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn browser_audio_only_signal_does_not_activate_sustained_participation() {
+    fn browser_audio_signal_activates_sustained_participation() {
         let audio_signal = SustainedParticipationSignalSnapshot {
             is_available: true,
             is_active: true,
@@ -716,22 +673,21 @@ mod tests {
             &audio_signal,
         );
 
-        assert!(!status.sustained_participation_active);
+        assert!(status.sustained_participation_active);
         assert_eq!(
             status.sustained_participation_state,
-            SustainedParticipationState::Candidate
+            SustainedParticipationState::Active
         );
         assert!(status.sustained_participation_eligible);
     }
 
     #[test]
-    fn browser_video_grace_uses_shorter_deadline() {
+    fn sustained_participation_grace_uses_single_signal_deadline() {
         let previous_state = SustainedParticipationRuntimeState {
             identity_key: Some("chrome".into()),
             last_match_at_ms: Some(10_000),
             last_signal_source: Some(SustainedParticipationSignalSource::SystemMedia),
-            last_kind: Some(SustainedParticipationKind::Video),
-            has_explicit_browser_video_match: true,
+            last_kind: Some(SustainedParticipationKind::Audio),
             transient_miss_count: 2,
             ..SustainedParticipationRuntimeState::default()
         };
@@ -755,6 +711,6 @@ mod tests {
             status.sustained_participation_state,
             SustainedParticipationState::Grace
         );
-        assert_eq!(next_state.grace_deadline_ms, Some(20_000));
+        assert_eq!(next_state.grace_deadline_ms, Some(24_000));
     }
 }

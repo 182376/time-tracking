@@ -117,12 +117,12 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 1,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 10_000,
-        end_time: 18_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 10_000,
+        endTime: 18_000,
         duration: 8_000,
-        window_title: "Recovered",
+        windowTitle: "Recovered",
       }),
     ];
     const events: string[] = [];
@@ -226,21 +226,21 @@ export function runReadModelRuntimeTests() {
     const restoredSessions = [
       makeSession({
         id: 11,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 20_000,
-        end_time: 28_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 20_000,
+        endTime: 28_000,
         duration: 8_000,
-        window_title: "Recovered editor",
+        windowTitle: "Recovered editor",
       }),
       makeSession({
         id: 12,
-        app_name: "QQ",
-        exe_name: "qq.exe",
-        start_time: 30_000,
-        end_time: 34_000,
+        appName: "QQ",
+        exeName: "qq.exe",
+        startTime: 30_000,
+        endTime: 34_000,
         duration: 4_000,
-        window_title: "Recovered chat",
+        windowTitle: "Recovered chat",
       }),
     ];
     let syncTick = 0;
@@ -309,8 +309,8 @@ export function runReadModelRuntimeTests() {
     });
 
     assert.equal(history.timelineSessions.length, 2);
-    assert.equal(history.timelineSessions[0]?.exe_name, "qq.exe");
-    assert.equal(history.timelineSessions[1]?.exe_name, "cursor.exe");
+    assert.equal(history.timelineSessions[0]?.exeName, "qq.exe");
+    assert.equal(history.timelineSessions[1]?.exeName, "cursor.exe");
     assert.equal(dashboard.totalTrackedTime, 12_000);
     assert.equal(dashboard.topApplications[0]?.exeName, "cursor.exe");
     assert.equal(dashboard.topApplications[0]?.duration, 8_000);
@@ -323,12 +323,12 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 21,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 10_000,
-        end_time: 15_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 10_000,
+        endTime: 15_000,
         duration: 5_000,
-        window_title: "Watchdog recovered",
+        windowTitle: "Watchdog recovered",
       }),
     ];
     let syncTick = 0;
@@ -409,12 +409,12 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 26,
-        app_name: "WeChat",
-        exe_name: "wechat.exe",
-        start_time: 10_000,
-        end_time: 22_000,
+        appName: "WeChat",
+        exeName: "wechat.exe",
+        startTime: 10_000,
+        endTime: 22_000,
         duration: 12_000,
-        window_title: "Paused chat",
+        windowTitle: "Paused chat",
       }),
     ];
     let syncTick = 0;
@@ -482,7 +482,7 @@ export function runReadModelRuntimeTests() {
     });
 
     assert.equal(history.timelineSessions.length, 1);
-    assert.equal(history.timelineSessions[0]?.exe_name, "wechat.exe");
+    assert.equal(history.timelineSessions[0]?.exeName, "wechat.exe");
     assert.equal(history.timelineSessions[0]?.duration, 12_000);
     assert.equal(history.diagnostics.suspiciousSessionCount, 0);
     assert.equal(dashboard.totalTrackedTime, 12_000);
@@ -497,12 +497,12 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 31,
-        app_name: "QQ",
-        exe_name: "qq.exe",
-        start_time: 10_000,
-        end_time: 20_000,
+        appName: "QQ",
+        exeName: "qq.exe",
+        startTime: 10_000,
+        endTime: 20_000,
         duration: 10_000,
-        window_title: "Locked chat",
+        windowTitle: "Locked chat",
       }),
     ];
     let syncTick = 0;
@@ -583,12 +583,12 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 41,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 12_000,
-        end_time: 24_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 12_000,
+        endTime: 24_000,
         duration: 12_000,
-        window_title: "Suspended editor",
+        windowTitle: "Suspended editor",
       }),
     ];
     let syncTick = 0;
@@ -657,7 +657,7 @@ export function runReadModelRuntimeTests() {
 
     assert.equal(history.timelineSessions.length, 1);
     assert.equal(history.timelineSessions[0]?.duration, 12_000);
-    assert.equal(history.timelineSessions[0]?.exe_name, "cursor.exe");
+    assert.equal(history.timelineSessions[0]?.exeName, "cursor.exe");
     assert.equal(history.diagnostics.suspiciousSessionCount, 0);
     assert.equal(dashboard.totalTrackedTime, 12_000);
     assert.equal(dashboard.topApplications[0]?.exeName, "cursor.exe");
@@ -672,25 +672,25 @@ export function runReadModelRuntimeTests() {
     const sealedSessions = [
       makeSession({
         id: 51,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 10_000,
-        end_time: 18_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 10_000,
+        endTime: 18_000,
         duration: 8_000,
-        window_title: "Cleaned sealed session",
+        windowTitle: "Cleaned sealed session",
       }),
       makeSession({
         id: 52,
-        app_name: "QQ",
-        exe_name: "qq.exe",
-        start_time: 24_000,
-        end_time: 30_000,
+        appName: "QQ",
+        exeName: "qq.exe",
+        startTime: 24_000,
+        endTime: 30_000,
         duration: 6_000,
-        window_title: "Retained sealed session",
+        windowTitle: "Retained sealed session",
       }),
     ];
     const persistedSessions = sealedSessions.filter((session) => (
-      !shouldDeleteSessionByStartTime(session.start_time, cleanupCutoffTime)
+      !shouldDeleteSessionByStartTime(session.startTime, cleanupCutoffTime)
     ));
     let syncTick = 0;
     let pauseSettingLoadCalls = 0;
@@ -757,13 +757,13 @@ export function runReadModelRuntimeTests() {
     });
 
     assert.equal(persistedSessions.length, 1);
-    assert.equal(persistedSessions[0]?.exe_name, "qq.exe");
+    assert.equal(persistedSessions[0]?.exeName, "qq.exe");
     assert.equal(history.timelineSessions.length, 1);
-    assert.equal(history.timelineSessions[0]?.exe_name, "qq.exe");
-    assert.equal(history.timelineSessions.some((session) => session.exe_name === "cursor.exe"), false);
+    assert.equal(history.timelineSessions[0]?.exeName, "qq.exe");
+    assert.equal(history.timelineSessions.some((session) => session.exeName === "cursor.exe"), false);
     assert.equal(history.diagnostics.suspiciousSessionCount, 0);
     assert.equal(dashboard.compiledSessions.length, 1);
-    assert.equal(dashboard.compiledSessions[0]?.exe_name, "qq.exe");
+    assert.equal(dashboard.compiledSessions[0]?.exeName, "qq.exe");
     assert.equal(dashboard.topApplications.some((item) => item.exeName === "cursor.exe"), false);
     assert.equal(dashboard.topApplications[0]?.exeName, "qq.exe");
     assert.equal(dashboard.topApplications[0]?.duration, 6_000);
@@ -776,21 +776,21 @@ export function runReadModelRuntimeTests() {
     const sessions = [
       makeSession({
         id: 61,
-        app_name: "Cursor",
-        exe_name: "cursor.exe",
-        start_time: 16_000,
-        end_time: 20_000,
+        appName: "Cursor",
+        exeName: "cursor.exe",
+        startTime: 16_000,
+        endTime: 20_000,
         duration: 4_000,
-        window_title: "Previous editor",
+        windowTitle: "Previous editor",
       }),
       makeSession({
         id: 62,
-        app_name: "QQ",
-        exe_name: "qq.exe",
-        start_time: 25_000,
-        end_time: null,
+        appName: "QQ",
+        exeName: "qq.exe",
+        startTime: 25_000,
+        endTime: null,
         duration: null,
-        window_title: "Live chat",
+        windowTitle: "Live chat",
       }),
     ];
     let syncTick = 0;
@@ -858,9 +858,9 @@ export function runReadModelRuntimeTests() {
     });
 
     assert.equal(history.timelineSessions.length, 2);
-    assert.equal(history.timelineSessions[0]?.exe_name, "qq.exe");
+    assert.equal(history.timelineSessions[0]?.exeName, "qq.exe");
     assert.equal(history.timelineSessions[0]?.duration, 5_000);
-    assert.equal(history.timelineSessions[1]?.exe_name, "cursor.exe");
+    assert.equal(history.timelineSessions[1]?.exeName, "cursor.exe");
     assert.equal(history.timelineSessions[1]?.duration, 4_000);
     assert.equal(history.diagnostics.suspiciousSessionCount, 0);
     assert.equal(dashboard.totalTrackedTime, 9_000);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   buildCustomCategory,
+  USER_ASSIGNABLE_CATEGORIES,
   type UserAssignableAppCategory,
 } from "../src/features/classification/config/categoryTokens.ts";
 import {
@@ -12,7 +13,9 @@ import type { ObservedAppCandidate } from "../src/features/classification/servic
 import {
   type ClassificationCommitDeps,
   commitDraftChangesWithDeps,
+  createClassificationCommitDeps,
 } from "../src/features/classification/services/classificationService.ts";
+import { ProcessMapper } from "../src/shared/classification/processMapper.ts";
 import {
   buildClassificationDraftChangePlan,
   cloneClassificationDraftState,
@@ -80,6 +83,36 @@ await runTest("sanitizeDeletedCategories keeps only builtin user-assignable cate
   assert.deepEqual(
     sanitizeDeletedCategories(["music", "other", "system", customCategory]),
     ["music"],
+  );
+});
+
+await runTest("first install assignable categories match the lean default set", () => {
+  assert.deepEqual(USER_ASSIGNABLE_CATEGORIES, [
+    "ai",
+    "development",
+    "office",
+    "browser",
+    "communication",
+    "video",
+    "music",
+    "game",
+    "design",
+    "utility",
+    "other",
+  ]);
+  assert.equal(ProcessMapper.map("zoom.exe").category, "office");
+  assert.equal(ProcessMapper.map("teams.exe").category, "office");
+  assert.equal(
+    ProcessMapper.fromOverrideStorageValue(JSON.stringify({ category: "meeting", enabled: true }))?.category,
+    "office",
+  );
+  assert.equal(
+    ProcessMapper.fromOverrideStorageValue(JSON.stringify({ category: "reading", enabled: true }))?.category,
+    "browser",
+  );
+  assert.equal(
+    ProcessMapper.fromOverrideStorageValue(JSON.stringify({ category: "finance", enabled: true }))?.category,
+    "utility",
   );
 });
 
@@ -304,6 +337,37 @@ await runTest("commitDraftChangesWithDeps persists before syncing process mapper
     "sync:color",
     "sync:deleted",
   ]);
+});
+
+await runTest("default classification commit deps keep ProcessMapper runtime sync bound", async () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.clearCategoryColorOverrides();
+  ProcessMapper.setDeletedCategories([]);
+
+  const saved = buildDraftState();
+  const draft = buildDraftState({
+    overrides: {
+      "chrome.exe": {
+        enabled: true,
+        displayName: "Work Browser",
+      },
+    },
+    categoryColorOverrides: {
+      development: "#112233",
+    },
+    deletedCategories: ["music"],
+  });
+  const deps = createClassificationCommitDeps(async () => {});
+
+  await commitDraftChangesWithDeps(saved, draft, deps);
+
+  assert.equal(ProcessMapper.getUserOverride("chrome.exe")?.displayName, "Work Browser");
+  assert.equal(ProcessMapper.getCategoryColorOverride("development"), "#112233");
+  assert.equal(ProcessMapper.isCategoryDeleted("music"), true);
+
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.clearCategoryColorOverrides();
+  ProcessMapper.setDeletedCategories([]);
 });
 
 await runTest("commitDraftChangesWithDeps does not sync process mapper state when persistence fails", async () => {

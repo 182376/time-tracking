@@ -36,24 +36,24 @@ export function formatDashboardDuration(ms: number) {
 }
 
 export function getTotalTrackedTime(stats: AppStat[]) {
-  return stats.reduce((total, item) => total + Math.max(0, item.total_duration), 0);
+  return stats.reduce((total, item) => total + Math.max(0, item.totalDuration), 0);
 }
 
 export function buildTopApplications(stats: AppStat[]): TopApplicationItem[] {
   const totalTrackedTime = getTotalTrackedTime(stats);
 
   return stats.map((item) => {
-    const mapped = AppClassification.mapApp(item.exe_name, { appName: item.app_name });
-    const overrideName = AppClassification.getUserOverride(item.exe_name)?.displayName?.trim();
-    const name = overrideName || item.app_name.trim() || mapped.name;
+    const mapped = AppClassification.mapApp(item.exeName, { appName: item.appName });
+    const overrideName = AppClassification.getUserOverride(item.exeName)?.displayName?.trim();
+    const name = overrideName || item.appName.trim() || mapped.name;
     return {
-      exeName: item.exe_name,
+      exeName: item.exeName,
       name,
       color: mapped.color,
-      duration: Math.max(0, item.total_duration),
-      suspiciousDuration: Math.max(0, item.suspicious_duration),
+      duration: Math.max(0, item.totalDuration),
+      suspiciousDuration: Math.max(0, item.suspiciousDuration),
       percentage: totalTrackedTime > 0
-        ? Math.round((Math.max(0, item.total_duration) / totalTrackedTime) * 100)
+        ? Math.round((Math.max(0, item.totalDuration) / totalTrackedTime) * 100)
         : 0,
       categoryInitial: mapped.category[0].toUpperCase(),
     };
@@ -64,8 +64,8 @@ export function buildHourlyActivity(sessions: HistorySession[]): HourlyActivityP
   const hoursCount = new Array(24).fill(0);
 
   for (const session of sessions) {
-    const start = new Date(session.start_time);
-    const end = session.end_time ? new Date(session.end_time) : new Date();
+    const start = new Date(session.startTime);
+    const end = session.endTime ? new Date(session.endTime) : new Date();
 
     let hourPtr = start.getHours();
     let currentPtr = start.getTime();
@@ -94,8 +94,8 @@ export function buildCategoryDistribution(stats: AppStat[]): CategoryDistItem[] 
   const categories = new Map<AppCategory, number>();
 
   for (const stat of stats) {
-    const mapped = AppClassification.mapApp(stat.exe_name, { appName: stat.app_name });
-    categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.total_duration));
+    const mapped = AppClassification.mapApp(stat.exeName, { appName: stat.appName });
+    categories.set(mapped.category, (categories.get(mapped.category) ?? 0) + Math.max(0, stat.totalDuration));
   }
 
   return Array.from(categories.entries())
