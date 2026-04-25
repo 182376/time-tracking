@@ -1,0 +1,11 @@
+{
+  "version": "0.4.1",
+  "notes": "修复保存稳定性，并改进音频追踪刷新。",
+  "pub_date": "2026-04-25T08:21:22.683Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOFZuazl1VGFEU0RKVHg5RDhBWEdFa3VVWC84QWRLMUJpemtEd0djRmlrVUN2MERuSEl4TFlVN2hMTnUrQWRYTVQvMHlpOUp0ODFoODFMVlJYQ2lqZkxyK1VaZ29yUXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3MTA1MjgxCWZpbGU6VGltZSBUcmFja2VyXzAuNC4xX3g2NC1zZXR1cC5leGUKV2p3R1ZHNDFPWngzeC9OTGRTb092Y2VFSjJnQmd5NEJhUEx3emxCTmRYSzVRQmRGWDdMOUUybFZuMktEclhld29rWEIzbmEybE5BQU5RMEVQQnY1QUE9PQo=",
+      "url": "https://github.com/182376/time-tracking/releases/download/v0.4.1/TimeTracker_0.4.1_x64-setup.exe"
+    }
+  }
+}
