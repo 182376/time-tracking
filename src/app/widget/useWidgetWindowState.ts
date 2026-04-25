@@ -83,7 +83,7 @@ export function useWidgetWindowState(showObjectSlot: boolean) {
     applyLayout: async (nextPlacement, nextExpanded, nextShowObjectSlot) => {
       await applyWidgetLayout(
         nextPlacement.side,
-        nextPlacement.anchor_y,
+        nextPlacement.anchorY,
         nextExpanded,
         nextShowObjectSlot,
       );
@@ -120,7 +120,7 @@ export function useWidgetWindowState(showObjectSlot: boolean) {
     onPlacementChange: (nextPlacement) => {
       setPlacementState({
         side: nextPlacement.side,
-        anchor_y: clampWidgetAnchorY(nextPlacement.anchor_y),
+        anchorY: clampWidgetAnchorY(nextPlacement.anchorY),
       });
     },
     onExpandedChange: setExpandedState,

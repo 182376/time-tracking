@@ -39,7 +39,7 @@ export function buildChartData(weekly: DailySummary[]): HistoryChartPoint[] {
     day: item.date.slice(5),
     // Keep raw hour precision so the trend line updates continuously
     // instead of jumping by 0.1h steps.
-    hours: Math.max(0, item.total_duration) / 3600000,
+    hours: Math.max(0, item.totalDuration) / 3600000,
   }));
 }
 

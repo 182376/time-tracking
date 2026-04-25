@@ -44,13 +44,13 @@ const CATEGORY_BY_KEYWORD: Array<{
   { category: "office", keywords: ["office", "word", "excel", "powerpoint", "wps", "onenote", "calendar", "outlook"] },
   { category: "browser", keywords: ["chrome", "edge", "firefox", "browser", "safari", "vivaldi", "opera", "brave", "arc"] },
   { category: "communication", keywords: ["wechat", "weixin", "qq", "telegram", "discord", "slack", "lark", "dingtalk"] },
-  { category: "meeting", keywords: ["zoom", "teams", "meeting", "voov", "tencent meeting"] },
+  { category: "office", keywords: ["zoom", "teams", "meeting", "voov", "tencent meeting"] },
   { category: "video", keywords: ["douyin", "bilibili", "youtube", "netflix", "player", "video"] },
   { category: "music", keywords: ["spotify", "music", "netease", "qqmusic"] },
   { category: "game", keywords: ["steam", "epic", "hoyoplay", "mihoyo", "genshin", "star rail", "valorant", "league", "game"] },
   { category: "design", keywords: ["figma", "sketch", "photoshop", "illustrator", "after effects", "adobe xd", "canva"] },
-  { category: "reading", keywords: ["obsidian", "zotero", "typora", "reader", "pdf", "kindle", "book"] },
-  { category: "finance", keywords: ["trader", "bank", "finance", "stock", "binance", "okx", "huobi"] },
+  { category: "browser", keywords: ["obsidian", "zotero", "typora", "reader", "pdf", "kindle", "book"] },
+  { category: "utility", keywords: ["trader", "bank", "finance", "stock", "binance", "okx", "huobi"] },
   { category: "utility", keywords: ["todesk", "teamviewer", "anydesk", "terminal", "flash", "snip", "screenshot", "tool", "utility"] },
 ];
 
@@ -111,6 +111,18 @@ function normalizeUserAssignableCategory(category: string | undefined): UserAssi
 
   if (normalized === "custom") {
     return buildCustomCategory("自定义");
+  }
+
+  if (normalized === "meeting") {
+    return "office";
+  }
+
+  if (normalized === "finance") {
+    return "utility";
+  }
+
+  if (normalized === "reading") {
+    return "browser";
   }
 
   if (isCustomCategory(normalized)) {

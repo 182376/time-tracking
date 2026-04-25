@@ -131,6 +131,49 @@ IPC 契约应保持稳定、可解析、可测试。
 - `features/settings/*` 只保留 settings 页面的保存、cleanup、backup、restore 与外链打开等 feature 私有流程
 - 涉及运行时写侧和平台副作用的操作，优先迁往 Rust command
 
+### 4.4 命名与跨层协议
+
+命名规范优先服务边界清晰，而不是追求所有层表面一致。
+
+Rust 侧继续遵守 Rust 习惯：
+
+- 文件名、模块名、函数名、变量名、struct 字段使用 `snake_case`
+- 类型、struct、enum、trait 使用 `PascalCase`
+- 常量使用 `SCREAMING_SNAKE_CASE`
+- 多词 Rust 文件名使用 `_`，例如 `loop_state.rs`；单词文件名不强行加 `_`，例如 `support.rs`
+
+前端业务模型继续遵守 TypeScript / React 习惯：
+
+- React 组件文件使用 `PascalCase.tsx`
+- hook 文件和函数使用 `useXxx.ts` / `useXxx`
+- service、gateway、helper 文件使用 `lowerCamelCase.ts`
+- 类型和 interface 使用 `PascalCase`
+- 普通变量、函数、props 与前端模型字段使用 `camelCase`
+- 常量使用 `SCREAMING_SNAKE_CASE`
+
+协议和数据边界不为了前端命名偏好破坏兼容：
+
+- Tauri command 名称保持既有 `snake_case`
+- Tauri command 参数在 invoke 边界按现状处理，不做无收益重命名
+- Tauri event 名称保持既有 `kebab-case`
+- tracking data changed reason 保持既有 `kebab-case`
+- SQLite 表名、字段名与持久化 key 保持 `snake_case`
+- serde 输出默认允许 Rust / 数据协议侧的 `snake_case`
+
+Raw DTO 只能停留在明确边界：
+
+- `src/platform/**` 可以定义 `RawXxxDto`、`RawXxxSnapshot` 或局部 raw row，并负责映射为前端模型
+- `src/features/*/services/*ReadModel.ts` 只允许在 read model 内部短暂承接数据库 raw row，不允许继续向组件、hook 或 view model 扩散
+- `src-tauri/**` 继续使用 Rust 与协议侧命名
+- 测试 raw payload fixture 必须让 raw 意图清楚，优先使用 `Raw` 前缀或直接验证 raw parser
+
+前端业务层默认不承载 raw DTO：
+
+- `src/app/**`、`src/features/*/components/**`、`src/features/*/hooks/**`、`src/features/*/services/*ViewModel.ts` 不应读取 IPC 或 SQLite raw 字段
+- `src/shared/types/**` 默认承载前端模型，不作为协议转储层
+- `src/shared/lib/**` 的通用业务函数入参和返回值默认使用前端模型字段
+- 例外必须有明确 owner，要么留在允许目录，要么类型名带 `Raw` 并保持变薄
+
 ---
 
 ## 5. 前端长期结构

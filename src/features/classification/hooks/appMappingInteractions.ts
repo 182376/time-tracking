@@ -47,6 +47,7 @@ export interface AppMappingSaveFlowResult {
   nextBootstrap: AppMappingBootstrapSnapshot | null;
   nextSaveStatus: SaveStatus;
   resetEditingState: boolean;
+  error: unknown | null;
 }
 
 export interface DeleteObservedSessionsDeps {
@@ -168,6 +169,7 @@ export async function saveAppMappingStateWithDeps(
       nextBootstrap: null,
       nextSaveStatus: "idle",
       resetEditingState: false,
+      error: null,
     };
   }
 
@@ -180,6 +182,7 @@ export async function saveAppMappingStateWithDeps(
       nextBootstrap: null,
       nextSaveStatus: "idle",
       resetEditingState: false,
+      error: null,
     };
   }
 
@@ -192,6 +195,7 @@ export async function saveAppMappingStateWithDeps(
       nextBootstrap: null,
       nextSaveStatus: "idle",
       resetEditingState: false,
+      error: null,
     };
   }
 
@@ -213,8 +217,9 @@ export async function saveAppMappingStateWithDeps(
       },
       nextSaveStatus: "saved",
       resetEditingState: true,
+      error: null,
     };
-  } catch {
+  } catch (error) {
     return {
       accepted: false,
       skippedReason: null,
@@ -223,6 +228,7 @@ export async function saveAppMappingStateWithDeps(
       nextBootstrap: null,
       nextSaveStatus: "idle",
       resetEditingState: false,
+      error,
     };
   }
 }

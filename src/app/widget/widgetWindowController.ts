@@ -44,14 +44,14 @@ export interface WidgetWindowControllerDeps {
 
 export const DEFAULT_WIDGET_PLACEMENT: WidgetPlacement = {
   side: "right",
-  anchor_y: 0.28,
+  anchorY: 0.28,
 };
 
 export const DRAG_SETTLE_MS = 160;
 
 export function clampWidgetAnchorY(anchorY: number) {
   if (!Number.isFinite(anchorY)) {
-    return DEFAULT_WIDGET_PLACEMENT.anchor_y;
+    return DEFAULT_WIDGET_PLACEMENT.anchorY;
   }
 
   return Math.max(0, Math.min(1, anchorY));
@@ -72,7 +72,7 @@ export function resolveWidgetPlacementFromWindowRect(
 
   return {
     side,
-    anchor_y: anchorY,
+    anchorY,
   };
 }
 
@@ -90,7 +90,7 @@ export function createWidgetWindowController(
   function setPlacement(nextPlacement: WidgetPlacement) {
     placement = {
       side: nextPlacement.side,
-      anchor_y: clampWidgetAnchorY(nextPlacement.anchor_y),
+      anchorY: clampWidgetAnchorY(nextPlacement.anchorY),
     };
     deps.onPlacementChange?.(placement);
   }

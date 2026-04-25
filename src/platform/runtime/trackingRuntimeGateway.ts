@@ -1,12 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
 import {
-  type CurrentTrackingSnapshot,
-  type TrackingDataChangedPayload,
-  type TrackingWindowSnapshot,
   parseCurrentTrackingSnapshot,
   parseTrackingDataChangedPayload,
   parseTrackingWindowSnapshot,
+} from "./trackingRawDtos.ts";
+import type {
+  CurrentTrackingSnapshot,
+  TrackingDataChangedPayload,
+  TrackingWindowSnapshot,
 } from "../../shared/types/tracking.ts";
 
 export async function getCurrentWindow(): Promise<TrackingWindowSnapshot | null> {

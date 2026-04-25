@@ -10,34 +10,34 @@ import {
   runBackupRestoreFlow,
   runSettingsCleanupFlow,
 } from "../src/features/settings/services/settingsPageActions.ts";
-import { normalizeSettingsRecord } from "../src/shared/settings/appSettings.ts";
+import { normalizeSettingsRecord } from "../src/platform/persistence/appSettingsStore.ts";
 
 interface AppSettings {
-  idle_timeout_secs: number;
-  timeline_merge_gap_secs: number;
-  refresh_interval_secs: number;
-  min_session_secs: number;
-  tracking_paused: boolean;
-  close_behavior: "exit" | "tray";
-  minimize_behavior: "taskbar" | "widget";
-  launch_at_login: boolean;
-  start_minimized: boolean;
-  onboarding_completed: boolean;
+  idleTimeoutSecs: number;
+  timelineMergeGapSecs: number;
+  refreshIntervalSecs: number;
+  minSessionSecs: number;
+  trackingPaused: boolean;
+  closeBehavior: "exit" | "tray";
+  minimizeBehavior: "taskbar" | "widget";
+  launchAtLogin: boolean;
+  startMinimized: boolean;
+  onboardingCompleted: boolean;
 }
 
 type CleanupRange = 180 | 90 | 60 | 30 | 15 | 7;
 
 const BASE_SETTINGS: AppSettings = {
-  idle_timeout_secs: 300,
-  timeline_merge_gap_secs: 60,
-  refresh_interval_secs: 1,
-  min_session_secs: 60,
-  tracking_paused: false,
-  close_behavior: "tray",
-  minimize_behavior: "taskbar",
-  launch_at_login: false,
-  start_minimized: false,
-  onboarding_completed: false,
+  idleTimeoutSecs: 300,
+  timelineMergeGapSecs: 60,
+  refreshIntervalSecs: 1,
+  minSessionSecs: 60,
+  trackingPaused: false,
+  closeBehavior: "tray",
+  minimizeBehavior: "taskbar",
+  launchAtLogin: false,
+  startMinimized: false,
+  onboardingCompleted: false,
 };
 
 function buildSettings(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -50,14 +50,14 @@ function buildSettings(overrides: Partial<AppSettings> = {}): AppSettings {
 function buildPreview(overrides: Partial<BackupPreview> = {}): BackupPreview {
   return {
     version: 2,
-    exported_at_ms: 1_714_000_000_000,
-    schema_version: 7,
-    app_version: "0.3.2",
-    compatibility_level: "compatible",
-    compatibility_message: "Looks good",
-    session_count: 42,
-    setting_count: 10,
-    icon_cache_count: 5,
+    exportedAtMs: 1_714_000_000_000,
+    schemaVersion: 7,
+    appVersion: "0.3.2",
+    compatibilityLevel: "compatible",
+    compatibilityMessage: "Looks good",
+    sessionCount: 42,
+    settingCount: 10,
+    iconCacheCount: 5,
     ...overrides,
   };
 }
@@ -73,13 +73,13 @@ async function runTest(name: string, fn: () => Promise<void> | void) {
 await runTest("buildSettingsPatch only keeps changed keys", () => {
   const saved = buildSettings();
   const draft = buildSettings({
-    min_session_secs: saved.min_session_secs + 60,
-    tracking_paused: true,
+    minSessionSecs: saved.minSessionSecs + 60,
+    trackingPaused: true,
   });
 
   assert.deepEqual(SettingsRuntimeAdapterService.buildSettingsPatch(saved, draft), {
-    min_session_secs: draft.min_session_secs,
-    tracking_paused: true,
+    minSessionSecs: draft.minSessionSecs,
+    trackingPaused: true,
   });
 });
 
@@ -107,8 +107,8 @@ await runTest("commitSettingsPatchWithDeps persists before runtime sync", async 
   const events: string[] = [];
 
   const result = await commitSettingsPatchWithDeps({
-    tracking_paused: true,
-    timeline_merge_gap_secs: 180,
+    trackingPaused: true,
+    timelineMergeGapSecs: 180,
   }, {
     persistPatch: async (patch) => {
       events.push(`persist:${Object.keys(patch).length}`);
@@ -133,7 +133,7 @@ await runTest("commitSettingsPatchWithDeps keeps persisted success when runtime 
   const events: string[] = [];
 
   const result = await commitSettingsPatchWithDeps({
-    timeline_merge_gap_secs: 120,
+    timelineMergeGapSecs: 120,
   }, {
     persistPatch: async () => {
       events.push("persist");
@@ -160,7 +160,7 @@ await runTest("commitSettingsPatchWithDeps does not attempt runtime sync when pe
 
   await assert.rejects(
     commitSettingsPatchWithDeps({
-      timeline_merge_gap_secs: 90,
+      timelineMergeGapSecs: 90,
     }, {
       persistPatch: async () => {
         events.push("persist");
@@ -181,18 +181,18 @@ await runTest("normalizeSettingsRecord accepts widget minimize behavior and maps
     minimize_behavior: "widget",
     close_behavior: "tray",
   });
-  assert.equal(widgetSettings.minimize_behavior, "widget");
-  assert.equal(widgetSettings.close_behavior, "tray");
+  assert.equal(widgetSettings.minimizeBehavior, "widget");
+  assert.equal(widgetSettings.closeBehavior, "tray");
 
   const legacyTraySettings = normalizeSettingsRecord({
     minimize_behavior: "tray",
   });
-  assert.equal(legacyTraySettings.minimize_behavior, "taskbar");
+  assert.equal(legacyTraySettings.minimizeBehavior, "taskbar");
 
   const fallbackSettings = normalizeSettingsRecord({
     minimize_behavior: "floating-sidebar",
   });
-  assert.equal(fallbackSettings.minimize_behavior, "taskbar");
+  assert.equal(fallbackSettings.minimizeBehavior, "taskbar");
 });
 
 await runTest("runSettingsCleanupFlow executes confirmed cleanup and reloads", async () => {
@@ -328,7 +328,7 @@ await runTest("runBackupRestoreFlow blocks incompatible backups before confirmat
     initialPath: "restore.db",
     prepareBackupRestore: async () => ({
       path: "C:/tmp/incompatible.db",
-      preview: buildPreview({ compatibility_level: "incompatible" }),
+      preview: buildPreview({ compatibilityLevel: "incompatible" }),
       previewSummary: "",
       compatible: false,
       incompatibilityMessage: "schema mismatch",

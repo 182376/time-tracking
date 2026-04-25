@@ -6,13 +6,10 @@ export type BuiltinAppCategory =
   | "office"
   | "browser"
   | "communication"
-  | "meeting"
   | "video"
   | "music"
   | "game"
   | "design"
-  | "reading"
-  | "finance"
   | "utility"
   | "other"
   | "system";
@@ -27,13 +24,10 @@ export const USER_ASSIGNABLE_CATEGORIES: UserAssignableAppCategory[] = [
   "office",
   "browser",
   "communication",
-  "meeting",
   "video",
   "music",
   "game",
   "design",
-  "reading",
-  "finance",
   "utility",
   "other",
 ];
@@ -91,13 +85,10 @@ const BUILTIN_LABELS: Record<BuiltinAppCategory, string> = {
   office: "办公",
   browser: "浏览",
   communication: "通讯",
-  meeting: "会议",
   video: "视频",
   music: "音乐",
   game: "游戏",
   design: "设计",
-  reading: "阅读",
-  finance: "金融",
   utility: "工具",
   other: "未分类",
   system: "系统",

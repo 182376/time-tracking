@@ -269,6 +269,25 @@ button {
   color: var(--qp-text-secondary);
 }
 
+.qp-progress-indeterminate {
+  animation: qp-progress-indeterminate 1.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes qp-progress-indeterminate {
+  0% {
+    transform: translateX(-125%);
+  }
+
+  52% {
+    transform: translateX(115%);
+  }
+
+  100% {
+    transform: translateX(315%);
+  }
+}
+
 .qp-nav-item {
   border: 1px solid transparent;
   background: transparent;

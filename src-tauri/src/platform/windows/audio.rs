@@ -4,6 +4,10 @@ use crate::domain::tracking::{
     SustainedParticipationSignalSource,
 };
 use crate::platform::windows::foreground::{self, WindowInfo};
+use tokio::{
+    task::spawn_blocking,
+    time::{timeout, Duration},
+};
 use windows::core::Interface;
 use windows::Win32::Foundation::RPC_E_CHANGED_MODE;
 use windows::Win32::Media::Audio::{
@@ -14,6 +18,8 @@ use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
 };
 
+const AUDIO_SESSION_QUERY_TIMEOUT_SECS: u64 = 2;
+
 pub async fn get_sustained_participation_signal(
     window: &WindowInfo,
 ) -> SustainedParticipationSignalSnapshot {
@@ -21,17 +27,30 @@ pub async fn get_sustained_participation_signal(
         return SustainedParticipationSignalSnapshot::default();
     }
 
-    match query_matching_audio_session(window).await {
-        Ok(Some(signal)) => signal,
-        Ok(None) => SustainedParticipationSignalSnapshot::default(),
-        Err(error) => {
+    let window = window.clone();
+    let query = spawn_blocking(move || query_matching_audio_session(&window));
+
+    match timeout(Duration::from_secs(AUDIO_SESSION_QUERY_TIMEOUT_SECS), query).await {
+        Ok(Ok(Ok(Some(signal)))) => signal,
+        Ok(Ok(Ok(None))) => SustainedParticipationSignalSnapshot::default(),
+        Ok(Ok(Err(error))) => {
             eprintln!("[audio] failed to resolve audio session signal: {error}");
+            SustainedParticipationSignalSnapshot::default()
+        }
+        Ok(Err(error)) => {
+            eprintln!("[audio] audio session query task failed: {error}");
+            SustainedParticipationSignalSnapshot::default()
+        }
+        Err(_) => {
+            eprintln!(
+                "[audio] timed out resolving audio session signal after {AUDIO_SESSION_QUERY_TIMEOUT_SECS}s"
+            );
             SustainedParticipationSignalSnapshot::default()
         }
     }
 }
 
-async fn query_matching_audio_session(
+fn query_matching_audio_session(
     window: &WindowInfo,
 ) -> Result<Option<SustainedParticipationSignalSnapshot>, String> {
     let _com = ComGuard::initialize()?;

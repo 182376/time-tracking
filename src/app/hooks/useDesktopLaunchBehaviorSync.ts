@@ -9,16 +9,16 @@ export function useDesktopLaunchBehaviorSync(appSettings: AppSettings, enabled: 
   useEffect(() => {
     if (!enabled) return;
     void setDesktopBehavior(
-      appSettings.close_behavior,
-      appSettings.minimize_behavior,
+      appSettings.closeBehavior,
+      appSettings.minimizeBehavior,
     ).catch(console.warn);
-  }, [appSettings.close_behavior, appSettings.minimize_behavior, enabled]);
+  }, [appSettings.closeBehavior, appSettings.minimizeBehavior, enabled]);
 
   useEffect(() => {
     if (!enabled) return;
     void setLaunchBehavior(
-      appSettings.launch_at_login,
-      appSettings.start_minimized,
+      appSettings.launchAtLogin,
+      appSettings.startMinimized,
     ).catch(console.warn);
-  }, [appSettings.launch_at_login, appSettings.start_minimized, enabled]);
+  }, [appSettings.launchAtLogin, appSettings.startMinimized, enabled]);
 }

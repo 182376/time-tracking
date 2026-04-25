@@ -1,7 +1,7 @@
 {
   "name": "time-tracker",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,10 +14,11 @@
     "test:classification": "node --experimental-strip-types --experimental-specifier-resolution=node tests/classificationDraftState.test.ts",
     "test:persistence": "node --experimental-strip-types --experimental-specifier-resolution=node tests/persistenceTransaction.test.ts",
     "test:interaction": "node --experimental-strip-types --experimental-specifier-resolution=node tests/interactionFlows.test.ts",
+    "check:naming": "node --experimental-strip-types scripts/check-naming-boundaries.ts",
     "check:frontend": "npm test && npm run test:replay && npm run test:update && npm run test:settings && npm run test:widget && npm run test:classification && npm run test:persistence && npm run test:interaction && npm run build",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml --quiet && cargo test --manifest-path src-tauri/Cargo.toml --quiet",
-    "check:full": "npm run check:frontend && npm run check:rust",
-    "check": "npm run check:frontend",
+    "check:full": "npm run check && npm run check:rust",
+    "check": "npm run check:naming && npm run check:frontend",
     "perf:history-read-model": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/perf/history-read-model-benchmark.ts",
     "perf:dashboard-read-model": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/perf/dashboard-read-model-benchmark.ts",
     "perf:startup-bootstrap": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/perf/startup-bootstrap-benchmark.ts",

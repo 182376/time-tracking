@@ -9,15 +9,26 @@ export interface SettingKeyRow {
   key: string;
 }
 
-export interface SessionExeNameRow {
+interface RawSessionExeNameRow {
   exe_name: string;
 }
 
-export interface ObservedSessionStatRow {
+interface RawObservedSessionStatRow {
   exe_name: string;
   app_name: string;
   total_duration: number;
   last_seen_ms: number;
+}
+
+export interface SessionExeNameRow {
+  exeName: string;
+}
+
+export interface ObservedSessionStatRow {
+  exeName: string;
+  appName: string;
+  totalDuration: number;
+  lastSeenMs: number;
 }
 
 export async function upsertSettingValue(key: string, value: string): Promise<void> {
@@ -53,7 +64,10 @@ export async function loadSettingKeysByKeyPrefix(keyPrefix: string): Promise<Set
 
 export async function loadDistinctSessionExeNames(): Promise<SessionExeNameRow[]> {
   const db = await getDB();
-  return db.select<SessionExeNameRow[]>("SELECT DISTINCT exe_name FROM sessions");
+  const rows = await db.select<RawSessionExeNameRow[]>("SELECT DISTINCT exe_name FROM sessions");
+  return rows.map((row) => ({
+    exeName: row.exe_name,
+  }));
 }
 
 export async function loadObservedSessionStats(
@@ -61,7 +75,7 @@ export async function loadObservedSessionStats(
   nowMs: number,
 ): Promise<ObservedSessionStatRow[]> {
   const db = await getDB();
-  return db.select<ObservedSessionStatRow[]>(
+  const rows = await db.select<RawObservedSessionStatRow[]>(
     `SELECT exe_name,
             MAX(COALESCE(app_name, '')) AS app_name,
             SUM(COALESCE(duration, MAX(0, ? - start_time))) AS total_duration,
@@ -71,6 +85,12 @@ export async function loadObservedSessionStats(
      GROUP BY exe_name`,
     [nowMs, sinceMs],
   );
+  return rows.map((row) => ({
+    exeName: row.exe_name,
+    appName: row.app_name,
+    totalDuration: row.total_duration,
+    lastSeenMs: row.last_seen_ms,
+  }));
 }
 
 function buildInClausePlaceholders(values: readonly string[]): string {

@@ -29,8 +29,8 @@ const CLEANUP_OPTIONS: Array<{ value: CleanupRange; label: string }> = [
   { value: 7, label: UI_TEXT.settings.cleanupRangeLabels[7] },
 ];
 
-const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.close_behavior;
-const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["close_behavior"] =
+const CLOSE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.closeBehavior;
+const CLOSE_BEHAVIOR_ALTERNATE: AppSettings["closeBehavior"] =
   CLOSE_BEHAVIOR_DEFAULT === "tray" ? "exit" : "tray";
 const IDLE_TIMEOUT_MINUTES_RANGE = { min: 5, max: 30 } as const;
 const TIMELINE_MERGE_GAP_MINUTES_RANGE = { min: 1, max: 5 } as const;
@@ -40,8 +40,8 @@ const clampMinute = (value: number, min: number, max: number) => Math.min(max, M
 const secondsToMinute = (seconds: number, min: number, max: number) =>
   clampMinute(Math.round(seconds / 60), min, max);
 
-const MINIMIZE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.minimize_behavior;
-const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimize_behavior"] =
+const MINIMIZE_BEHAVIOR_DEFAULT = DEFAULT_SETTINGS.minimizeBehavior;
+const MINIMIZE_BEHAVIOR_ALTERNATE: AppSettings["minimizeBehavior"] =
   MINIMIZE_BEHAVIOR_DEFAULT === "widget" ? "taskbar" : "widget";
 
 export interface UseSettingsPageStateOptions {
@@ -138,8 +138,8 @@ export function useSettingsPageState({
     setDraftSettings((current) => {
       if (!current) return current;
       const nextDraft = { ...current, [key]: value } as AppSettings;
-      if (key === "launch_at_login" && value === false) {
-        nextDraft.start_minimized = false;
+      if (key === "launchAtLogin" && value === false) {
+        nextDraft.startMinimized = false;
       }
       return nextDraft;
     });
@@ -280,21 +280,21 @@ export function useSettingsPageState({
 
   const idleTimeoutMinutes = draftSettings
     ? secondsToMinute(
-      draftSettings.idle_timeout_secs,
+      draftSettings.idleTimeoutSecs,
       IDLE_TIMEOUT_MINUTES_RANGE.min,
       IDLE_TIMEOUT_MINUTES_RANGE.max,
     )
     : IDLE_TIMEOUT_MINUTES_RANGE.min;
   const timelineMergeGapMinutes = draftSettings
     ? secondsToMinute(
-      draftSettings.timeline_merge_gap_secs,
+      draftSettings.timelineMergeGapSecs,
       TIMELINE_MERGE_GAP_MINUTES_RANGE.min,
       TIMELINE_MERGE_GAP_MINUTES_RANGE.max,
     )
     : TIMELINE_MERGE_GAP_MINUTES_RANGE.min;
   const minSessionMinutes = draftSettings
     ? secondsToMinute(
-      draftSettings.min_session_secs,
+      draftSettings.minSessionSecs,
       MIN_SESSION_MINUTES_RANGE.min,
       MIN_SESSION_MINUTES_RANGE.max,
     )

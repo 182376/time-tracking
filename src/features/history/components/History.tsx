@@ -108,8 +108,8 @@ export default function History({
   }, [loadData, refreshKey]);
 
   useEffect(() => {
-    const hasLiveSession = rawDaySessions.some((session) => session.end_time === null)
-      || rawWeeklySessions.some((session) => session.end_time === null);
+    const hasLiveSession = rawDaySessions.some((session) => session.endTime === null)
+      || rawWeeklySessions.some((session) => session.endTime === null);
 
     if (!hasLiveSession || trackerHealth.status !== "healthy") {
       return;
@@ -324,9 +324,9 @@ export default function History({
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
               <AnimatePresence initial={false}>
                 {timelineSessions.map((session) => {
-                  const mapped = AppClassification.mapApp(session.exe_name, { appName: session.displayName });
-                  const overrideColor = AppClassification.getUserOverride(session.exe_name)?.color;
-                  const accentColor = overrideColor ?? iconThemeColors[session.exe_name] ?? mapped.color;
+                  const mapped = AppClassification.mapApp(session.exeName, { appName: session.displayName });
+                  const overrideColor = AppClassification.getUserOverride(session.exeName)?.color;
+                  const accentColor = overrideColor ?? iconThemeColors[session.exeName] ?? mapped.color;
 
                   return (
                     <div
@@ -338,8 +338,8 @@ export default function History({
                         style={{ backgroundColor: accentColor }}
                       />
                       <div className="w-8 h-8 rounded-[8px] bg-[var(--qp-bg-panel)] border border-[var(--qp-border-subtle)] flex items-center justify-center flex-shrink-0 overflow-hidden p-1.5">
-                        {icons[session.exe_name] ? (
-                          <img src={icons[session.exe_name]} className="w-full h-full object-contain" alt="" />
+                        {icons[session.exeName] ? (
+                          <img src={icons[session.exeName]} className="w-full h-full object-contain" alt="" />
                         ) : (
                           <div className="text-[10px] font-semibold opacity-35 text-[var(--qp-text-secondary)]">{mapped.category[0].toUpperCase()}</div>
                         )}
@@ -362,8 +362,8 @@ export default function History({
                       <div className="text-right flex-shrink-0">
                         <div className="text-xs font-semibold text-[var(--qp-text-primary)] tabular-nums">{formatDuration(session.duration || 0)}</div>
                         <div className="text-[10px] text-[var(--qp-text-tertiary)] mt-0.5 tabular-nums">
-                          {formatTime(session.start_time)}
-                          {session.end_time ? ` - ${formatTime(session.end_time)}` : ` ${UI_TEXT.history.untilNow}`}
+                          {formatTime(session.startTime)}
+                          {session.endTime ? ` - ${formatTime(session.endTime)}` : ` ${UI_TEXT.history.untilNow}`}
                         </div>
                       </div>
                     </div>

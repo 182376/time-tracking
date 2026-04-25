@@ -4,18 +4,16 @@ use super::session_timeout::{
     seal_active_sessions_for_tracking_pause, should_seal_sustained_participation,
     should_suspend_active_tracking,
 };
-use super::sustained_participation::{
-    SustainedParticipationRuntimeState,
-};
+use super::sustained_participation::SustainedParticipationRuntimeState;
 use super::{active_session, continuity, startup, transition, watchdog};
-use crate::data::sqlite_pool::wait_for_sqlite_pool;
 #[cfg(test)]
 use crate::data::repositories::{sessions, tracker_settings};
-#[cfg(test)]
-use crate::domain::tracking::TRACKING_REASON_TRACKING_PAUSED_SEALED;
+use crate::data::sqlite_pool::wait_for_sqlite_pool;
 #[cfg(test)]
 use crate::domain::tracking::TrackingDataChangedPayload;
-use crate::domain::tracking::TrackingStatusSnapshot;
+#[cfg(test)]
+use crate::domain::tracking::TRACKING_REASON_TRACKING_PAUSED_SEALED;
+use crate::domain::tracking::{TrackingStatusSnapshot, TRACKING_REASON_STATUS_CHANGED};
 use crate::platform::windows::foreground as tracker;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
@@ -160,11 +158,14 @@ pub async fn run<R: Runtime>(
             continue;
         }
 
-        if tracker::has_meaningful_change(last_emitted_window.as_ref(), &window_info) {
+        let did_emit_active_window_changed =
+            tracker::has_meaningful_change(last_emitted_window.as_ref(), &window_info);
+        if did_emit_active_window_changed {
             let _ = app.emit("active-window-changed", &window_info);
             last_emitted_window = Some(window_info.clone());
         }
 
+        let mut did_emit_tracking_data_changed = false;
         match transition::apply_window_transition(
             &pool,
             last_window.as_ref(),
@@ -177,11 +178,22 @@ pub async fn run<R: Runtime>(
         {
             Ok(Some(reason)) => {
                 let _ = emit_tracking_data_changed(&app, reason, now_ms as u64);
+                did_emit_tracking_data_changed = true;
             }
             Ok(None) => {}
             Err(error) => {
                 log_tracker_error(format!("failed to apply window transition: {error}"));
             }
+        }
+
+        if !did_emit_active_window_changed
+            && !did_emit_tracking_data_changed
+            && should_emit_tracking_status_changed(
+                last_tracking_status.as_ref(),
+                &tracking_state.tracking_status,
+            )
+        {
+            let _ = emit_tracking_data_changed(&app, TRACKING_REASON_STATUS_CHANGED, now_ms as u64);
         }
 
         pending_continuity = continuity::resolve_next_pending_continuity(
@@ -195,6 +207,24 @@ pub async fn run<R: Runtime>(
         last_tracking_status = Some(tracking_state.tracking_status);
         sleep(Duration::from_secs(1)).await;
     }
+}
+
+fn should_emit_tracking_status_changed(
+    previous: Option<&TrackingStatusSnapshot>,
+    next: &TrackingStatusSnapshot,
+) -> bool {
+    let Some(previous) = previous else {
+        return false;
+    };
+
+    previous.is_tracking_active != next.is_tracking_active
+        || previous.sustained_participation_eligible != next.sustained_participation_eligible
+        || previous.sustained_participation_active != next.sustained_participation_active
+        || previous.sustained_participation_kind != next.sustained_participation_kind
+        || previous.sustained_participation_state != next.sustained_participation_state
+        || previous.sustained_participation_signal_source
+            != next.sustained_participation_signal_source
+        || previous.sustained_participation_reason != next.sustained_participation_reason
 }
 
 pub async fn load_current_tracking_snapshot(
@@ -383,6 +413,48 @@ mod tests {
             Some(12_000),
             Some(10_000),
             21_000
+        ));
+    }
+
+    #[test]
+    fn tracking_status_refresh_emits_for_sustained_participation_changes_only() {
+        let regular = TrackingStatusSnapshot {
+            is_tracking_active: true,
+            ..TrackingStatusSnapshot::default()
+        };
+        let sustained = TrackingStatusSnapshot {
+            is_tracking_active: true,
+            sustained_participation_eligible: true,
+            sustained_participation_active: true,
+            sustained_participation_kind: Some(
+                crate::domain::tracking::SustainedParticipationKind::Audio,
+            ),
+            sustained_participation_state:
+                crate::domain::tracking::SustainedParticipationState::Active,
+            sustained_participation_signal_source: Some(
+                crate::domain::tracking::SustainedParticipationSignalSource::SystemMedia,
+            ),
+            sustained_participation_reason:
+                crate::domain::tracking::SustainedParticipationStatusReason::SignalMatched,
+            ..TrackingStatusSnapshot::default()
+        };
+        let diagnostic_timestamp_only = TrackingStatusSnapshot {
+            sustained_participation_diagnostics:
+                crate::domain::tracking::SustainedParticipationDiagnosticsSnapshot {
+                    last_match_at_ms: Some(42),
+                    ..sustained.sustained_participation_diagnostics.clone()
+                },
+            ..sustained.clone()
+        };
+
+        assert!(!should_emit_tracking_status_changed(None, &regular));
+        assert!(should_emit_tracking_status_changed(
+            Some(&regular),
+            &sustained
+        ));
+        assert!(!should_emit_tracking_status_changed(
+            Some(&sustained),
+            &diagnostic_timestamp_only
         ));
     }
 

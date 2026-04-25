@@ -68,6 +68,7 @@ fn register_invoke_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Build
         commands::tracking::cmd_set_afk_threshold,
         commands::settings::cmd_set_desktop_behavior,
         commands::settings::cmd_set_launch_behavior,
+        commands::settings::cmd_commit_classification_settings,
         commands::widget::cmd_get_widget_placement,
         commands::widget::cmd_set_widget_placement,
         commands::widget::cmd_apply_widget_layout,

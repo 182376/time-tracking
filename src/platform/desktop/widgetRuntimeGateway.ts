@@ -2,29 +2,38 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type WidgetSide = "left" | "right";
 
-export interface WidgetPlacement {
+interface RawWidgetPlacement {
   side: WidgetSide;
   anchor_y: number;
+}
+
+export interface WidgetPlacement {
+  side: WidgetSide;
+  anchorY: number;
 }
 
 function isWidgetSide(value: unknown): value is WidgetSide {
   return value === "left" || value === "right";
 }
 
-export function parseWidgetPlacement(value: unknown): WidgetPlacement | null {
+function isRawWidgetPlacement(value: unknown): value is RawWidgetPlacement {
   if (!value || typeof value !== "object") {
-    return null;
+    return false;
   }
 
   const record = value as Record<string, unknown>;
-  if (!isWidgetSide(record.side) || typeof record.anchor_y !== "number") {
-    return null;
-  }
+  return isWidgetSide(record.side) && typeof record.anchor_y === "number";
+}
 
+function mapRawWidgetPlacement(raw: RawWidgetPlacement): WidgetPlacement {
   return {
-    side: record.side,
-    anchor_y: record.anchor_y,
+    side: raw.side,
+    anchorY: raw.anchor_y,
   };
+}
+
+export function parseWidgetPlacement(value: unknown): WidgetPlacement | null {
+  return isRawWidgetPlacement(value) ? mapRawWidgetPlacement(value) : null;
 }
 
 export async function getWidgetPlacement(): Promise<WidgetPlacement | null> {

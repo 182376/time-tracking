@@ -7,47 +7,31 @@ export interface SqlWriteOperation {
   values?: unknown[];
 }
 
-export interface SqlTransactionStatements {
-  begin: string;
-  commit: string;
-  rollback: string;
+export function isRecoverableSqliteWriteError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return normalized.includes("database is locked")
+    || normalized.includes("database is busy")
+    || normalized.includes("sqlite_busy")
+    || normalized.includes("sqlite_locked")
+    || normalized.includes("pool closed")
+    || normalized.includes("pooltimedout");
 }
 
-const DEFAULT_SQL_TRANSACTION_STATEMENTS: SqlTransactionStatements = {
-  begin: "BEGIN IMMEDIATE",
-  commit: "COMMIT",
-  rollback: "ROLLBACK",
-};
-
-export async function executeTransactionWithExecutor(
+export async function executeWriteBatchWithExecutor(
   executor: SqlWriteExecutor,
   operations: readonly SqlWriteOperation[],
-  statements: Partial<SqlTransactionStatements> = {},
 ): Promise<void> {
-  if (operations.length === 0) {
-    return;
-  }
-
-  const resolvedStatements = {
-    ...DEFAULT_SQL_TRANSACTION_STATEMENTS,
-    ...statements,
-  };
-
-  await executor.execute(resolvedStatements.begin);
-  try {
-    for (const operation of operations) {
-      await executor.execute(operation.query, operation.values);
-    }
-    await executor.execute(resolvedStatements.commit);
-  } catch (error) {
-    try {
-      await executor.execute(resolvedStatements.rollback);
-    } catch {
-      // The original mutation error remains the primary failure.
-    }
-    throw error;
+  // @tauri-apps/plugin-sql runs each execute call through the Rust-side pool.
+  // A manual BEGIN/COMMIT sequence from the frontend can land on different
+  // pooled connections and self-lock. Keep ordering here; true atomic
+  // transactions should live behind a Rust command that owns one transaction.
+  for (const operation of operations) {
+    await executor.execute(operation.query, operation.values);
   }
 }
+
+export const executeTransactionWithExecutor = executeWriteBatchWithExecutor;
 
 export function createSerializedJobRunner() {
   let tail = Promise.resolve();

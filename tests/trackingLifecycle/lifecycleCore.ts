@@ -30,8 +30,8 @@ export function runLifecycleCoreTests() {
 
   runTest("title changes inside the same executable do not trigger session changes", () => {
     const result = planWindowTransition({
-      previousWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat A" }),
-      nextWindow: makeWindow({ exe_name: "QQ.exe", title: "Chat B" }),
+      previousWindow: makeWindow({ exeName: "QQ.exe", title: "Chat A" }),
+      nextWindow: makeWindow({ exeName: "QQ.exe", title: "Chat B" }),
       nowMs: 1_000_000,
       shouldTrack,
     });
@@ -48,8 +48,8 @@ export function runLifecycleCoreTests() {
 
   runTest("switching between tracked windows ends previous session and starts next", () => {
     const result = planWindowTransition({
-      previousWindow: makeWindow({ exe_name: "QQ.exe", title: "QQ Chat" }),
-      nextWindow: makeWindow({ exe_name: "Antigravity.exe", title: "Editor", process_path: "C:\\Apps\\Antigravity.exe" }),
+      previousWindow: makeWindow({ exeName: "QQ.exe", title: "QQ Chat" }),
+      nextWindow: makeWindow({ exeName: "Antigravity.exe", title: "Editor", processPath: "C:\\Apps\\Antigravity.exe" }),
       nowMs: 1_000_000,
       shouldTrack,
     });
@@ -64,8 +64,8 @@ export function runLifecycleCoreTests() {
 
   runTest("windows with a known executable but no process path are still trackable", () => {
     const chromeWindow = makeWindow({
-      exe_name: "chrome.exe",
-      process_path: "",
+      exeName: "chrome.exe",
+      processPath: "",
       title: "Google Chrome",
     });
 
@@ -75,13 +75,13 @@ export function runLifecycleCoreTests() {
   runTest("afk transition backdates end time and does not start a new session", () => {
     const nowMs = 1_000_000;
     const result = planWindowTransition({
-      previousWindow: makeWindow({ exe_name: "Antigravity.exe", title: "Coding" }),
+      previousWindow: makeWindow({ exeName: "Antigravity.exe", title: "Coding" }),
       nextWindow: makeWindow({
-        exe_name: "explorer.exe",
+        exeName: "explorer.exe",
         title: "Explorer",
-        process_path: "C:\\Windows\\explorer.exe",
-        is_afk: true,
-        idle_time_ms: 300_000,
+        processPath: "C:\\Windows\\explorer.exe",
+        isAfk: true,
+        idleTimeMs: 300_000,
       }),
       nowMs,
       shouldTrack,
@@ -97,12 +97,12 @@ export function runLifecycleCoreTests() {
     const result = planWindowTransition({
       previousWindow: makeWindow({
         hwnd: "0x100",
-        root_owner_hwnd: "0x100",
+        rootOwnerHwnd: "0x100",
         title: "Chat A",
       }),
       nextWindow: makeWindow({
         hwnd: "0x200",
-        root_owner_hwnd: "0x200",
+        rootOwnerHwnd: "0x200",
         title: "Chat B",
       }),
       nowMs: 1_000_000,

@@ -1,6 +1,6 @@
 export interface AppStat {
-  app_name: string;
-  exe_name: string;
-  total_duration: number;
-  suspicious_duration: number;
+  appName: string;
+  exeName: string;
+  totalDuration: number;
+  suspiciousDuration: number;
 }

@@ -4,11 +4,14 @@ use crate::domain::tracking::{
     SustainedParticipationSignalSource, SystemMediaPlaybackType,
 };
 use crate::platform::windows::foreground::WindowInfo;
+use tokio::time::{timeout, Duration};
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSession, GlobalSystemMediaTransportControlsSessionManager,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus,
 };
 use windows::Media::MediaPlaybackType;
+
+const MEDIA_SESSION_QUERY_TIMEOUT_SECS: u64 = 2;
 
 pub async fn get_sustained_participation_signal(
     window: &WindowInfo,
@@ -17,11 +20,22 @@ pub async fn get_sustained_participation_signal(
         return SustainedParticipationSignalSnapshot::default();
     }
 
-    match query_matching_media_session(window).await {
-        Ok(Some(signal)) => signal,
-        Ok(None) => SustainedParticipationSignalSnapshot::default(),
-        Err(error) => {
+    match timeout(
+        Duration::from_secs(MEDIA_SESSION_QUERY_TIMEOUT_SECS),
+        query_matching_media_session(window),
+    )
+    .await
+    {
+        Ok(Ok(Some(signal))) => signal,
+        Ok(Ok(None)) => SustainedParticipationSignalSnapshot::default(),
+        Ok(Err(error)) => {
             eprintln!("[media] failed to resolve system media signal: {error}");
+            SustainedParticipationSignalSnapshot::default()
+        }
+        Err(_) => {
+            eprintln!(
+                "[media] timed out resolving system media signal after {MEDIA_SESSION_QUERY_TIMEOUT_SECS}s"
+            );
             SustainedParticipationSignalSnapshot::default()
         }
     }

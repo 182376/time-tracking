@@ -96,7 +96,7 @@ export default function WidgetShell() {
 
         <div className="widget-pill-actions" aria-hidden={!expanded}>
           <QuietIconAction
-            icon={appSettings.tracking_paused
+            icon={appSettings.trackingPaused
               ? <Play size={15} strokeWidth={2} />
               : <Pause size={15} strokeWidth={2} />}
             title={viewModel.pauseActionLabel}

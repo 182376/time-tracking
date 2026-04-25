@@ -5,12 +5,12 @@ pub const TRACKING_REASON_STARTUP_SEALED: &str = "startup-sealed";
 pub const TRACKING_REASON_TRACKING_PAUSED_SEALED: &str = "tracking-paused-sealed";
 pub const TRACKING_REASON_CONTINUITY_WINDOW_SEALED: &str = "continuity-window-sealed";
 pub const TRACKING_REASON_PASSIVE_PARTICIPATION_SEALED: &str = "passive-participation-sealed";
+pub const TRACKING_REASON_STATUS_CHANGED: &str = "tracking-status-changed";
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum SustainedParticipationKind {
-    Video,
-    Meeting,
+    Audio,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]

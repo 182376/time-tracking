@@ -5,9 +5,9 @@ import {
   clearSessionsByRangeWithDeps,
   buildReadModelDiagnostics,
   compileSessions,
-  isCurrentTrackingSnapshot,
-  isTrackingDataChangedPayload,
-  isTrackingWindowSnapshot,
+  isRawCurrentTrackingSnapshot,
+  isRawTrackingDataChangedPayload,
+  isRawTrackingWindowSnapshot,
   makeSession,
   makeWindow,
   materializeLiveSessions,
@@ -27,7 +27,7 @@ import {
 
 export function runRuntimeEffectsTests() {
   runTest("tracking runtime payload guards accept expected contracts", () => {
-    assert.equal(isTrackingWindowSnapshot({
+    assert.equal(isRawTrackingWindowSnapshot({
       hwnd: "0x100",
       root_owner_hwnd: "0x100",
       process_id: 123,
@@ -38,7 +38,7 @@ export function runRuntimeEffectsTests() {
       is_afk: false,
       idle_time_ms: 0,
     }), true);
-    assert.equal(isTrackingWindowSnapshot({
+    assert.equal(isRawTrackingWindowSnapshot({
       hwnd: "0x100",
       root_owner_hwnd: "0x100",
       process_id: 123,
@@ -49,7 +49,7 @@ export function runRuntimeEffectsTests() {
       is_afk: "false",
       idle_time_ms: 0,
     }), false);
-    assert.equal(isTrackingWindowSnapshot({
+    assert.equal(isRawTrackingWindowSnapshot({
       root_owner_hwnd: "0x100",
       process_id: 123,
       window_class: "Chrome_WidgetWin_1",
@@ -60,16 +60,16 @@ export function runRuntimeEffectsTests() {
       idle_time_ms: 0,
     }), false);
 
-    assert.equal(isTrackingDataChangedPayload({
+    assert.equal(isRawTrackingDataChangedPayload({
       reason: "session-transition",
       changed_at_ms: 123,
     }), true);
-    assert.equal(isTrackingDataChangedPayload({
+    assert.equal(isRawTrackingDataChangedPayload({
       reason: "session-transition",
       changed_at_ms: "123",
     }), false);
 
-    assert.equal(isCurrentTrackingSnapshot({
+    assert.equal(isRawCurrentTrackingSnapshot({
       window: {
         hwnd: "0x100",
         root_owner_hwnd: "0x100",
@@ -85,7 +85,7 @@ export function runRuntimeEffectsTests() {
         is_tracking_active: true,
         sustained_participation_eligible: true,
         sustained_participation_active: true,
-        sustained_participation_kind: "video",
+        sustained_participation_kind: "audio",
         sustained_participation_state: "active",
         sustained_participation_signal_source: "system-media",
         sustained_participation_reason: "signal-matched",
@@ -134,6 +134,7 @@ export function runRuntimeEffectsTests() {
       "watchdog-sealed",
       "startup-sealed",
       "passive-participation-sealed",
+      "tracking-status-changed",
       "backup-restored",
       "session-transition",
     ];
@@ -172,6 +173,12 @@ export function runRuntimeEffectsTests() {
     assert.equal(effects.shouldSyncPauseSetting, false);
   });
 
+  runTest("tracking status changed event refreshes without pause sync", () => {
+    const effects = resolveTrackingDataChangedEffects("tracking-status-changed");
+    assert.equal(effects.shouldRefresh, true);
+    assert.equal(effects.shouldSyncPauseSetting, false);
+  });
+
   runTest("power lifecycle end reasons keep refresh=true and pause sync=false", () => {
     for (const reason of ["session-ended-lock", "session-ended-suspend"]) {
       const effects = resolveTrackingDataChangedEffects(reason);
@@ -187,7 +194,7 @@ export function runRuntimeEffectsTests() {
 
     await applyTrackingDataChangedPayload({
       reason: "tracking-paused",
-      changed_at_ms: 123,
+      changedAtMs: 123,
     }, {
       loadLatestTrackingPauseSetting: async () => {
         loadCalls += 1;
@@ -195,11 +202,11 @@ export function runRuntimeEffectsTests() {
       },
       setAppSettings: (updater) => {
         trackedPausedValue = updater({
-          refresh_interval_secs: 5,
-          min_session_secs: 30,
-          timeline_merge_gap_secs: 180,
-          tracking_paused: false,
-        }).tracking_paused;
+          refreshIntervalSecs: 5,
+          minSessionSecs: 30,
+          timelineMergeGapSecs: 180,
+          trackingPaused: false,
+        }).trackingPaused;
       },
       bumpSyncTick: () => {
         syncTickCount += 1;
@@ -221,7 +228,7 @@ export function runRuntimeEffectsTests() {
 
     await applyTrackingDataChangedPayload({
       reason: "tracking-paused-sealed",
-      changed_at_ms: 456,
+      changedAtMs: 456,
     }, {
       loadLatestTrackingPauseSetting: async () => {
         loadCalls += 1;
@@ -249,17 +256,17 @@ export function runRuntimeEffectsTests() {
 
     await applyTrackingDataChangedPayload({
       reason: "continuity-window-sealed",
-      changed_at_ms: 900,
+      changedAtMs: 900,
     }, {
       loadLatestTrackingPauseSetting: async () => false,
       loadCurrentWindowSnapshot: async () => makeWindow({
-        exe_name: "Cursor.exe",
-        process_path: "C:\\Cursor\\Cursor.exe",
-        idle_time_ms: 181_000,
+        exeName: "Cursor.exe",
+        processPath: "C:\\Cursor\\Cursor.exe",
+        idleTimeMs: 181_000,
       }),
       setAppSettings: () => {},
       setActiveWindow: (nextWindow) => {
-        syncedWindowExeName = nextWindow?.exe_name ?? null;
+        syncedWindowExeName = nextWindow?.exeName ?? null;
       },
       bumpSyncTick: () => {
         syncTickCount += 1;
@@ -279,61 +286,61 @@ export function runRuntimeEffectsTests() {
 
     await applyTrackingDataChangedPayload({
       reason: "passive-participation-sealed",
-      changed_at_ms: 901,
+      changedAtMs: 901,
     }, {
       loadLatestTrackingPauseSetting: async () => false,
       loadCurrentTrackingSnapshot: async () => ({
         window: makeWindow({
-          exe_name: "chrome.exe",
-          process_path: "C:\\Chrome\\chrome.exe",
-          idle_time_ms: 200_000,
+          exeName: "chrome.exe",
+          processPath: "C:\\Chrome\\chrome.exe",
+          idleTimeMs: 200_000,
         }),
         status: {
-          is_tracking_active: false,
-          sustained_participation_eligible: true,
-          sustained_participation_active: false,
-          sustained_participation_kind: "video",
-          sustained_participation_state: "expired",
-          sustained_participation_signal_source: "audio-session",
-          sustained_participation_reason: "sustained-window-expired",
-          sustained_participation_diagnostics: {
+          isTrackingActive: false,
+          sustainedParticipationEligible: true,
+          sustainedParticipationActive: false,
+          sustainedParticipationKind: "audio",
+          sustainedParticipationState: "expired",
+          sustainedParticipationSignalSource: "audio-session",
+          sustainedParticipationReason: "sustained-window-expired",
+          sustainedParticipationDiagnostics: {
             state: "expired",
             reason: "sustained-window-expired",
-            window_identity: "chrome",
-            effective_signal_source: "audio-session",
-            last_match_at_ms: 800,
-            grace_deadline_ms: null,
-            system_media: {
+            windowIdentity: "chrome",
+            effectiveSignalSource: "audio-session",
+            lastMatchAtMs: 800,
+            graceDeadlineMs: null,
+            systemMedia: {
               signal: {
-                is_available: true,
-                is_active: false,
-                signal_source: "system-media",
-                source_app_id: "chrome",
-                source_app_identity: "chrome",
-                playback_type: "video",
+                isAvailable: true,
+                isActive: false,
+                signalSource: "system-media",
+                sourceAppId: "chrome",
+                sourceAppIdentity: "chrome",
+                playbackType: "video",
               },
-              match_result: "inactive",
+              matchResult: "inactive",
             },
-            audio_session: {
+            audioSession: {
               signal: {
-                is_available: true,
-                is_active: true,
-                signal_source: "audio-session",
-                source_app_id: "chrome.exe",
-                source_app_identity: "chrome",
-                playback_type: null,
+                isAvailable: true,
+                isActive: true,
+                signalSource: "audio-session",
+                sourceAppId: "chrome.exe",
+                sourceAppIdentity: "chrome",
+                playbackType: null,
               },
-              match_result: "matched",
+              matchResult: "matched",
             },
           },
         },
       }),
       setAppSettings: () => {},
       setActiveWindow: (nextWindow) => {
-        syncedWindowExeName = nextWindow?.exe_name ?? null;
+        syncedWindowExeName = nextWindow?.exeName ?? null;
       },
       setTrackingStatus: (nextStatus) => {
-        syncedTrackingActive = nextStatus.is_tracking_active;
+        syncedTrackingActive = nextStatus.isTrackingActive;
       },
       bumpSyncTick: () => {},
       warn: () => {
@@ -351,7 +358,7 @@ export function runRuntimeEffectsTests() {
 
     await applyTrackingDataChangedPayload({
       reason: "tracking-resumed",
-      changed_at_ms: 789,
+      changedAtMs: 789,
     }, {
       loadLatestTrackingPauseSetting: async () => {
         throw new Error("boom");
@@ -378,22 +385,22 @@ export function runRuntimeEffectsTests() {
     const cutoffTime = resolveSessionStartCleanupCutoffTime(7, nowMs);
     const activeBeforeCutoff = makeSession({
       id: 1001,
-      exe_name: "QQ.exe",
-      start_time: cutoffTime - 1,
-      end_time: null,
+      exeName: "QQ.exe",
+      startTime: cutoffTime - 1,
+      endTime: null,
       duration: null,
     });
     const activeAtCutoff = makeSession({
       id: 1002,
-      exe_name: "Chrome.exe",
-      app_name: "Chrome",
-      start_time: cutoffTime,
-      end_time: null,
+      exeName: "Chrome.exe",
+      appName: "Chrome",
+      startTime: cutoffTime,
+      endTime: null,
       duration: null,
     });
 
-    assert.equal(shouldDeleteSessionByStartTime(activeBeforeCutoff.start_time, cutoffTime), true);
-    assert.equal(shouldDeleteSessionByStartTime(activeAtCutoff.start_time, cutoffTime), false);
+    assert.equal(shouldDeleteSessionByStartTime(activeBeforeCutoff.startTime, cutoffTime), true);
+    assert.equal(shouldDeleteSessionByStartTime(activeAtCutoff.startTime, cutoffTime), false);
   });
 
   runTest("cleanup plan makes the current boundary explicit", () => {
@@ -430,24 +437,24 @@ export function runRuntimeEffectsTests() {
     const sessions = [
       makeSession({
         id: 2001,
-        exe_name: "old-active.exe",
-        app_name: "Old Active",
-        start_time: 40_000,
-        end_time: null,
+        exeName: "old-active.exe",
+        appName: "Old Active",
+        startTime: 40_000,
+        endTime: null,
         duration: null,
       }),
       makeSession({
         id: 2002,
-        exe_name: "new-active.exe",
-        app_name: "New Active",
-        start_time: 80_000,
-        end_time: null,
+        exeName: "new-active.exe",
+        appName: "New Active",
+        startTime: 80_000,
+        endTime: null,
         duration: null,
       }),
     ];
 
     const afterCleanup = sessions.filter((session) => (
-      !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
+      !shouldDeleteSessionByStartTime(session.startTime, cutoffTime)
     ));
     const dashboard = buildDashboardView(afterCleanup, trackerHealth, nowMs);
 
@@ -468,23 +475,23 @@ export function runRuntimeEffectsTests() {
     const sessions = [
       makeSession({
         id: 3001,
-        exe_name: "old-active.exe",
-        app_name: "Old Active",
-        start_time: 10_000,
-        end_time: null,
+        exeName: "old-active.exe",
+        appName: "Old Active",
+        startTime: 10_000,
+        endTime: null,
         duration: null,
       }),
       makeSession({
         id: 3002,
-        exe_name: "sealed.exe",
-        app_name: "Sealed Session",
-        start_time: 12_000,
-        end_time: 15_000,
+        exeName: "sealed.exe",
+        appName: "Sealed Session",
+        startTime: 12_000,
+        endTime: 15_000,
         duration: 3_000,
       }),
     ];
     const afterCleanup = sessions.filter((session) => (
-      !shouldDeleteSessionByStartTime(session.start_time, cutoffTime)
+      !shouldDeleteSessionByStartTime(session.startTime, cutoffTime)
     ));
     const history = buildHistoryView({
       daySessions: afterCleanup,
@@ -527,17 +534,17 @@ export function runRuntimeEffectsTests() {
     const sessions = [
       makeSession({
         id: 1,
-        exe_name: "QQ.exe",
-        start_time: 10_000,
-        end_time: null,
+        exeName: "QQ.exe",
+        startTime: 10_000,
+        endTime: null,
         duration: null,
       }),
       makeSession({
         id: 2,
-        exe_name: "Chrome.exe",
-        app_name: "Chrome",
-        start_time: 1_000,
-        end_time: 3_000,
+        exeName: "Chrome.exe",
+        appName: "Chrome",
+        startTime: 1_000,
+        endTime: 3_000,
         duration: 2_000,
       }),
     ];
@@ -557,10 +564,10 @@ export function runRuntimeEffectsTests() {
     const materialized = materializeLiveSessions([
       makeSession({
         id: 1,
-        exe_name: "QQ.exe",
-        app_name: "QQ",
-        start_time: 10_000,
-        end_time: null,
+        exeName: "QQ.exe",
+        appName: "QQ",
+        startTime: 10_000,
+        endTime: null,
         duration: null,
       }),
     ], trackerHealth, nowMs);

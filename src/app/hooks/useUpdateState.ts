@@ -16,17 +16,17 @@ import {
 
 function createFallbackSnapshot(): UpdateSnapshot {
   return {
-    current_version: "0.0.0",
+    currentVersion: "0.0.0",
     status: "idle",
-    latest_version: null,
-    release_notes: null,
-    release_date: null,
-    error_message: null,
-    error_stage: null,
-    downloaded_bytes: null,
-    total_bytes: null,
-    release_page_url: null,
-    asset_download_url: null,
+    latestVersion: null,
+    releaseNotes: null,
+    releaseDate: null,
+    errorMessage: null,
+    errorStage: null,
+    downloadedBytes: null,
+    totalBytes: null,
+    releasePageUrl: null,
+    assetDownloadUrl: null,
   };
 }
 
@@ -83,12 +83,12 @@ export function useUpdateState() {
         const errorSnapshot = {
           ...snapshot,
           status: "error" as const,
-          error_message: message,
+          errorMessage: message,
         };
         setSnapshot((current) => ({
           ...current,
           status: "error",
-          error_message: message,
+          errorMessage: message,
         }));
         return errorSnapshot;
       }
@@ -98,7 +98,7 @@ export function useUpdateState() {
 
   const runConfirmAction = useCallback(async () => {
     if (isInstalling) return snapshot;
-    const canRetryInstall = snapshot.status === "error" && snapshot.error_stage === "install";
+    const canRetryInstall = snapshot.status === "error" && snapshot.errorStage === "install";
     const shouldInstall = snapshot.status === "downloaded" || canRetryInstall;
     if (
       snapshot.status !== "available"
@@ -128,26 +128,26 @@ export function useUpdateState() {
       const errorSnapshot = {
         ...snapshot,
         status: "error" as const,
-        error_message: message,
+        errorMessage: message,
       };
       setSnapshot((current) => ({
         ...current,
         status: "error",
-        error_message: message,
+        errorMessage: message,
       }));
       return errorSnapshot;
     }
   }, [isInstalling, snapshot]);
 
   const openReleasePage = useCallback(async () => {
-    if (!snapshot.release_page_url) return;
-    await openExternalUrl(snapshot.release_page_url);
-  }, [snapshot.release_page_url]);
+    if (!snapshot.releasePageUrl) return;
+    await openExternalUrl(snapshot.releasePageUrl);
+  }, [snapshot.releasePageUrl]);
 
   const openAssetDownload = useCallback(async () => {
-    if (!snapshot.asset_download_url) return;
-    await openExternalUrl(snapshot.asset_download_url);
-  }, [snapshot.asset_download_url]);
+    if (!snapshot.assetDownloadUrl) return;
+    await openExternalUrl(snapshot.assetDownloadUrl);
+  }, [snapshot.assetDownloadUrl]);
 
   return {
     snapshot,

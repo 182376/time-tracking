@@ -3,8 +3,8 @@ import type {
   TrackingStatusSnapshot,
   TrackingWindowSnapshot,
 } from "../../shared/types/tracking.ts";
+import { DEFAULT_TRACKING_STATUS, resolveTrackerHealth } from "../../shared/types/tracking.ts";
 import type { AppSettings } from "./appSettingsRuntimeService.ts";
-import { resolveTrackerHealth } from "../../shared/types/tracking.ts";
 import {
   getCurrentTrackingSnapshot,
   setAfkThreshold,
@@ -32,46 +32,6 @@ interface AppRuntimeBootstrapDeps {
   loadTrackerHealthSnapshot: (nowMs?: number) => Promise<TrackerHealthSnapshot>;
 }
 
-const DEFAULT_TRACKING_STATUS: TrackingStatusSnapshot = {
-  is_tracking_active: false,
-  sustained_participation_eligible: false,
-  sustained_participation_active: false,
-  sustained_participation_kind: null,
-  sustained_participation_state: "inactive",
-  sustained_participation_signal_source: null,
-  sustained_participation_reason: "no-signal",
-  sustained_participation_diagnostics: {
-    state: "inactive",
-    reason: "no-signal",
-    window_identity: null,
-    effective_signal_source: null,
-    last_match_at_ms: null,
-    grace_deadline_ms: null,
-    system_media: {
-      signal: {
-        is_available: false,
-        is_active: false,
-        signal_source: null,
-        source_app_id: null,
-        source_app_identity: null,
-        playback_type: null,
-      },
-      match_result: "unavailable",
-    },
-    audio_session: {
-      signal: {
-        is_available: false,
-        is_active: false,
-        signal_source: null,
-        source_app_id: null,
-        source_app_identity: null,
-        playback_type: null,
-      },
-      match_result: "unavailable",
-    },
-  },
-};
-
 const appRuntimeBootstrapDeps: AppRuntimeBootstrapDeps = {
   loadCurrentAppSettings,
   setAfkThreshold,
@@ -98,7 +58,7 @@ export async function loadAppRuntimeBootstrapSnapshotWithDeps(
   deps: AppRuntimeBootstrapDeps,
 ): Promise<AppRuntimeBootstrapSnapshot> {
   const settings = await deps.loadCurrentAppSettings();
-  await deps.setAfkThreshold(settings.timeline_merge_gap_secs).catch(console.warn);
+  await deps.setAfkThreshold(settings.timelineMergeGapSecs).catch(console.warn);
 
   await deps.initializeProcessMapperRuntime();
 

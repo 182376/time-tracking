@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event } from "@tauri-apps/api/event";
-import { parseUpdateSnapshot, type UpdateSnapshot } from "../../shared/types/update.ts";
+import { parseUpdateSnapshot } from "./updateRawDtos.ts";
+import type { UpdateSnapshot } from "../../shared/types/update.ts";
 
 function assertSnapshot(payload: unknown): UpdateSnapshot {
   const parsed = parseUpdateSnapshot(payload);

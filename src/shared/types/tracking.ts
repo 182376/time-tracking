@@ -1,18 +1,18 @@
 export interface TrackedWindow {
   hwnd: string;
-  root_owner_hwnd: string;
-  process_id: number;
-  window_class: string;
+  rootOwnerHwnd: string;
+  processId: number;
+  windowClass: string;
   title: string;
-  exe_name: string;
-  process_path: string;
-  is_afk: boolean;
-  idle_time_ms: number;
+  exeName: string;
+  processPath: string;
+  isAfk: boolean;
+  idleTimeMs: number;
 }
 
 export type TrackingWindowSnapshot = TrackedWindow;
 
-export type SustainedParticipationKind = "video" | "meeting";
+export type SustainedParticipationKind = "audio";
 export type SustainedParticipationSignalSource = "system-media" | "audio-session";
 export type SustainedParticipationState =
   | "inactive"
@@ -49,39 +49,39 @@ export type SustainedParticipationSignalMatchResult =
   | "matched";
 
 export interface SustainedParticipationSignalSnapshot {
-  is_available: boolean;
-  is_active: boolean;
-  signal_source: SustainedParticipationSignalSource | null;
-  source_app_id: string | null;
-  source_app_identity: SustainedParticipationAppIdentity | null;
-  playback_type: "unknown" | "audio" | "video" | "image" | null;
+  isAvailable: boolean;
+  isActive: boolean;
+  signalSource: SustainedParticipationSignalSource | null;
+  sourceAppId: string | null;
+  sourceAppIdentity: SustainedParticipationAppIdentity | null;
+  playbackType: "unknown" | "audio" | "video" | "image" | null;
 }
 
 export interface SustainedParticipationSignalEvaluationSnapshot {
   signal: SustainedParticipationSignalSnapshot;
-  match_result: SustainedParticipationSignalMatchResult;
+  matchResult: SustainedParticipationSignalMatchResult;
 }
 
 export interface SustainedParticipationDiagnosticsSnapshot {
   state: SustainedParticipationState;
   reason: SustainedParticipationStatusReason;
-  window_identity: SustainedParticipationAppIdentity | null;
-  effective_signal_source: SustainedParticipationSignalSource | null;
-  last_match_at_ms: number | null;
-  grace_deadline_ms: number | null;
-  system_media: SustainedParticipationSignalEvaluationSnapshot;
-  audio_session: SustainedParticipationSignalEvaluationSnapshot;
+  windowIdentity: SustainedParticipationAppIdentity | null;
+  effectiveSignalSource: SustainedParticipationSignalSource | null;
+  lastMatchAtMs: number | null;
+  graceDeadlineMs: number | null;
+  systemMedia: SustainedParticipationSignalEvaluationSnapshot;
+  audioSession: SustainedParticipationSignalEvaluationSnapshot;
 }
 
 export interface TrackingStatusSnapshot {
-  is_tracking_active: boolean;
-  sustained_participation_eligible: boolean;
-  sustained_participation_active: boolean;
-  sustained_participation_kind: SustainedParticipationKind | null;
-  sustained_participation_state: SustainedParticipationState;
-  sustained_participation_signal_source: SustainedParticipationSignalSource | null;
-  sustained_participation_reason: SustainedParticipationStatusReason;
-  sustained_participation_diagnostics: SustainedParticipationDiagnosticsSnapshot;
+  isTrackingActive: boolean;
+  sustainedParticipationEligible: boolean;
+  sustainedParticipationActive: boolean;
+  sustainedParticipationKind: SustainedParticipationKind | null;
+  sustainedParticipationState: SustainedParticipationState;
+  sustainedParticipationSignalSource: SustainedParticipationSignalSource | null;
+  sustainedParticipationReason: SustainedParticipationStatusReason;
+  sustainedParticipationDiagnostics: SustainedParticipationDiagnosticsSnapshot;
 }
 
 export interface CurrentTrackingSnapshot {
@@ -91,7 +91,7 @@ export interface CurrentTrackingSnapshot {
 
 export interface TrackingDataChangedPayload {
   reason: string;
-  changed_at_ms: number;
+  changedAtMs: number;
 }
 
 export type TrackerHealthStatus = "healthy" | "stale";
@@ -102,6 +102,46 @@ export interface TrackerHealthSnapshot {
   checkedAtMs: number;
   staleAfterMs: number;
 }
+
+export const DEFAULT_TRACKING_STATUS: TrackingStatusSnapshot = {
+  isTrackingActive: false,
+  sustainedParticipationEligible: false,
+  sustainedParticipationActive: false,
+  sustainedParticipationKind: null,
+  sustainedParticipationState: "inactive",
+  sustainedParticipationSignalSource: null,
+  sustainedParticipationReason: "no-signal",
+  sustainedParticipationDiagnostics: {
+    state: "inactive",
+    reason: "no-signal",
+    windowIdentity: null,
+    effectiveSignalSource: null,
+    lastMatchAtMs: null,
+    graceDeadlineMs: null,
+    systemMedia: {
+      signal: {
+        isAvailable: false,
+        isActive: false,
+        signalSource: null,
+        sourceAppId: null,
+        sourceAppIdentity: null,
+        playbackType: null,
+      },
+      matchResult: "unavailable",
+    },
+    audioSession: {
+      signal: {
+        isAvailable: false,
+        isActive: false,
+        signalSource: null,
+        sourceAppId: null,
+        sourceAppIdentity: null,
+        playbackType: null,
+      },
+      matchResult: "unavailable",
+    },
+  },
+};
 
 export function resolveTrackerHealth(
   lastHeartbeatMs: number | null,
@@ -129,27 +169,26 @@ function isEnumValue<T extends string>(value: unknown, allowed: readonly T[]): v
 export function isTrackingWindowSnapshot(value: unknown): value is TrackingWindowSnapshot {
   return isRecord(value)
     && typeof value.hwnd === "string"
-    && typeof value.root_owner_hwnd === "string"
-    && typeof value.process_id === "number"
-    && typeof value.window_class === "string"
+    && typeof value.rootOwnerHwnd === "string"
+    && typeof value.processId === "number"
+    && typeof value.windowClass === "string"
     && typeof value.title === "string"
-    && typeof value.exe_name === "string"
-    && typeof value.process_path === "string"
-    && typeof value.is_afk === "boolean"
-    && typeof value.idle_time_ms === "number";
+    && typeof value.exeName === "string"
+    && typeof value.processPath === "string"
+    && typeof value.isAfk === "boolean"
+    && typeof value.idleTimeMs === "number";
 }
 
 export function isTrackingStatusSnapshot(value: unknown): value is TrackingStatusSnapshot {
   return isRecord(value)
-    && typeof value.is_tracking_active === "boolean"
-    && typeof value.sustained_participation_eligible === "boolean"
-    && typeof value.sustained_participation_active === "boolean"
+    && typeof value.isTrackingActive === "boolean"
+    && typeof value.sustainedParticipationEligible === "boolean"
+    && typeof value.sustainedParticipationActive === "boolean"
     && (
-      value.sustained_participation_kind === null
-      || value.sustained_participation_kind === "video"
-      || value.sustained_participation_kind === "meeting"
+      value.sustainedParticipationKind === null
+      || value.sustainedParticipationKind === "audio"
     )
-    && isEnumValue(value.sustained_participation_state, [
+    && isEnumValue(value.sustainedParticipationState, [
       "inactive",
       "candidate",
       "active",
@@ -157,11 +196,11 @@ export function isTrackingStatusSnapshot(value: unknown): value is TrackingStatu
       "expired",
     ] as const)
     && (
-      value.sustained_participation_signal_source === null
-      || value.sustained_participation_signal_source === "system-media"
-      || value.sustained_participation_signal_source === "audio-session"
+      value.sustainedParticipationSignalSource === null
+      || value.sustainedParticipationSignalSource === "system-media"
+      || value.sustainedParticipationSignalSource === "audio-session"
     )
-    && isEnumValue(value.sustained_participation_reason, [
+    && isEnumValue(value.sustainedParticipationReason, [
       "no-signal",
       "tracking-paused",
       "empty-window",
@@ -173,24 +212,24 @@ export function isTrackingStatusSnapshot(value: unknown): value is TrackingStatu
       "grace-expired",
       "sustained-window-expired",
     ] as const)
-    && isSustainedParticipationDiagnosticsSnapshot(value.sustained_participation_diagnostics);
+    && isSustainedParticipationDiagnosticsSnapshot(value.sustainedParticipationDiagnostics);
 }
 
 export function isSustainedParticipationSignalSnapshot(
   value: unknown,
 ): value is SustainedParticipationSignalSnapshot {
   return isRecord(value)
-    && typeof value.is_available === "boolean"
-    && typeof value.is_active === "boolean"
+    && typeof value.isAvailable === "boolean"
+    && typeof value.isActive === "boolean"
     && (
-      value.signal_source === null
-      || value.signal_source === "system-media"
-      || value.signal_source === "audio-session"
+      value.signalSource === null
+      || value.signalSource === "system-media"
+      || value.signalSource === "audio-session"
     )
-    && (value.source_app_id === null || typeof value.source_app_id === "string")
+    && (value.sourceAppId === null || typeof value.sourceAppId === "string")
     && (
-      value.source_app_identity === null
-      || isEnumValue(value.source_app_identity, [
+      value.sourceAppIdentity === null
+      || isEnumValue(value.sourceAppIdentity, [
         "chrome",
         "edge",
         "firefox",
@@ -204,8 +243,8 @@ export function isSustainedParticipationSignalSnapshot(
       ] as const)
     )
     && (
-      value.playback_type === null
-      || isEnumValue(value.playback_type, [
+      value.playbackType === null
+      || isEnumValue(value.playbackType, [
         "unknown",
         "audio",
         "video",
@@ -219,7 +258,7 @@ export function isSustainedParticipationSignalEvaluationSnapshot(
 ): value is SustainedParticipationSignalEvaluationSnapshot {
   return isRecord(value)
     && isSustainedParticipationSignalSnapshot(value.signal)
-    && isEnumValue(value.match_result, [
+    && isEnumValue(value.matchResult, [
       "unavailable",
       "inactive",
       "identity-mismatch",
@@ -251,8 +290,8 @@ export function isSustainedParticipationDiagnosticsSnapshot(
       "sustained-window-expired",
     ] as const)
     && (
-      value.window_identity === null
-      || isEnumValue(value.window_identity, [
+      value.windowIdentity === null
+      || isEnumValue(value.windowIdentity, [
         "chrome",
         "edge",
         "firefox",
@@ -266,14 +305,14 @@ export function isSustainedParticipationDiagnosticsSnapshot(
       ] as const)
     )
     && (
-      value.effective_signal_source === null
-      || value.effective_signal_source === "system-media"
-      || value.effective_signal_source === "audio-session"
+      value.effectiveSignalSource === null
+      || value.effectiveSignalSource === "system-media"
+      || value.effectiveSignalSource === "audio-session"
     )
-    && (value.last_match_at_ms === null || typeof value.last_match_at_ms === "number")
-    && (value.grace_deadline_ms === null || typeof value.grace_deadline_ms === "number")
-    && isSustainedParticipationSignalEvaluationSnapshot(value.system_media)
-    && isSustainedParticipationSignalEvaluationSnapshot(value.audio_session);
+    && (value.lastMatchAtMs === null || typeof value.lastMatchAtMs === "number")
+    && (value.graceDeadlineMs === null || typeof value.graceDeadlineMs === "number")
+    && isSustainedParticipationSignalEvaluationSnapshot(value.systemMedia)
+    && isSustainedParticipationSignalEvaluationSnapshot(value.audioSession);
 }
 
 export function isCurrentTrackingSnapshot(value: unknown): value is CurrentTrackingSnapshot {
@@ -285,17 +324,5 @@ export function isCurrentTrackingSnapshot(value: unknown): value is CurrentTrack
 export function isTrackingDataChangedPayload(value: unknown): value is TrackingDataChangedPayload {
   return isRecord(value)
     && typeof value.reason === "string"
-    && typeof value.changed_at_ms === "number";
-}
-
-export function parseTrackingWindowSnapshot(value: unknown): TrackingWindowSnapshot | null {
-  return isTrackingWindowSnapshot(value) ? value : null;
-}
-
-export function parseCurrentTrackingSnapshot(value: unknown): CurrentTrackingSnapshot | null {
-  return isCurrentTrackingSnapshot(value) ? value : null;
-}
-
-export function parseTrackingDataChangedPayload(value: unknown): TrackingDataChangedPayload | null {
-  return isTrackingDataChangedPayload(value) ? value : null;
+    && typeof value.changedAtMs === "number";
 }

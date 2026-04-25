@@ -55,13 +55,13 @@ const RELEASE_NOTES_URL = "https://github.com/182376/time-tracking/releases";
 const FEEDBACK_URL = "https://github.com/182376/time-tracking/issues/new/choose";
 
 function buildBackupPreviewSummary(preview: BackupPreview): string {
-  const exportedAt = new Date(preview.exported_at_ms).toLocaleString();
+  const exportedAt = new Date(preview.exportedAtMs).toLocaleString();
   return [
-    `备份版本：v${preview.version}（Schema ${preview.schema_version}）`,
+    `备份版本：v${preview.version}（Schema ${preview.schemaVersion}）`,
     `导出时间：${exportedAt}`,
-    `应用版本：${preview.app_version}`,
-    `兼容提示：${preview.compatibility_message}`,
-    `会话数：${preview.session_count}，设置项：${preview.setting_count}，图标缓存：${preview.icon_cache_count}`,
+    `应用版本：${preview.appVersion}`,
+    `兼容提示：${preview.compatibilityMessage}`,
+    `会话数：${preview.sessionCount}，设置项：${preview.settingCount}，图标缓存：${preview.iconCacheCount}`,
   ].join("\n");
 }
 
@@ -102,13 +102,13 @@ export async function prepareBackupRestoreWithDeps(
   }
 
   const preview = await deps.previewBackup(selectedPath);
-  if (preview.compatibility_level === "incompatible") {
+  if (preview.compatibilityLevel === "incompatible") {
     return {
       path: selectedPath,
       preview,
       previewSummary: "",
       compatible: false,
-      incompatibilityMessage: preview.compatibility_message,
+      incompatibilityMessage: preview.compatibilityMessage,
     };
   }
 
@@ -124,7 +124,7 @@ export class SettingsRuntimeAdapterService {
   static async updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     await saveAppSetting(key, value);
 
-    if (key === "timeline_merge_gap_secs") {
+    if (key === "timelineMergeGapSecs") {
       await setAfkThreshold(value as number);
     }
   }
@@ -192,7 +192,7 @@ export async function commitSettingsPatchWithDeps(
   await deps.persistPatch(patch as AppSettingsPatch);
 
   const runtimeSyncErrors: string[] = [];
-  const timelineMergeGapSecs = patch.timeline_merge_gap_secs;
+  const timelineMergeGapSecs = patch.timelineMergeGapSecs;
   const needsRuntimeSync = typeof timelineMergeGapSecs === "number";
   if (needsRuntimeSync) {
     try {

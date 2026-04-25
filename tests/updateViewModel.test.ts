@@ -9,17 +9,17 @@ import type { UpdateSnapshot } from "../src/shared/types/update.ts";
 
 function makeSnapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
   return {
-    current_version: "0.1.0",
+    currentVersion: "0.1.0",
     status: "idle",
-    latest_version: null,
-    release_notes: null,
-    release_date: null,
-    error_message: null,
-    error_stage: null,
-    downloaded_bytes: null,
-    total_bytes: null,
-    release_page_url: "https://github.com/182376/time-tracking/releases",
-    asset_download_url: null,
+    latestVersion: null,
+    releaseNotes: null,
+    releaseDate: null,
+    errorMessage: null,
+    errorStage: null,
+    downloadedBytes: null,
+    totalBytes: null,
+    releasePageUrl: "https://github.com/182376/time-tracking/releases",
+    assetDownloadUrl: null,
     ...overrides,
   };
 }
@@ -35,8 +35,8 @@ function runTest(name: string, fn: () => void) {
 runTest("available uses download action and shows sidebar entry", () => {
   const snapshot = makeSnapshot({
     status: "available",
-    latest_version: "0.1.1",
-    asset_download_url: "https://example.com/update.exe",
+    latestVersion: "0.1.1",
+    assetDownloadUrl: "https://example.com/update.exe",
   });
   const panel = buildUpdateStatusPanelModel(snapshot, false, false);
 
@@ -60,10 +60,10 @@ runTest("up-to-date uses check action without sidebar entry", () => {
 runTest("download error prefers direct package download and keeps retry secondary action", () => {
   const panel = buildUpdateStatusPanelModel(makeSnapshot({
     status: "error",
-    error_stage: "download",
-    error_message: "failed to download update: timeout",
-    latest_version: "0.2.3",
-    asset_download_url: "https://example.com/update.exe",
+    errorStage: "download",
+    errorMessage: "failed to download update: timeout",
+    latestVersion: "0.2.3",
+    assetDownloadUrl: "https://example.com/update.exe",
   }), false, false);
 
   assert.equal(panel.statusTitle, "无法下载安装包");
@@ -74,8 +74,8 @@ runTest("download error prefers direct package download and keeps retry secondar
 runTest("check error falls back to release page", () => {
   const panel = buildUpdateStatusPanelModel(makeSnapshot({
     status: "error",
-    error_stage: "check",
-    error_message: "failed to check updates: network offline",
+    errorStage: "check",
+    errorMessage: "failed to check updates: network offline",
   }), false, false);
 
   assert.equal(panel.statusTitle, "无法检查更新");
@@ -93,9 +93,9 @@ runTest("checking uses disabled loading action", () => {
 runTest("downloading builds determinate progress when total is known", () => {
   const panel = buildUpdateStatusPanelModel(makeSnapshot({
     status: "downloading",
-    latest_version: "0.2.0",
-    downloaded_bytes: 512,
-    total_bytes: 1024,
+    latestVersion: "0.2.0",
+    downloadedBytes: 512,
+    totalBytes: 1024,
   }), false, true);
 
   assert.equal(panel.progress?.valueText, "50%");
@@ -103,13 +103,24 @@ runTest("downloading builds determinate progress when total is known", () => {
   assert.equal(shouldShowSidebarUpdateEntry(makeSnapshot({ status: "downloading" })), true);
 });
 
-runTest("downloading without byte progress stays indeterminate", () => {
+runTest("download preparation does not show a misleading partial progress bar", () => {
   const panel = buildUpdateStatusPanelModel(makeSnapshot({
     status: "downloading",
-    latest_version: "0.2.0",
+    latestVersion: "0.2.0",
   }), false, true);
 
-  assert.equal(panel.progress?.label, "正在获取进度");
+  assert.equal(panel.progress, null);
+});
+
+runTest("downloading with bytes but unknown total stays indeterminate", () => {
+  const panel = buildUpdateStatusPanelModel(makeSnapshot({
+    status: "downloading",
+    latestVersion: "0.2.0",
+    downloadedBytes: 512,
+  }), false, true);
+
+  assert.notEqual(panel.progress, null);
+  assert.equal(panel.progress?.percent, null);
   assert.equal(panel.progress?.valueText, null);
   assert.equal(panel.progress?.indeterminate, true);
 });
@@ -121,23 +132,23 @@ runTest("confirm dialog opens for active update states and structured error stat
   assert.equal(shouldOpenUpdateDialogForSnapshot(makeSnapshot({ status: "installing" })), true);
   assert.equal(shouldOpenUpdateDialogForSnapshot(makeSnapshot({
     status: "error",
-    error_stage: "download",
-    latest_version: "0.2.0",
+    errorStage: "download",
+    latestVersion: "0.2.0",
   })), true);
   assert.equal(shouldOpenUpdateDialogForSnapshot(makeSnapshot({
     status: "error",
-    error_stage: null,
-    release_page_url: null,
-    asset_download_url: null,
-    latest_version: null,
+    errorStage: null,
+    releasePageUrl: null,
+    assetDownloadUrl: null,
+    latestVersion: null,
   })), false);
 });
 
 runTest("confirm dialog model includes notes preview", () => {
   const model = buildUpdateConfirmDialogModel(makeSnapshot({
     status: "available",
-    latest_version: "0.2.0",
-    release_notes: "A".repeat(260),
+    latestVersion: "0.2.0",
+    releaseNotes: "A".repeat(260),
   }));
   assert.equal(model.title, "发现新版本");
   assert.equal(model.primaryAction?.label, "立即下载");
@@ -149,9 +160,9 @@ runTest("confirm dialog model includes notes preview", () => {
 runTest("confirm dialog shows progress while downloading", () => {
   const model = buildUpdateConfirmDialogModel(makeSnapshot({
     status: "downloading",
-    latest_version: "0.2.0",
-    downloaded_bytes: 768,
-    total_bytes: 1024,
+    latestVersion: "0.2.0",
+    downloadedBytes: 768,
+    totalBytes: 1024,
   }));
 
   assert.equal(model.title, "正在下载更新");
@@ -162,10 +173,10 @@ runTest("confirm dialog shows progress while downloading", () => {
 runTest("confirm dialog shows manual fallback actions for download errors", () => {
   const model = buildUpdateConfirmDialogModel(makeSnapshot({
     status: "error",
-    error_stage: "download",
-    error_message: "failed to download update",
-    latest_version: "0.2.3",
-    asset_download_url: "https://example.com/update.exe",
+    errorStage: "download",
+    errorMessage: "failed to download update",
+    latestVersion: "0.2.3",
+    assetDownloadUrl: "https://example.com/update.exe",
   }));
 
   assert.equal(model.title, "下载更新失败");
@@ -176,10 +187,10 @@ runTest("confirm dialog shows manual fallback actions for download errors", () =
 runTest("install error keeps retry install as primary action", () => {
   const panel = buildUpdateStatusPanelModel(makeSnapshot({
     status: "error",
-    error_stage: "install",
-    error_message: "failed to install update",
-    latest_version: "0.2.3",
-    asset_download_url: "https://example.com/update.exe",
+    errorStage: "install",
+    errorMessage: "failed to install update",
+    latestVersion: "0.2.3",
+    assetDownloadUrl: "https://example.com/update.exe",
   }), false, false);
 
   assert.equal(panel.primaryAction.action, "open_confirm");

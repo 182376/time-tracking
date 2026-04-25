@@ -67,7 +67,7 @@ function AppShellContent() {
   const refreshSignal = resolveReadModelRefreshSignal(syncTick, readModelRefreshState);
   const { mappingVersion } = readModelRefreshState;
   const { dashboard, icons } = useDashboardStats(
-    appSettings.refresh_interval_secs,
+    appSettings.refreshIntervalSecs,
     refreshSignal,
     trackerHealth,
     loadDashboardRuntimeSnapshot,
@@ -75,14 +75,14 @@ function AppShellContent() {
     classificationReady,
   );
 
-  const activeExeName = activeWindow?.exe_name ?? null;
+  const activeExeName = activeWindow?.exeName ?? null;
   const mappedActiveApp = activeExeName && AppClassification.shouldTrackApp(activeExeName)
     ? AppClassification.mapApp(activeExeName)
     : null;
   const activeApp = trackerHealth.status === "healthy"
-    && !appSettings.tracking_paused
+    && !appSettings.trackingPaused
     && mappedActiveApp
-    && trackingStatus.is_tracking_active
+    && trackingStatus.isTrackingActive
     ? mappedActiveApp
     : null;
 
@@ -101,7 +101,7 @@ function AppShellContent() {
   const handleMinSessionSecsChange = useCallback((nextValue: number) => {
     setAppSettings((current) => ({
       ...current,
-      min_session_secs: nextValue,
+      minSessionSecs: nextValue,
     }));
     void saveMinSessionSecsSetting(nextValue).catch(console.warn);
   }, [setAppSettings]);
@@ -130,10 +130,10 @@ function AppShellContent() {
                 key="dashboard"
                 dashboard={dashboard}
                 icons={icons}
-                isAfk={activeWindow?.is_afk ?? false}
+                isAfk={activeWindow?.isAfk ?? false}
                 isTrackingActive={activeApp !== null}
                 activeAppName={activeApp?.name ?? null}
-                trackingPaused={appSettings.tracking_paused}
+                trackingPaused={appSettings.trackingPaused}
               />
             )}
             {currentView === "history" && (
@@ -141,9 +141,9 @@ function AppShellContent() {
                 key="history"
                 icons={icons}
                 refreshKey={refreshSignal}
-                refreshIntervalSecs={appSettings.refresh_interval_secs}
-                mergeThresholdSecs={appSettings.timeline_merge_gap_secs}
-                minSessionSecs={appSettings.min_session_secs}
+                refreshIntervalSecs={appSettings.refreshIntervalSecs}
+                mergeThresholdSecs={appSettings.timelineMergeGapSecs}
+                minSessionSecs={appSettings.minSessionSecs}
                 onMinSessionSecsChange={handleMinSessionSecsChange}
                 trackerHealth={trackerHealth}
                 loadHistorySnapshot={loadHistoryRuntimeSnapshot}
