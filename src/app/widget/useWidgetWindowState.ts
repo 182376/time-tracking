@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyWidgetLayout,
   getWidgetPlacement,
   onCurrentWidgetWindowFocusChanged,
   onCurrentWidgetWindowMoved,
+  onWidgetRuntimeCollapsed,
+  onWidgetRuntimeShown,
   readCurrentWidgetWindowRect,
   resolveWidgetMonitorForWindowRect,
   setCurrentWidgetWindowFocusable,
@@ -11,20 +13,48 @@ import {
   type WidgetPlacement,
 } from "../../platform/desktop/widgetRuntimeGateway";
 import {
+  COLLAPSE_ANIMATION_MS,
   clampWidgetAnchorY,
   createWidgetWindowController,
   DEFAULT_WIDGET_PLACEMENT,
 } from "./widgetWindowController.ts";
 
-export const WIDGET_EXPANDED_WIDTH_WITH_OBJECT = 148;
-export const WIDGET_EXPANDED_WIDTH_COMPACT = 116;
+export const WIDGET_EXPANDED_WIDTH_WITH_OBJECT = 228;
+export const WIDGET_EXPANDED_WIDTH_COMPACT = 184;
 export const WIDGET_EXPANDED_HEIGHT = 48;
-export const WIDGET_COLLAPSED_WIDTH = 34;
+export const WIDGET_COLLAPSED_WIDTH = 64;
 export const WIDGET_COLLAPSED_HEIGHT = 48;
 
-export function useWidgetWindowState(showObjectSlot: boolean) {
+interface WidgetWindowStateOptions {
+  onCollapsedDragSettled?: () => void;
+  onRuntimeCollapsed?: () => void;
+  onRuntimeShown?: () => void;
+}
+
+export function useWidgetWindowState(
+  showObjectSlot: boolean,
+  options: WidgetWindowStateOptions = {},
+) {
   const [placement, setPlacementState] = useState<WidgetPlacement>(DEFAULT_WIDGET_PLACEMENT);
   const [expanded, setExpandedState] = useState(false);
+  const [collapsing, setCollapsing] = useState(false);
+  const collapseVisualTimerRef = useRef<number | null>(null);
+  const onCollapsedDragSettledRef = useRef(options.onCollapsedDragSettled);
+  const onRuntimeCollapsedRef = useRef(options.onRuntimeCollapsed);
+  const onRuntimeShownRef = useRef(options.onRuntimeShown);
+  const clearCollapseVisualTimer = () => {
+    if (collapseVisualTimerRef.current !== null) {
+      window.clearTimeout(collapseVisualTimerRef.current);
+      collapseVisualTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    onCollapsedDragSettledRef.current = options.onCollapsedDragSettled;
+    onRuntimeCollapsedRef.current = options.onRuntimeCollapsed;
+    onRuntimeShownRef.current = options.onRuntimeShown;
+  }, [options.onCollapsedDragSettled, options.onRuntimeCollapsed, options.onRuntimeShown]);
+
   const controller = useMemo(() => createWidgetWindowController(showObjectSlot, {
     loadPlacement: getWidgetPlacement,
     persistExpanded: setWidgetExpanded,
@@ -46,7 +76,24 @@ export function useWidgetWindowState(showObjectSlot: boolean) {
         anchorY: clampWidgetAnchorY(nextPlacement.anchorY),
       });
     },
-    onExpandedChange: setExpandedState,
+    onExpandedChange: (nextExpanded) => {
+      clearCollapseVisualTimer();
+      if (nextExpanded) {
+        setCollapsing(false);
+        setExpandedState(true);
+        return;
+      }
+
+      setExpandedState(false);
+      setCollapsing(true);
+      collapseVisualTimerRef.current = window.setTimeout(() => {
+        collapseVisualTimerRef.current = null;
+        setCollapsing(false);
+      }, COLLAPSE_ANIMATION_MS);
+    },
+    onCollapsedDragSettled: () => {
+      onCollapsedDragSettledRef.current?.();
+    },
     onWarning: (message, error) => {
       console.warn(message, error);
     },
@@ -74,9 +121,20 @@ export function useWidgetWindowState(showObjectSlot: boolean) {
       controller.handleFocusChanged(focused);
     }));
 
+    unlistenPromises.push(onWidgetRuntimeCollapsed(() => {
+      onRuntimeCollapsedRef.current?.();
+      controller.syncCollapsedFromRuntime();
+    }));
+
+    unlistenPromises.push(onWidgetRuntimeShown(() => {
+      onRuntimeShownRef.current?.();
+      controller.syncShownFromRuntime();
+    }));
+
     return () => {
       cancelled = true;
       controller.dispose();
+      clearCollapseVisualTimer();
       for (const promise of unlistenPromises) {
         void promise.then((unlisten) => {
           unlisten();
@@ -90,9 +148,12 @@ export function useWidgetWindowState(showObjectSlot: boolean) {
   }, [controller, showObjectSlot]);
 
   return {
+    beginUserDrag: controller.beginUserDrag,
     collapse: controller.collapse,
+    endUserDrag: controller.endUserDrag,
     expand: controller.expand,
     expanded,
+    collapsing,
     placement,
     toggleExpanded: controller.toggleExpanded,
   };

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::app::{
     runtime,
-    state::{AppExitState, DesktopBehaviorState},
+    state::{AppExitState, DesktopBehaviorState, WidgetWindowLifecycleState},
     tray,
 };
 use crate::engine::{tracking::watchdog::RuntimeHealthState, updater::UpdaterRuntimeState};
@@ -42,6 +42,7 @@ fn register_managed_state_and_plugins(
     builder
         .manage(DesktopBehaviorState::default())
         .manage(AppExitState::default())
+        .manage(WidgetWindowLifecycleState::default())
         .manage(UpdaterRuntimeState::new(app_version.to_string()))
         .plugin(
             tauri_plugin_autostart::Builder::new()
@@ -77,6 +78,7 @@ fn register_invoke_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Build
         commands::widget::cmd_hide_widget_window,
         commands::widget::cmd_toggle_tracking_paused,
         commands::widget::cmd_show_widget_window,
+        commands::widget::cmd_is_primary_mouse_button_down,
         commands::update::cmd_get_update_snapshot,
         commands::update::cmd_check_for_updates,
         commands::update::cmd_download_update,

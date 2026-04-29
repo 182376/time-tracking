@@ -2,6 +2,7 @@ use crate::app::{tray, widget};
 use crate::data::repositories::widget_state;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::widget::{WidgetPlacement, WidgetSide};
+use crate::platform::windows::input;
 use tauri::AppHandle;
 
 #[tauri::command]
@@ -68,4 +69,9 @@ pub async fn cmd_toggle_tracking_paused(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn cmd_show_widget_window(app: AppHandle) -> Result<(), String> {
     widget::show_widget_window(&app, None).await
+}
+
+#[tauri::command]
+pub fn cmd_is_primary_mouse_button_down() -> bool {
+    input::is_primary_mouse_button_down()
 }

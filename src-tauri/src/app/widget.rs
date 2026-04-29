@@ -1,19 +1,22 @@
+use crate::app::state::WidgetWindowLifecycleState;
 use crate::data::repositories::widget_state;
 use crate::data::sqlite_pool::wait_for_sqlite_pool;
 use crate::domain::widget::{WidgetPlacement, WidgetSide};
 use tauri::{
-    AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, Position, Runtime, Size,
+    AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, Position, Runtime, Size,
     WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 pub(crate) const WIDGET_WINDOW_LABEL: &str = "widget";
+pub(crate) const WIDGET_RUNTIME_COLLAPSED_EVENT: &str = "widget-runtime-collapsed";
+pub(crate) const WIDGET_RUNTIME_SHOWN_EVENT: &str = "widget-runtime-shown";
 const WIDGET_TITLE: &str = "Time Tracker Widget";
-const WIDGET_EXPANDED_WIDTH_WITH_OBJECT: u32 = 180;
-const WIDGET_EXPANDED_WIDTH_COMPACT: u32 = 140;
+const WIDGET_EXPANDED_WIDTH_WITH_OBJECT: u32 = 228;
+const WIDGET_EXPANDED_WIDTH_COMPACT: u32 = 184;
 const WIDGET_EXPANDED_HEIGHT: u32 = 48;
-const WIDGET_COLLAPSED_WIDTH: u32 = 34;
+const WIDGET_COLLAPSED_WIDTH: u32 = 64;
 const WIDGET_COLLAPSED_HEIGHT: u32 = 48;
-const WIDGET_COLLAPSED_VISIBLE_WIDTH: u32 = 24;
+const WIDGET_COLLAPSED_VISIBLE_WIDTH: u32 = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct WidgetWindowBounds {
@@ -40,6 +43,11 @@ pub(crate) async fn apply_widget_layout<R: Runtime>(
     expanded: bool,
     show_object_slot: bool,
 ) -> Result<(), String> {
+    if is_main_window_visible(app) {
+        close_widget_window(app);
+        return Ok(());
+    }
+
     let pool = wait_for_sqlite_pool(app).await?;
     widget_state::save_widget_placement(&pool, placement)
         .await
@@ -60,9 +68,34 @@ pub(crate) async fn set_widget_window_expanded<R: Runtime>(
 }
 
 pub(crate) fn close_widget_window<R: Runtime>(app: &AppHandle<R>) {
+    app.state::<WidgetWindowLifecycleState>().hide();
     if let Some(window) = app.get_webview_window(WIDGET_WINDOW_LABEL) {
-        let _ = window.hide();
+        emit_widget_runtime_collapsed(app);
+        park_widget_window(&window);
     }
+}
+
+fn emit_widget_runtime_collapsed<R: Runtime>(app: &AppHandle<R>) {
+    let _ = app.emit(WIDGET_RUNTIME_COLLAPSED_EVENT, ());
+}
+
+fn emit_widget_runtime_shown<R: Runtime>(app: &AppHandle<R>) {
+    let _ = app.emit(WIDGET_RUNTIME_SHOWN_EVENT, ());
+}
+
+fn park_widget_window<R: Runtime>(window: &WebviewWindow<R>) {
+    let _ = window.hide();
+    let _ = window.set_focusable(false);
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_ignore_cursor_events(true);
+    let _ = window.set_size(Size::Physical(PhysicalSize::new(1, 1)));
+    let _ = window.set_position(Position::Physical(PhysicalPosition::new(-32_000, -32_000)));
+}
+
+fn is_main_window_visible<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.get_webview_window(crate::app::tray::MAIN_WINDOW_LABEL)
+        .and_then(|window| window.is_visible().ok())
+        .unwrap_or(false)
 }
 
 pub(crate) fn resolve_widget_monitor<R: Runtime>(
@@ -105,16 +138,29 @@ async fn apply_widget_layout_internal<R: Runtime>(
     focus_after_show: bool,
     show_object_slot: bool,
 ) -> Result<(), String> {
+    if is_main_window_visible(app) {
+        close_widget_window(app);
+        return Ok(());
+    }
+
     let monitor = resolve_widget_monitor(app, preferred_monitor)?;
     let bounds = resolve_widget_bounds(&monitor, placement, expanded, show_object_slot);
+    let lifecycle = app.state::<WidgetWindowLifecycleState>();
 
     if let Some(window) = app.get_webview_window(WIDGET_WINDOW_LABEL) {
+        lifecycle.show_existing();
+        let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_always_on_top(true);
+        if !expanded {
+            emit_widget_runtime_collapsed(app);
+        }
         apply_widget_bounds(&window, bounds)?;
         let _ = window.show();
         let _ = window.set_focusable(true);
         if focus_after_show {
             let _ = window.set_focus();
         }
+        emit_widget_runtime_shown(app);
         return Ok(());
     }
 
@@ -122,6 +168,10 @@ async fn apply_widget_layout_internal<R: Runtime>(
     let logical_y = f64::from(bounds.y) / monitor.scale_factor();
     let logical_width = f64::from(bounds.width) / monitor.scale_factor();
     let logical_height = f64::from(bounds.height) / monitor.scale_factor();
+
+    if !lifecycle.begin_show() {
+        return Ok(());
+    }
 
     let window = WebviewWindowBuilder::new(
         app,
@@ -144,8 +194,17 @@ async fn apply_widget_layout_internal<R: Runtime>(
     .focused(false)
     .visible(false)
     .build()
-    .map_err(|error| format!("failed to create widget window: {error}"))?;
+    .map_err(|error| {
+        let _ = lifecycle.finish_show();
+        format!("failed to create widget window: {error}")
+    })?;
 
+    if !lifecycle.finish_show() {
+        park_widget_window(&window);
+        return Ok(());
+    }
+
+    let _ = window.set_ignore_cursor_events(false);
     let _ = window.set_focusable(true);
     let _ = window.set_shadow(false);
     window
@@ -154,6 +213,7 @@ async fn apply_widget_layout_internal<R: Runtime>(
     if focus_after_show {
         let _ = window.set_focus();
     }
+    emit_widget_runtime_shown(app);
     Ok(())
 }
 
@@ -219,7 +279,11 @@ fn resolve_widget_bounds_from_work_area(
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_widget_bounds_from_work_area, WidgetWindowBounds};
+    use super::{
+        resolve_widget_bounds_from_work_area, WidgetWindowBounds, WIDGET_COLLAPSED_HEIGHT,
+        WIDGET_COLLAPSED_WIDTH, WIDGET_EXPANDED_HEIGHT, WIDGET_EXPANDED_WIDTH_COMPACT,
+        WIDGET_EXPANDED_WIDTH_WITH_OBJECT,
+    };
     use crate::domain::widget::{WidgetPlacement, WidgetSide};
 
     #[test]
@@ -230,16 +294,16 @@ mod tests {
             1920,
             1040,
             WidgetPlacement::new(WidgetSide::Left, 0.5),
-            34,
-            48,
+            WIDGET_COLLAPSED_WIDTH,
+            WIDGET_COLLAPSED_HEIGHT,
         );
         assert_eq!(
             left,
             WidgetWindowBounds {
-                x: -10,
+                x: 0,
                 y: 496,
-                width: 34,
-                height: 48,
+                width: WIDGET_COLLAPSED_WIDTH,
+                height: WIDGET_COLLAPSED_HEIGHT,
             }
         );
 
@@ -249,10 +313,10 @@ mod tests {
             1920,
             1040,
             WidgetPlacement::new(WidgetSide::Right, 0.0),
-            34,
-            48,
+            WIDGET_COLLAPSED_WIDTH,
+            WIDGET_COLLAPSED_HEIGHT,
         );
-        assert_eq!(right.x, 1896);
+        assert_eq!(right.x, 1856);
         assert_eq!(right.y, 0);
     }
 
@@ -264,16 +328,16 @@ mod tests {
             1920,
             1040,
             WidgetPlacement::new(WidgetSide::Left, 0.5),
-            148,
-            48,
+            WIDGET_EXPANDED_WIDTH_WITH_OBJECT,
+            WIDGET_EXPANDED_HEIGHT,
         );
         assert_eq!(
             left,
             WidgetWindowBounds {
                 x: 0,
                 y: 496,
-                width: 148,
-                height: 48,
+                width: WIDGET_EXPANDED_WIDTH_WITH_OBJECT,
+                height: WIDGET_EXPANDED_HEIGHT,
             }
         );
 
@@ -283,10 +347,10 @@ mod tests {
             1920,
             1040,
             WidgetPlacement::new(WidgetSide::Right, 0.0),
-            148,
-            48,
+            WIDGET_EXPANDED_WIDTH_WITH_OBJECT,
+            WIDGET_EXPANDED_HEIGHT,
         );
-        assert_eq!(right.x, 1772);
+        assert_eq!(right.x, 1692);
         assert_eq!(right.y, 0);
     }
 
@@ -298,12 +362,12 @@ mod tests {
             1920,
             1040,
             WidgetPlacement::new(WidgetSide::Right, 0.0),
-            116,
-            48,
+            WIDGET_EXPANDED_WIDTH_COMPACT,
+            WIDGET_EXPANDED_HEIGHT,
         );
 
-        assert_eq!(right.x, 1804);
+        assert_eq!(right.x, 1736);
         assert_eq!(right.y, 0);
-        assert_eq!(right.width, 116);
+        assert_eq!(right.width, WIDGET_EXPANDED_WIDTH_COMPACT);
     }
 }

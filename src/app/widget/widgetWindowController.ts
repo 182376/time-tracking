@@ -23,6 +23,7 @@ export interface WidgetWindowControllerDeps {
   clearScheduled: (handle: number) => void;
   onPlacementChange?: (placement: WidgetPlacement) => void;
   onExpandedChange?: (expanded: boolean) => void;
+  onCollapsedDragSettled?: () => void;
   onWarning?: (message: string, error: unknown) => void;
 }
 
@@ -31,7 +32,8 @@ export const DEFAULT_WIDGET_PLACEMENT: WidgetPlacement = {
   anchorY: 0.28,
 };
 
-export const DRAG_SETTLE_MS = 160;
+export const DRAG_SETTLE_MS = 40;
+export const COLLAPSE_ANIMATION_MS = 120;
 
 export function clampWidgetAnchorY(anchorY: number) {
   if (!Number.isFinite(anchorY)) {
@@ -60,6 +62,24 @@ export function resolveWidgetPlacementFromWindowRect(
   };
 }
 
+function isWindowAtPlacement(
+  monitor: WidgetMonitorLike,
+  position: WidgetWindowPosition,
+  size: WidgetWindowSize,
+  placement: WidgetPlacement,
+) {
+  const workArea = monitor.workArea;
+  const expectedX = placement.side === "left"
+    ? workArea.position.x
+    : workArea.position.x + workArea.size.width - size.width;
+  const maxYOffset = Math.max(0, workArea.size.height - size.height);
+  const expectedY = workArea.position.y + Math.round(placement.anchorY * maxYOffset);
+  const tolerance = 2;
+
+  return Math.abs(position.x - expectedX) <= tolerance
+    && Math.abs(position.y - expectedY) <= tolerance;
+}
+
 export function createWidgetWindowController(
   initialShowObjectSlot: boolean,
   deps: WidgetWindowControllerDeps,
@@ -68,8 +88,12 @@ export function createWidgetWindowController(
   let expanded = false;
   let showObjectSlot = initialShowObjectSlot;
   let applyingRuntimeLayout = false;
+  let userDragActive = false;
+  let runtimeHidden = false;
+  let collapsedDragSettlePending = false;
   let dragTimerHandle: number | null = null;
   let layoutReleaseHandle: number | null = null;
+  let collapseRuntimeHandle: number | null = null;
 
   function setPlacement(nextPlacement: WidgetPlacement) {
     placement = {
@@ -91,10 +115,38 @@ export function createWidgetWindowController(
     }
   }
 
+  function clearCollapsedDragSettlePending() {
+    collapsedDragSettlePending = false;
+  }
+
+  function settleCollapsedDragVisual() {
+    if (!collapsedDragSettlePending) {
+      return;
+    }
+
+    collapsedDragSettlePending = false;
+    deps.onCollapsedDragSettled?.();
+  }
+
+  function scheduleFinalizeMove() {
+    clearDragTimer();
+    dragTimerHandle = deps.schedule(() => {
+      dragTimerHandle = null;
+      void finalizeMove().finally(settleCollapsedDragVisual);
+    }, DRAG_SETTLE_MS);
+  }
+
   function clearLayoutReleaseTimer() {
     if (layoutReleaseHandle !== null) {
       deps.clearScheduled(layoutReleaseHandle);
       layoutReleaseHandle = null;
+    }
+  }
+
+  function clearCollapseRuntimeTimer() {
+    if (collapseRuntimeHandle !== null) {
+      deps.clearScheduled(collapseRuntimeHandle);
+      collapseRuntimeHandle = null;
     }
   }
 
@@ -116,6 +168,10 @@ export function createWidgetWindowController(
   }
 
   async function finalizeMove() {
+    if (expanded) {
+      return;
+    }
+
     const rect = await deps.readWindowRect();
     if (!rect) {
       return;
@@ -126,10 +182,19 @@ export function createWidgetWindowController(
       return;
     }
 
+    if (expanded) {
+      return;
+    }
+
     const nextPlacement = resolveWidgetPlacementFromWindowRect(monitor, rect.position, rect.size);
+    const alreadySettled = isWindowAtPlacement(monitor, rect.position, rect.size, nextPlacement);
     setPlacement(nextPlacement);
+    if (alreadySettled) {
+      return;
+    }
+
     try {
-      await runRuntimeLayout(nextPlacement, true, showObjectSlot);
+      await runRuntimeLayout(nextPlacement, false, showObjectSlot);
     } catch (error) {
       deps.onWarning?.("apply widget drag layout failed", error);
     }
@@ -151,6 +216,9 @@ export function createWidgetWindowController(
       return;
     }
 
+    runtimeHidden = false;
+    clearCollapseRuntimeTimer();
+    clearCollapsedDragSettlePending();
     setExpanded(true);
     void deps.persistExpanded(true, showObjectSlot).catch((error) => {
       deps.onWarning?.("widget expand failed", error);
@@ -162,10 +230,55 @@ export function createWidgetWindowController(
       return;
     }
 
+    runtimeHidden = false;
+    clearDragTimer();
+    clearCollapsedDragSettlePending();
     setExpanded(false);
-    void deps.persistExpanded(false, showObjectSlot).catch((error) => {
-      deps.onWarning?.("widget collapse failed", error);
-    });
+    clearCollapseRuntimeTimer();
+    collapseRuntimeHandle = deps.schedule(() => {
+      collapseRuntimeHandle = null;
+      void deps.persistExpanded(false, showObjectSlot).catch((error) => {
+        deps.onWarning?.("widget collapse failed", error);
+      });
+    }, COLLAPSE_ANIMATION_MS);
+  }
+
+  function beginUserDrag() {
+    if (expanded) {
+      return;
+    }
+
+    runtimeHidden = false;
+    userDragActive = true;
+    clearCollapsedDragSettlePending();
+    clearDragTimer();
+  }
+
+  function syncCollapsedFromRuntime() {
+    runtimeHidden = true;
+    userDragActive = false;
+    clearDragTimer();
+    clearCollapsedDragSettlePending();
+    clearCollapseRuntimeTimer();
+    if (!expanded) {
+      return;
+    }
+
+    setExpanded(false);
+  }
+
+  function syncShownFromRuntime() {
+    runtimeHidden = false;
+  }
+
+  function endUserDrag() {
+    if (!userDragActive) {
+      return;
+    }
+
+    userDragActive = false;
+    collapsedDragSettlePending = true;
+    scheduleFinalizeMove();
   }
 
   function toggleExpanded() {
@@ -184,15 +297,16 @@ export function createWidgetWindowController(
   }
 
   function handleWindowMoved() {
-    if (applyingRuntimeLayout || !expanded) {
+    if (runtimeHidden || applyingRuntimeLayout || expanded) {
       return;
     }
 
-    clearDragTimer();
-    dragTimerHandle = deps.schedule(() => {
-      dragTimerHandle = null;
-      void finalizeMove();
-    }, DRAG_SETTLE_MS);
+    if (userDragActive) {
+      clearDragTimer();
+      return;
+    }
+
+    scheduleFinalizeMove();
   }
 
   function setShowObjectSlot(nextShowObjectSlot: boolean) {
@@ -208,13 +322,19 @@ export function createWidgetWindowController(
   }
 
   function dispose() {
+    runtimeHidden = false;
+    userDragActive = false;
     clearDragTimer();
+    clearCollapsedDragSettlePending();
     clearLayoutReleaseTimer();
+    clearCollapseRuntimeTimer();
   }
 
   return {
+    beginUserDrag,
     collapse,
     dispose,
+    endUserDrag,
     expand,
     getState: () => ({
       placement,
@@ -225,6 +345,8 @@ export function createWidgetWindowController(
     handleWindowMoved,
     initialize,
     setShowObjectSlot,
+    syncCollapsedFromRuntime,
+    syncShownFromRuntime,
     toggleExpanded,
   };
 }

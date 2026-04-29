@@ -58,6 +58,7 @@ export default function App() {
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    syncWidgetVisibility();
 
     return () => {
       active = false;

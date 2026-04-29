@@ -1,12 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   availableMonitors,
+  cursorPosition,
   currentMonitor,
   getCurrentWindow,
   primaryMonitor,
   type Monitor,
 } from "@tauri-apps/api/window";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+
+const WIDGET_RUNTIME_COLLAPSED_EVENT = "widget-runtime-collapsed";
+const WIDGET_RUNTIME_SHOWN_EVENT = "widget-runtime-shown";
 
 export type WidgetSide = "left" | "right";
 
@@ -112,6 +117,22 @@ export async function hideWidgetWindow(): Promise<void> {
   await invoke("cmd_hide_widget_window");
 }
 
+export async function onWidgetRuntimeCollapsed(handler: () => void): Promise<() => void> {
+  return listen(WIDGET_RUNTIME_COLLAPSED_EVENT, () => {
+    handler();
+  });
+}
+
+export async function onWidgetRuntimeShown(handler: () => void): Promise<() => void> {
+  return listen(WIDGET_RUNTIME_SHOWN_EVENT, () => {
+    handler();
+  });
+}
+
+export async function isPrimaryMouseButtonDown(): Promise<boolean> {
+  return invoke<boolean>("cmd_is_primary_mouse_button_down");
+}
+
 export function resolveCurrentAppWindowLabel(): AppWindowLabel {
   try {
     const windowLabel = getCurrentWindow().label;
@@ -138,8 +159,17 @@ export async function setCurrentWidgetWindowFocusable(focusable: boolean): Promi
   await getCurrentWindow().setFocusable(focusable);
 }
 
+export async function startCurrentWidgetWindowDrag(): Promise<void> {
+  await getCurrentWindow().startDragging();
+}
+
 export async function readCurrentWidgetWindowRect(): Promise<WidgetWindowRect | null> {
   const currentWindow = getCurrentWindow();
+  const visible = await currentWindow.isVisible().catch(() => false);
+  if (!visible) {
+    return null;
+  }
+
   const [position, size] = await Promise.all([
     currentWindow.outerPosition().catch(() => null),
     currentWindow.outerSize().catch(() => null),
@@ -153,6 +183,29 @@ export async function readCurrentWidgetWindowRect(): Promise<WidgetWindowRect | 
     position,
     size,
   };
+}
+
+export async function isCursorInsideCurrentWidgetWindow(): Promise<boolean> {
+  const currentWindow = getCurrentWindow();
+  const visible = await currentWindow.isVisible().catch(() => false);
+  if (!visible) {
+    return false;
+  }
+
+  const [position, size, cursor] = await Promise.all([
+    currentWindow.outerPosition().catch(() => null),
+    currentWindow.outerSize().catch(() => null),
+    cursorPosition().catch(() => null),
+  ]);
+
+  if (!position || !size || !cursor) {
+    return false;
+  }
+
+  return cursor.x >= position.x
+    && cursor.x <= position.x + size.width
+    && cursor.y >= position.y
+    && cursor.y <= position.y + size.height;
 }
 
 function monitorToWidgetMonitor(monitor: Monitor | null): WidgetMonitorLike | null {
