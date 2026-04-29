@@ -22,8 +22,8 @@
 
 截至当前仓库状态：
 
-- 代码版本为 `0.3.3`
-- 稳定发布线处于 `0.3.x`
+- 代码版本为 `0.4.1`
+- 稳定发布线处于 `0.4.x`
 - 仓库仍处于 `0.x` 阶段，但已经超过原型期
 - 默认通过 GitHub Actions 工作流 [prepare-release.yml](../.github/workflows/prepare-release.yml) 中的 `Publish Release` 流程准备与发布版本
 

@@ -1,6 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  availableMonitors,
+  currentMonitor,
+  getCurrentWindow,
+  primaryMonitor,
+  type Monitor,
+} from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 export type WidgetSide = "left" | "right";
+
+export type AppWindowLabel = "main" | "widget";
 
 interface RawWidgetPlacement {
   side: WidgetSide;
@@ -10,6 +20,28 @@ interface RawWidgetPlacement {
 export interface WidgetPlacement {
   side: WidgetSide;
   anchorY: number;
+}
+
+export interface WidgetWindowPosition {
+  x: number;
+  y: number;
+}
+
+export interface WidgetWindowSize {
+  width: number;
+  height: number;
+}
+
+export interface WidgetWindowRect {
+  position: WidgetWindowPosition;
+  size: WidgetWindowSize;
+}
+
+export interface WidgetMonitorLike {
+  workArea: {
+    position: WidgetWindowPosition;
+    size: WidgetWindowSize;
+  };
 }
 
 function isWidgetSide(value: unknown): value is WidgetSide {
@@ -78,4 +110,118 @@ export async function showMainWindow(): Promise<void> {
 
 export async function hideWidgetWindow(): Promise<void> {
   await invoke("cmd_hide_widget_window");
+}
+
+export function resolveCurrentAppWindowLabel(): AppWindowLabel {
+  try {
+    const windowLabel = getCurrentWindow().label;
+    const webviewLabel = getCurrentWebviewWindow().label;
+    return windowLabel === "widget" || webviewLabel === "widget"
+      ? "widget"
+      : "main";
+  } catch {
+    return "main";
+  }
+}
+
+export async function isCurrentWindowVisibleAndFocused(): Promise<boolean> {
+  const currentWindow = getCurrentWindow();
+  const visible = await currentWindow.isVisible();
+  if (!visible) {
+    return false;
+  }
+
+  return currentWindow.isFocused();
+}
+
+export async function setCurrentWidgetWindowFocusable(focusable: boolean): Promise<void> {
+  await getCurrentWindow().setFocusable(focusable);
+}
+
+export async function readCurrentWidgetWindowRect(): Promise<WidgetWindowRect | null> {
+  const currentWindow = getCurrentWindow();
+  const [position, size] = await Promise.all([
+    currentWindow.outerPosition().catch(() => null),
+    currentWindow.outerSize().catch(() => null),
+  ]);
+
+  if (!position || !size) {
+    return null;
+  }
+
+  return {
+    position,
+    size,
+  };
+}
+
+function monitorToWidgetMonitor(monitor: Monitor | null): WidgetMonitorLike | null {
+  if (!monitor) {
+    return null;
+  }
+
+  return {
+    workArea: monitor.workArea,
+  };
+}
+
+export async function resolveWidgetMonitorForWindowRect(
+  position: WidgetWindowPosition | null,
+  size: WidgetWindowSize | null,
+): Promise<WidgetMonitorLike | null> {
+  const monitors = await availableMonitors().catch(() => []);
+  if (position && size && monitors.length > 0) {
+    const centerX = position.x + size.width / 2;
+    const centerY = position.y + size.height / 2;
+
+    for (const monitor of monitors) {
+      const workArea = monitor.workArea;
+      if (
+        centerX >= workArea.position.x
+        && centerX <= (workArea.position.x + workArea.size.width)
+        && centerY >= workArea.position.y
+        && centerY <= (workArea.position.y + workArea.size.height)
+      ) {
+        return monitorToWidgetMonitor(monitor);
+      }
+    }
+
+    let nearestMonitor = monitors[0] ?? null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const monitor of monitors) {
+      const workArea = monitor.workArea;
+      const workCenterX = workArea.position.x + workArea.size.width / 2;
+      const workCenterY = workArea.position.y + workArea.size.height / 2;
+      const distance = ((workCenterX - centerX) ** 2) + ((workCenterY - centerY) ** 2);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestMonitor = monitor;
+      }
+    }
+
+    if (nearestMonitor) {
+      return monitorToWidgetMonitor(nearestMonitor);
+    }
+  }
+
+  const current = await currentMonitor().catch(() => null);
+  if (current) {
+    return monitorToWidgetMonitor(current);
+  }
+
+  return monitorToWidgetMonitor(await primaryMonitor().catch(() => null));
+}
+
+export async function onCurrentWidgetWindowMoved(
+  handler: () => void,
+): Promise<() => void> {
+  return getCurrentWindow().onMoved(handler);
+}
+
+export async function onCurrentWidgetWindowFocusChanged(
+  handler: (focused: boolean) => void,
+): Promise<() => void> {
+  return getCurrentWindow().onFocusChanged(({ payload }) => {
+    handler(payload);
+  });
 }

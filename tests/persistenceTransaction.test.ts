@@ -6,7 +6,7 @@ import {
   type SqlWriteOperation,
 } from "../src/platform/persistence/sqliteTransactions.ts";
 import { buildClassificationDraftChangePlan } from "../src/features/classification/services/classificationDraftState.ts";
-import { buildCommitDraftChangePlanOperations } from "../src/features/classification/services/classificationStore.ts";
+import { buildCommitDraftChangePlanSettingMutations } from "../src/features/classification/services/classificationStore.ts";
 import {
   buildRawAppSettingsPatch,
   buildSaveSettingEntryOperations,
@@ -83,7 +83,7 @@ await runTest("executeWriteBatchWithExecutor stops after the first failed operat
 
 await runTest("classification batch operations stop on the first failed write", async () => {
   const executor = new FakeWriteExecutor(2);
-  const operations = buildCommitDraftChangePlanOperations(buildClassificationDraftChangePlan({
+  const mutations = buildCommitDraftChangePlanSettingMutations(buildClassificationDraftChangePlan({
     overrides: {},
     categoryColorOverrides: {},
     customCategories: [],
@@ -101,6 +101,7 @@ await runTest("classification batch operations stop on the first failed write", 
     customCategories: [],
     deletedCategories: ["music"],
   }));
+  const operations = buildClassificationSettingMutationOperations(mutations);
 
   assert.ok(operations.length >= 3);
   await assert.rejects(

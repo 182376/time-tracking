@@ -1,26 +1,10 @@
-import type { WidgetPlacement } from "../../platform/desktop/widgetRuntimeGateway.ts";
-
-export interface WidgetWindowPosition {
-  x: number;
-  y: number;
-}
-
-export interface WidgetWindowSize {
-  width: number;
-  height: number;
-}
-
-export interface WidgetWindowRect {
-  position: WidgetWindowPosition;
-  size: WidgetWindowSize;
-}
-
-export interface WidgetMonitorLike {
-  workArea: {
-    position: WidgetWindowPosition;
-    size: WidgetWindowSize;
-  };
-}
+import type {
+  WidgetMonitorLike,
+  WidgetPlacement,
+  WidgetWindowPosition,
+  WidgetWindowRect,
+  WidgetWindowSize,
+} from "../../platform/desktop/widgetRuntimeGateway.ts";
 
 export interface WidgetWindowControllerDeps {
   loadPlacement: () => Promise<WidgetPlacement | null>;
