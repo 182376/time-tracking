@@ -13,7 +13,6 @@ import {
   commitClassificationSettingMutations,
   type ClassificationSettingMutation,
 } from "../../../platform/persistence/classificationSettingsGateway.ts";
-import type { SqlWriteOperation } from "../../../platform/persistence/sqlite.ts";
 import { ProcessMapper, type AppOverride } from "./ProcessMapper.ts";
 import {
   isAppCategory,
@@ -347,26 +346,6 @@ export function buildCommitDraftChangePlanSettingMutations(
   }
 
   return mutations;
-}
-
-function settingMutationToWriteOperation(mutation: ClassificationSettingMutation): SqlWriteOperation {
-  if (mutation.value === null) {
-    return {
-      query: "DELETE FROM settings WHERE key = ?",
-      values: [mutation.key],
-    };
-  }
-
-  return {
-    query: "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    values: [mutation.key, mutation.value],
-  };
-}
-
-export function buildCommitDraftChangePlanOperations(
-  changePlan: ClassificationDraftChangePlan,
-): SqlWriteOperation[] {
-  return buildCommitDraftChangePlanSettingMutations(changePlan).map(settingMutationToWriteOperation);
 }
 
 export async function commitDraftChangePlan(changePlan: ClassificationDraftChangePlan): Promise<void> {

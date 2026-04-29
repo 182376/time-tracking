@@ -1,22 +1,14 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useEffect } from "react";
 import "./App.css";
 import AppShell from "./app/AppShell";
 import WidgetShell from "./app/widget/WidgetShell";
-import { hideWidgetWindow } from "./platform/desktop/widgetRuntimeGateway";
+import {
+  hideWidgetWindow,
+  isCurrentWindowVisibleAndFocused,
+  resolveCurrentAppWindowLabel,
+} from "./platform/desktop/widgetRuntimeGateway";
 
-const CURRENT_WINDOW_LABEL = (() => {
-  try {
-    const windowLabel = getCurrentWindow().label;
-    const webviewLabel = getCurrentWebviewWindow().label;
-    return windowLabel === "widget" || webviewLabel === "widget"
-      ? "widget"
-      : "main";
-  } catch {
-    return "main";
-  }
-})();
+const CURRENT_WINDOW_LABEL = resolveCurrentAppWindowLabel();
 
 if (typeof document !== "undefined") {
   document.documentElement.dataset.windowLabel = CURRENT_WINDOW_LABEL;
@@ -31,7 +23,6 @@ export default function App() {
     }
 
     let active = true;
-    const currentWindow = getCurrentWindow();
 
     const requestHideWidget = () => {
       void hideWidgetWindow().catch((error) => {
@@ -42,16 +33,9 @@ export default function App() {
     };
 
     const syncWidgetVisibility = () => {
-      void currentWindow
-        .isVisible()
-        .then((visible) => {
-          if (!active || !visible) {
-            return false;
-          }
-          return currentWindow.isFocused();
-        })
+      void isCurrentWindowVisibleAndFocused()
         .then((focused) => {
-          if (focused) {
+          if (active && focused) {
             requestHideWidget();
           }
         })
