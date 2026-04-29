@@ -7,6 +7,10 @@ on:
         description: "Version to release, for example 0.1.1"
         required: true
         type: string
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+      - "v[0-9]*.[0-9]*.[0-9]*-*"
 
 permissions:
   contents: write
@@ -31,11 +35,35 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        run: |
+          $semverPattern = '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9A-Za-z-][0-9A-Za-z-]*))*))?'
+
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $refName = "${{ github.ref_name }}"
+            if ($refName -notmatch "^v(?<version>$semverPattern)$") {
+              throw "Tag '$refName' is not a release version tag."
+            }
+            $version = $Matches.version
+          }
+
+          if ($version -notmatch "^$semverPattern$") {
+            throw "Version '$version' is not a valid SemVer version."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "Resolved release version: $version"
+
       - name: Check tag
         id: tag
         shell: pwsh
         run: |
-          $version = "${{ inputs.version }}"
+          $version = "${{ steps.release.outputs.version }}"
           $existingTag = git ls-remote --tags origin "refs/tags/v$version"
           if ($existingTag) {
             "TAG_EXISTS=true" >> $env:GITHUB_ENV
@@ -49,31 +77,31 @@ jobs:
         if: env.TAG_EXISTS == 'true'
         shell: pwsh
         run: |
-          git fetch origin "refs/tags/v${{ inputs.version }}:refs/tags/v${{ inputs.version }}"
-          git checkout "v${{ inputs.version }}"
+          git fetch --force origin "refs/tags/v${{ steps.release.outputs.version }}:refs/tags/v${{ steps.release.outputs.version }}"
+          git checkout "v${{ steps.release.outputs.version }}"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Sync version files
         if: env.TAG_EXISTS != 'true'
-        run: node --experimental-strip-types scripts/release.ts sync-version ${{ inputs.version }}
+        run: node --experimental-strip-types scripts/release.ts sync-version ${{ steps.release.outputs.version }}
 
       - name: Validate changelog
-        run: node --experimental-strip-types scripts/release.ts validate-changelog ${{ inputs.version }}
+        run: node --experimental-strip-types scripts/release.ts validate-changelog ${{ steps.release.outputs.version }}
 
       - name: Verify release notes generation
-        run: node --experimental-strip-types scripts/release.ts write-release-notes ${{ inputs.version }} dist-release/release-notes.md
+        run: node --experimental-strip-types scripts/release.ts write-release-notes ${{ steps.release.outputs.version }} dist-release/release-notes.md
 
       - name: Run release quality gate
-        if: env.TAG_EXISTS != 'true'
+        if: env.TAG_EXISTS != 'true' || github.event_name == 'push'
         run: npm run check:full
 
       - name: Commit version changes and tag
         if: env.TAG_EXISTS != 'true'
         shell: pwsh
         run: |
-          $version = "${{ inputs.version }}"
+          $version = "${{ steps.release.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/tauri.dev.conf.json src-tauri/tauri.local.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
@@ -106,19 +134,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist-release | Out-Null
-          $version = "${{ inputs.version }}"
+          $version = "${{ steps.release.outputs.version }}"
           npm run release:prepare-assets -- $version src-tauri/target/release/bundle dist-release ${{ github.repository }} windows-x86_64
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ inputs.version }}
-          name: Time Tracker v${{ inputs.version }}
+          tag_name: v${{ steps.release.outputs.version }}
+          name: Time Tracker v${{ steps.release.outputs.version }}
           body_path: dist-release/release-notes.md
           draft: false
-          prerelease: ${{ contains(inputs.version, '-') }}
+          prerelease: ${{ contains(steps.release.outputs.version, '-') }}
           files: |
-            dist-release/TimeTracker_${{ inputs.version }}_x64-setup.exe
+            dist-release/TimeTracker_${{ steps.release.outputs.version }}_x64-setup.exe
 
       - name: Publish updater channel
         shell: pwsh
@@ -131,6 +159,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "updates: latest v${{ inputs.version }}"
+          git commit -m "updates: latest v${{ steps.release.outputs.version }}"
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git push --force origin updates
