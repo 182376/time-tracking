@@ -102,7 +102,7 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.release.outputs.version }}"
-          git config user.name "Zoe"
+          git config user.name "Cecelia"
           git config user.email "1815842281@qq.com"
           git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/tauri.dev.conf.json src-tauri/tauri.local.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md docs/versioning-and-release-policy.md
           git diff --cached --quiet
@@ -156,7 +156,7 @@ jobs:
 
           Set-Location updater-publish
           git init -b updates
-          git config user.name "Zoe"
+          git config user.name "Cecelia"
           git config user.email "1815842281@qq.com"
           git add .
           git commit -m "updates: latest v${{ steps.release.outputs.version }}"
