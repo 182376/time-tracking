@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Pipette } from "lucide-react";
+import QuietTooltip from "./QuietTooltip";
 import {
   hexToHsl,
   hexToRgb,
@@ -256,32 +257,40 @@ export default function QuietColorField({
   };
 
   const supportsEyedropper = typeof window !== "undefined" && "EyeDropper" in window;
+  const triggerButton = (
+    <button
+      ref={triggerRef}
+      type="button"
+      disabled={disabled}
+      aria-label={title ?? "颜色"}
+      onClick={() => {
+        if (disabled) return;
+        setOpen((previousOpen) => {
+          if (previousOpen) {
+            return false;
+          }
+          const initialPosition = resolvePopoverPosition(DEFAULT_POPOVER_HEIGHT, DEFAULT_POPOVER_WIDTH);
+          if (initialPosition) {
+            setPosition(initialPosition);
+          }
+          return true;
+        });
+      }}
+      className={`qp-color-trigger ${fixedValueSlot ? "qp-color-trigger-fixed-slot" : ""}`}
+    >
+      <span className="qp-color-trigger-swatch" style={{ backgroundColor: normalizedColor }} aria-hidden />
+      <span className="qp-color-trigger-value">{normalizedColor}</span>
+    </button>
+  );
+  const eyedropperLabel = supportsEyedropper ? "取色器" : "当前环境不支持取色器";
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((previousOpen) => {
-            if (previousOpen) {
-              return false;
-            }
-            const initialPosition = resolvePopoverPosition(DEFAULT_POPOVER_HEIGHT, DEFAULT_POPOVER_WIDTH);
-            if (initialPosition) {
-              setPosition(initialPosition);
-            }
-            return true;
-          });
-        }}
-        className={`qp-color-trigger ${fixedValueSlot ? "qp-color-trigger-fixed-slot" : ""}`}
-        title={title}
-      >
-        <span className="qp-color-trigger-swatch" style={{ backgroundColor: normalizedColor }} aria-hidden />
-        <span className="qp-color-trigger-value">{normalizedColor}</span>
-      </button>
+      {title ? (
+        <QuietTooltip label={title}>
+          {triggerButton}
+        </QuietTooltip>
+      ) : triggerButton}
 
       {open && !disabled && createPortal(
         <div
@@ -293,15 +302,17 @@ export default function QuietColorField({
         >
           <div className="qp-color-popover-head">
             <div className="qp-color-popover-title">颜色</div>
-            <button
-              type="button"
-              className="qp-color-eyedropper"
-              onClick={() => void pickByEyedropper()}
-              disabled={!supportsEyedropper}
-              title={supportsEyedropper ? "取色器" : "当前环境不支持取色器"}
-            >
-              <Pipette size={14} />
-            </button>
+            <QuietTooltip label={eyedropperLabel}>
+              <button
+                type="button"
+                className="qp-color-eyedropper"
+                aria-label={eyedropperLabel}
+                onClick={() => void pickByEyedropper()}
+                disabled={!supportsEyedropper}
+              >
+                <Pipette size={14} />
+              </button>
+            </QuietTooltip>
           </div>
 
           <div

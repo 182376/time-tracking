@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import QuietTooltip from "./QuietTooltip";
 
 type QuietInlineActionTone = "neutral" | "accent" | "warning" | "danger";
 
@@ -19,16 +20,25 @@ export default function QuietInlineAction({
   leadingIcon,
   onClick,
 }: Props) {
-  return (
+  const button = (
     <button
       type="button"
       disabled={disabled}
-      title={title}
       onClick={onClick}
       className={`qp-inline-action qp-inline-action-${tone}`}
     >
       {leadingIcon}
       {children}
     </button>
+  );
+
+  if (!title) {
+    return button;
+  }
+
+  return (
+    <QuietTooltip label={title}>
+      {button}
+    </QuietTooltip>
   );
 }

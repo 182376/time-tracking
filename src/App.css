@@ -70,6 +70,8 @@
   --qp-space-section: 20px;
   --qp-space-group: 14px;
   --qp-row-height: 42px;
+  --qp-titlebar-height: 36px;
+  --qp-window-corner-radius: 8px;
 
   --qp-motion-fast: 120ms;
   --qp-motion-base: 180ms;
@@ -94,7 +96,7 @@
   --qp-widget-action-gap: 4px;
   --qp-widget-tray-motion: 120ms;
 
-  background-color: var(--qp-bg-app);
+  background-color: transparent;
   color: var(--qp-text-primary);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -110,12 +112,13 @@ html,
 body,
 #root {
   height: 100%;
+  background: transparent;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--qp-bg-app);
+  background: transparent;
   color: var(--qp-text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
@@ -174,6 +177,118 @@ button {
 }
 
 /* Quiet Pro skeleton primitives for upcoming phased migration */
+.qp-app-frame {
+  display: flex;
+  height: 100vh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--qp-window-corner-radius);
+  background: var(--qp-bg-app);
+  color: var(--qp-text-primary);
+}
+
+.qp-app-frame-maximized {
+  border-radius: 0;
+}
+
+.app-titlebar {
+  display: flex;
+  flex: 0 0 var(--qp-titlebar-height);
+  height: var(--qp-titlebar-height);
+  align-items: center;
+  border-bottom: 1px solid var(--qp-border-subtle);
+  background: var(--qp-bg-app);
+  color: var(--qp-text-secondary);
+  user-select: none;
+}
+
+.app-titlebar-brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 180px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.app-titlebar-mark {
+  display: inline-flex;
+  height: 20px;
+  width: 20px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-titlebar-icon {
+  display: block;
+  height: 18px;
+  width: 18px;
+  object-fit: contain;
+}
+
+.app-titlebar-name {
+  overflow: hidden;
+  color: var(--qp-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-titlebar-drag-region {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 24px;
+  cursor: default;
+}
+
+.app-titlebar-controls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: stretch;
+  align-items: center;
+}
+
+.app-titlebar-button {
+  display: inline-flex;
+  height: 100%;
+  width: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid transparent;
+  background: transparent;
+  color: var(--qp-text-tertiary);
+  cursor: default;
+}
+
+.app-titlebar-button:hover {
+  background: color-mix(in srgb, var(--qp-bg-panel) 70%, var(--qp-bg-elevated) 30%);
+  color: var(--qp-text-primary);
+}
+
+.app-titlebar-button:active {
+  background: var(--qp-bg-elevated);
+  color: var(--qp-text-primary);
+}
+
+.app-titlebar-button:focus-visible {
+  outline-offset: -2px;
+}
+
+.app-titlebar-close:hover {
+  background: color-mix(in srgb, var(--qp-danger) 11%, var(--qp-bg-panel));
+  color: var(--qp-danger);
+}
+
+.app-titlebar-close:active {
+  background: color-mix(in srgb, var(--qp-danger) 17%, var(--qp-bg-panel));
+  color: var(--qp-danger);
+}
+
 .qp-shell {
   background: var(--qp-bg-app);
   color: var(--qp-text-primary);
@@ -739,6 +854,29 @@ button {
 .qp-danger-action:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.qp-tooltip-anchor {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.qp-tooltip {
+  position: fixed;
+  z-index: 170;
+  max-width: min(220px, calc(100vw - 16px));
+  border-radius: 8px;
+  border: 1px solid var(--qp-border-subtle);
+  background: var(--qp-bg-panel);
+  box-shadow: var(--qp-shadow-overlay);
+  padding: 5px 8px;
+  color: var(--qp-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .qp-subpanel {

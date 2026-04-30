@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import QuietTooltip from "./QuietTooltip";
 
 interface Props {
   children?: ReactNode;
@@ -15,15 +16,24 @@ export default function QuietResetAction({
   title,
   onClick,
 }: Props) {
-  return (
+  const button = (
     <button
       type="button"
       disabled={disabled}
-      title={title}
       onClick={onClick}
       className={`qp-reset-action ${dimmed ? "qp-reset-action-dimmed" : ""}`.trim()}
     >
       {children}
     </button>
+  );
+
+  if (!title) {
+    return button;
+  }
+
+  return (
+    <QuietTooltip label={title}>
+      {button}
+    </QuietTooltip>
   );
 }

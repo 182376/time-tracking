@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpCircle, Zap, Monitor, Clock, Settings2, Sparkles } from "lucide-react";
+import { UI_TEXT } from "../../shared/copy/uiText";
 import type { View } from "../types/view";
 
 interface Props {
@@ -14,10 +15,10 @@ type AppRegionStyle = CSSProperties & { WebkitAppRegion?: "drag" | "no-drag" };
 const NO_DRAG_STYLE: AppRegionStyle = { WebkitAppRegion: "no-drag" };
 
 const NAV_ITEMS = [
-  { id: "dashboard" as View, icon: Monitor, label: "Dashboard" },
-  { id: "history" as View, icon: Clock, label: "History" },
-  { id: "mapping" as View, icon: Sparkles, label: "Mapping" },
-  { id: "settings" as View, icon: Settings2, label: "Settings" },
+  { id: "dashboard" as View, icon: Monitor, label: UI_TEXT.dashboard.title },
+  { id: "history" as View, icon: Clock, label: UI_TEXT.history.title },
+  { id: "mapping" as View, icon: Sparkles, label: UI_TEXT.mapping.title },
+  { id: "settings" as View, icon: Settings2, label: UI_TEXT.settings.title },
 ];
 
 export default function AppSidebar({
@@ -44,7 +45,6 @@ export default function AppSidebar({
             key={item.id}
             whileTap={{ scale: 0.995 }}
             transition={{ duration: 0.1, ease: "easeOut" }}
-            title={item.label}
             onClick={() => onNavigate(item.id)}
             aria-label={item.label}
             className={`qp-nav-item h-10 w-full rounded-[10px] transition-colors relative flex items-center justify-center ${

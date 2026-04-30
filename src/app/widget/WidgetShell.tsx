@@ -75,7 +75,7 @@ export default function WidgetShell() {
   const statusTitle = `${viewModel.statusLabel} | ${viewModel.appName}`;
   const objectIcon = useWidgetObjectIcon(viewModel.objectIconKey);
   const showObjectSlot = viewModel.showObjectSlot && Boolean(objectIcon);
-  const objectSlotTitle = `Current app: ${viewModel.appName}`;
+  const objectSlotTitle = `当前应用：${viewModel.appName}`;
   const dragHoldTimerRef = useRef<number | null>(null);
   const dragPointerIdRef = useRef<number | null>(null);
   const dragReleasePollRef = useRef<number | null>(null);
@@ -295,7 +295,6 @@ export default function WidgetShell() {
             <div
               className="widget-pill-object-slot"
               aria-hidden={!expanded}
-              title={objectSlotTitle}
             >
               <div
                 className="widget-pill-object"
@@ -315,6 +314,7 @@ export default function WidgetShell() {
               title={viewModel.pauseActionLabel}
               ariaLabel={viewModel.pauseActionLabel}
               className="widget-pill-action"
+              showTooltip={false}
               disabled={!expanded}
               onClick={() => {
                 void toggleTrackingPaused().catch((error) => {
@@ -325,9 +325,10 @@ export default function WidgetShell() {
 
             <QuietIconAction
               icon={<SquareArrowOutUpRight size={15} strokeWidth={1.8} />}
-              title="Open main window"
-              ariaLabel="Open main window"
+              title="打开主窗口"
+              ariaLabel="打开主窗口"
               className="widget-pill-action"
+              showTooltip={false}
               disabled={!expanded}
               onClick={() => {
                 void showMainWindow().catch((error) => {
@@ -344,13 +345,12 @@ export default function WidgetShell() {
           className={`widget-pill-anchor widget-pill-anchor-${viewModel.statusTone} ${
             renderExpanded ? "widget-pill-anchor-expanded" : "widget-pill-anchor-collapsed"
           }`}
-          aria-label={expanded ? "Collapse widget" : "Expand widget"}
+          aria-label={`${expanded ? "收起悬浮窗" : "展开悬浮窗"}，${statusTitle}`}
           aria-expanded={expanded}
           onPointerDown={handleCollapsedDragPointerDown}
           onPointerUp={handleCollapsedDragPointerEnd}
           onPointerCancel={handleCollapsedDragPointerEnd}
           onClick={handleAnchorClick}
-          title={statusTitle}
         >
           <span className={`widget-status-lamp widget-status-lamp-${viewModel.statusTone}`} />
         </button>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import QuietTooltip, { type QuietTooltipPlacement } from "./QuietTooltip";
 
 type QuietIconActionTone = "neutral" | "danger";
 
@@ -9,6 +10,8 @@ interface Props {
   disabled?: boolean;
   ariaLabel?: string;
   className?: string;
+  showTooltip?: boolean;
+  tooltipPlacement?: QuietTooltipPlacement;
   onClick?: () => void;
 }
 
@@ -19,12 +22,13 @@ export default function QuietIconAction({
   disabled = false,
   ariaLabel,
   className,
+  showTooltip = true,
+  tooltipPlacement = "top",
   onClick,
 }: Props) {
-  return (
+  const button = (
     <button
       type="button"
-      title={title}
       aria-label={ariaLabel ?? title}
       disabled={disabled}
       onClick={onClick}
@@ -32,5 +36,15 @@ export default function QuietIconAction({
     >
       {icon}
     </button>
+  );
+
+  if (!showTooltip) {
+    return button;
+  }
+
+  return (
+    <QuietTooltip label={title} placement={tooltipPlacement}>
+      {button}
+    </QuietTooltip>
   );
 }
