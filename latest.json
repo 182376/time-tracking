@@ -1,0 +1,11 @@
+{
+  "version": "0.4.3",
+  "notes": "改进主窗口标题栏与边角显示。",
+  "pub_date": "2026-04-30T02:27:34.752Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOFZuazl1VGFEU0dkZ1ZIRnVVYm5JQXV1ajNyVk9DNVI2M1g2RFMwYVlUdHNFenlDeUJuR0ZpaXhRS2VpVTBncjU4V1ZhL2hIUE5taDBLNVA0MGh1bHBUYTRSOHBJQVEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3NTE2MDUzCWZpbGU6VGltZSBUcmFja2VyXzAuNC4zX3g2NC1zZXR1cC5leGUKWHFPNVJUMjIrT3lrWUNzb0FKMjFoZ0dSWjRiWjBGUDZOVm1raHVPdmxEQ1FMVGl5ZjMrM0dkQWlXOGlIbHpMb0RMRlZXcW94TkVKdlAxRFNOUFBTQ0E9PQo=",
+      "url": "https://github.com/182376/time-tracking/releases/download/v0.4.3/TimeTracker_0.4.3_x64-setup.exe"
+    }
+  }
+}
