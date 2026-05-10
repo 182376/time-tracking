@@ -360,7 +360,7 @@ export default function Data({
               <div className="data-trend-chart">
                 <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendViewModel.chartData} margin={{ top: 8, right: 22, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(156, 168, 186, 0.25)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--qp-chart-grid)" />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 11, fill: "var(--qp-text-tertiary)" }}
@@ -409,6 +409,15 @@ export default function Data({
               </p>
             </div>
             <div className="data-heatmap-header-actions">
+              <div className="hidden items-center gap-1.5 text-[10px] font-medium text-[var(--qp-text-tertiary)] sm:flex">
+                <span>{UI_TEXT.data.less}</span>
+                <span className="data-heatmap-swatch data-heatmap-level-0" />
+                <span className="data-heatmap-swatch data-heatmap-level-1" />
+                <span className="data-heatmap-swatch data-heatmap-level-2" />
+                <span className="data-heatmap-swatch data-heatmap-level-3" />
+                <span className="data-heatmap-swatch data-heatmap-level-4" />
+                <span>{UI_TEXT.data.more}</span>
+              </div>
               <div className="data-heatmap-range-control" aria-label="选择热力图范围">
                 <button
                   type="button"
@@ -435,15 +444,6 @@ export default function Data({
                 >
                   <ChevronRight size={14} />
                 </button>
-              </div>
-              <div className="hidden items-center gap-1.5 text-[10px] font-medium text-[var(--qp-text-tertiary)] sm:flex">
-                <span>{UI_TEXT.data.less}</span>
-                <span className="data-heatmap-swatch data-heatmap-level-0" />
-                <span className="data-heatmap-swatch data-heatmap-level-1" />
-                <span className="data-heatmap-swatch data-heatmap-level-2" />
-                <span className="data-heatmap-swatch data-heatmap-level-3" />
-                <span className="data-heatmap-swatch data-heatmap-level-4" />
-                <span>{UI_TEXT.data.more}</span>
               </div>
             </div>
           </div>
@@ -508,6 +508,19 @@ export default function Data({
             </h3>
           </div>
           <div className="data-app-header-actions">
+            {appTrendViewModel?.selectedApp ? (
+              <div className="data-app-selected-status">
+                {icons[appTrendViewModel.selectedApp.exeName] ? (
+                  <img
+                    src={icons[appTrendViewModel.selectedApp.exeName]}
+                    alt=""
+                    draggable={false}
+                  />
+                ) : (
+                  getAppInitial(appTrendViewModel.selectedApp.appName)
+                )}
+              </div>
+            ) : null}
             <div className="data-heatmap-range-control" aria-label="选择应用趋势范围">
               <button
                 type="button"
@@ -535,19 +548,6 @@ export default function Data({
                 <ChevronRight size={14} />
               </button>
             </div>
-            {appTrendViewModel?.selectedApp ? (
-              <div className="data-app-selected-status">
-                {icons[appTrendViewModel.selectedApp.exeName] ? (
-                  <img
-                    src={icons[appTrendViewModel.selectedApp.exeName]}
-                    alt=""
-                    draggable={false}
-                  />
-                ) : (
-                  getAppInitial(appTrendViewModel.selectedApp.appName)
-                )}
-              </div>
-            ) : null}
           </div>
         </div>
 

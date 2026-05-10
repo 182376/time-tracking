@@ -6,6 +6,8 @@ import AppTitleBar from "./components/AppTitleBar";
 import Dashboard from "../features/dashboard/components/Dashboard";
 import { watchCurrentWindowMaximized } from "../platform/desktop/windowControlGateway";
 import QuietToastStack from "../shared/components/QuietToastStack";
+import type { ThemeMode } from "../shared/settings/appSettings.ts";
+import type { ColorSchemePreview } from "../features/settings/types.ts";
 import { useDashboardStats } from "../features/dashboard/hooks/useDashboardStats";
 import { useWindowTracking } from "./hooks/useWindowTracking";
 import {
@@ -28,6 +30,7 @@ import UpdateDialogProvider from "./providers/UpdateDialogProvider";
 import { useAppShellNavigation } from "./hooks/useAppShellNavigation";
 import { useAppShellToasts } from "./hooks/useAppShellToasts";
 import { useAppShellUpdateEntry } from "./hooks/useAppShellUpdateEntry";
+import { useAppThemeMode } from "./hooks/useAppThemeMode.ts";
 import { saveMinSessionSecsSetting } from "./services/appSettingsRuntimeService.ts";
 
 const History = lazy(() => import("../features/history/components/History"));
@@ -58,6 +61,8 @@ function AppShellContent() {
   const { toasts, pushToast } = useAppShellToasts();
   const [readModelRefreshState, setReadModelRefreshState] = useState(INITIAL_READ_MODEL_REFRESH_STATE);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const [settingsThemeModePreview, setSettingsThemeModePreview] = useState<ThemeMode | null>(null);
+  const [settingsColorSchemePreview, setSettingsColorSchemePreview] = useState<ColorSchemePreview | null>(null);
   const didPrewarmBootstrapCachesRef = useRef(false);
   const didPrewarmSnapshotCachesRef = useRef(false);
   const {
@@ -69,6 +74,11 @@ function AppShellContent() {
     syncTick,
     trackerHealth,
   } = useWindowTracking();
+  useAppThemeMode(
+    settingsThemeModePreview ?? appSettings.themeMode,
+    settingsColorSchemePreview?.light ?? appSettings.colorSchemeLight,
+    settingsColorSchemePreview?.dark ?? appSettings.colorSchemeDark,
+  );
   const refreshSignal = resolveReadModelRefreshSignal(syncTick, readModelRefreshState);
   const { mappingVersion } = readModelRefreshState;
   const { dashboard, icons } = useDashboardStats(
@@ -200,9 +210,15 @@ function AppShellContent() {
               {currentView === "settings" && (
                 <Settings
                   key="settings"
-                  onSettingsChanged={setAppSettings}
+                  onSettingsChanged={(nextSettings) => {
+                    setAppSettings(nextSettings);
+                    setSettingsThemeModePreview(null);
+                    setSettingsColorSchemePreview(null);
+                  }}
                   onRegisterSaveHandler={registerSettingsSaveHandler}
                   onDirtyChange={setSettingsDirty}
+                  onThemeModePreview={setSettingsThemeModePreview}
+                  onColorSchemePreview={setSettingsColorSchemePreview}
                   onToast={pushToast}
                 />
               )}

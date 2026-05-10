@@ -11,6 +11,7 @@ import {
 import { toggleTrackingPaused } from "../../platform/runtime/trackingRuntimeGateway";
 import type { TrackingStatusSnapshot, TrackingWindowSnapshot } from "../../shared/types/tracking";
 import { useWindowTracking } from "../hooks/useWindowTracking";
+import { useAppThemeMode } from "../hooks/useAppThemeMode.ts";
 import { useWidgetObjectIcon } from "../hooks/useWidgetObjectIcon";
 import { useWidgetWindowState } from "./useWidgetWindowState";
 import { buildWidgetViewModel, isWidgetSelfWindow } from "./widgetViewModel";
@@ -32,6 +33,7 @@ export default function WidgetShell() {
     classificationReady,
     trackerHealth,
   } = useWindowTracking({ syncDesktopLaunchBehavior: false });
+  useAppThemeMode(appSettings.themeMode, appSettings.colorSchemeLight, appSettings.colorSchemeDark);
   const [lastNonWidgetSnapshot, setLastNonWidgetSnapshot] = useState<WidgetDisplaySnapshot | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hoverRevealActive, setHoverRevealActive] = useState(false);

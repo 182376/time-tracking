@@ -119,6 +119,9 @@ await runTest("settings batch operations stop on the first failed write", async 
     trackingPaused: true,
     timelineMergeGapSecs: 180,
     refreshIntervalSecs: 2,
+    themeMode: "dark",
+    colorSchemeLight: "github",
+    colorSchemeDark: "nord",
   }));
 
   assert.ok(operations.length >= 3);
@@ -129,6 +132,18 @@ await runTest("settings batch operations stop on the first failed write", async 
 
   assert.deepEqual(executor.executedStatements, [operations[0]]);
   assertNoTransactionControlStatements(executor);
+});
+
+await runTest("settings raw patch persists theme mode with snake case key", () => {
+  assert.deepEqual(buildRawAppSettingsPatch({
+    themeMode: "system",
+    colorSchemeLight: "rose-pine",
+    colorSchemeDark: "gruvbox",
+  }), {
+    theme_mode: "system",
+    color_scheme_light: "rose-pine",
+    color_scheme_dark: "gruvbox",
+  });
 });
 
 await runTest("SQLite transient write errors are recoverable", () => {

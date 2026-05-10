@@ -1,6 +1,11 @@
-import type { AppSettings } from "../../shared/settings/appSettings";
+import type { AppSettings, ColorScheme, ThemeMode } from "../../shared/settings/appSettings";
 import type { QuietToastTone } from "../../shared/components/QuietToast";
 import type { UpdateSnapshot } from "../../shared/types/update";
+
+export interface ColorSchemePreview {
+  light: ColorScheme;
+  dark: ColorScheme;
+}
 
 export interface SettingsPageProps {
   onSettingsChanged: (settings: AppSettings) => void;
@@ -15,6 +20,8 @@ export interface SettingsPageProps {
   onDirtyChange?: (dirty: boolean) => void;
   onToast?: (message: string, tone?: QuietToastTone) => void;
   onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
+  onThemeModePreview?: (themeMode: ThemeMode | null) => void;
+  onColorSchemePreview?: (colorScheme: ColorSchemePreview | null) => void;
 }
 
 export type CleanupRange = 180 | 90 | 60 | 30 | 15 | 7;

@@ -111,7 +111,7 @@ export default function AppMapping(props: Props) {
               type="button"
               onClick={handleCancel}
               disabled={!hasUnsavedChanges || saving}
-              className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="qp-button-secondary rounded-[8px] px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {UI_TEXT.mapping.cancel}
             </button>
@@ -119,7 +119,7 @@ export default function AppMapping(props: Props) {
               type="button"
               onClick={() => void handleSave()}
               disabled={!hasUnsavedChanges || saving}
-              className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="qp-button-primary rounded-[8px] px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? UI_TEXT.mapping.saving : UI_TEXT.mapping.save}
             </button>

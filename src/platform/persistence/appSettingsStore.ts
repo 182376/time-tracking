@@ -9,7 +9,9 @@ import {
   DEFAULT_SETTINGS,
   type AppSettings,
   type CloseBehavior,
+  type ColorScheme,
   type MinimizeBehavior,
+  type ThemeMode,
 } from "../../shared/settings/appSettings.ts";
 
 const TRACKER_LAST_HEARTBEAT_KEY = "__tracker_last_heartbeat_ms";
@@ -27,6 +29,10 @@ type RawAppSettingsKey =
   | "tracking_paused"
   | "close_behavior"
   | "minimize_behavior"
+  | "theme_mode"
+  | "color_scheme"
+  | "color_scheme_light"
+  | "color_scheme_dark"
   | "launch_at_login"
   | "start_minimized"
   | "onboarding_completed";
@@ -39,6 +45,9 @@ const APP_SETTINGS_RAW_KEYS: Record<keyof AppSettings, RawAppSettingsKey> = {
   trackingPaused: "tracking_paused",
   closeBehavior: "close_behavior",
   minimizeBehavior: "minimize_behavior",
+  themeMode: "theme_mode",
+  colorSchemeLight: "color_scheme_light",
+  colorSchemeDark: "color_scheme_dark",
   launchAtLogin: "launch_at_login",
   startMinimized: "start_minimized",
   onboardingCompleted: "onboarding_completed",
@@ -86,6 +95,37 @@ function normalizeMinimizeBehavior(value: string | undefined): MinimizeBehavior 
   return value.trim().toLowerCase() === "widget" ? "widget" : "taskbar";
 }
 
+function normalizeThemeMode(value: string | undefined): ThemeMode {
+  if (value === undefined) return DEFAULT_SETTINGS.themeMode;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "dark" || normalized === "system" ? normalized : "light";
+}
+
+function normalizeColorScheme(value: string | undefined): ColorScheme {
+  if (value === undefined) return "default";
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "ayu"
+    || normalized === "catppuccin"
+    || normalized === "dracula"
+    || normalized === "everforest"
+    || normalized === "flexoki"
+    || normalized === "github"
+    || normalized === "gruvbox"
+    || normalized === "kanagawa"
+    || normalized === "material"
+    || normalized === "nord"
+    || normalized === "one"
+    || normalized === "rose-pine"
+    || normalized === "solarized"
+    || normalized === "tokyo-night"
+    || normalized === "vitesse"
+  ) {
+    return normalized;
+  }
+  return "default";
+}
+
 function serializeSettingValue(value: PersistedSettingValue) {
   if (typeof value === "boolean") {
     return value ? "1" : "0";
@@ -118,6 +158,13 @@ export function normalizeSettingsRecord(record: Record<string, string | undefine
     trackingPaused: parseBooleanSetting(record.tracking_paused, DEFAULT_SETTINGS.trackingPaused),
     closeBehavior: normalizeCloseBehavior(record.close_behavior),
     minimizeBehavior: normalizeMinimizeBehavior(record.minimize_behavior),
+    themeMode: normalizeThemeMode(record.theme_mode),
+    colorSchemeLight: normalizeColorScheme(
+      record.color_scheme_light ?? record.color_scheme ?? DEFAULT_SETTINGS.colorSchemeLight,
+    ),
+    colorSchemeDark: normalizeColorScheme(
+      record.color_scheme_dark ?? record.color_scheme ?? DEFAULT_SETTINGS.colorSchemeDark,
+    ),
     launchAtLogin: parseBooleanSetting(record.launch_at_login, DEFAULT_SETTINGS.launchAtLogin),
     startMinimized: parseBooleanSetting(record.start_minimized, DEFAULT_SETTINGS.startMinimized),
     onboardingCompleted: parseBooleanSetting(

@@ -3,9 +3,11 @@ import {
   RefreshCw,
   Settings2,
 } from "lucide-react";
+import { useEffect } from "react";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import type { SettingsPageProps } from "../types";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
+import SettingsAppearancePanel from "./SettingsAppearancePanel";
 import SettingsDataSafetyPanel from "./SettingsDataSafetyPanel";
 import SettingsResidentPanel from "./SettingsResidentPanel";
 import SettingsTrackingPanel from "./SettingsTrackingPanel";
@@ -16,6 +18,8 @@ export default function Settings({
   onDirtyChange,
   onToast,
   onRegisterSaveHandler,
+  onThemeModePreview,
+  onColorSchemePreview,
 }: SettingsPageProps) {
   const {
     dialogs,
@@ -48,6 +52,20 @@ export default function Settings({
     onToast,
     onRegisterSaveHandler,
   });
+
+  useEffect(() => {
+    if (!draftSettings) return;
+    onThemeModePreview?.(draftSettings.themeMode);
+    onColorSchemePreview?.({
+      light: draftSettings.colorSchemeLight,
+      dark: draftSettings.colorSchemeDark,
+    });
+  }, [draftSettings, onColorSchemePreview, onThemeModePreview]);
+
+  useEffect(() => () => {
+    onThemeModePreview?.(null);
+    onColorSchemePreview?.(null);
+  }, [onColorSchemePreview, onThemeModePreview]);
 
   if (loading || !savedSettings || !draftSettings) {
     return (
@@ -95,7 +113,7 @@ export default function Settings({
               type="button"
               onClick={handleCancel}
               disabled={!hasUnsavedChanges || saveStatus === "saving"}
-              className="qp-button-secondary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="qp-button-secondary rounded-[8px] px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {UI_TEXT.settings.cancel}
             </button>
@@ -103,7 +121,7 @@ export default function Settings({
               type="button"
               onClick={() => void handleSave()}
               disabled={!hasUnsavedChanges || saveStatus === "saving"}
-              className="qp-button-primary rounded-[8px] px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="qp-button-primary rounded-[8px] px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saveStatus === "saving" ? UI_TEXT.settings.saving : UI_TEXT.settings.save}
             </button>
@@ -140,6 +158,17 @@ export default function Settings({
             }}
             trackingPaused={draftSettings.trackingPaused}
             onTrackingPausedChange={(nextChecked) => handleChange("trackingPaused", nextChecked)}
+          />
+
+          <SettingsAppearancePanel
+            themeMode={draftSettings.themeMode}
+            onThemeModeChange={(nextThemeMode) => handleChange("themeMode", nextThemeMode)}
+            colorSchemeLight={draftSettings.colorSchemeLight}
+            onColorSchemeLightChange={(nextColorScheme) => handleChange("colorSchemeLight", nextColorScheme)}
+            colorSchemeDark={draftSettings.colorSchemeDark}
+            onColorSchemeDarkChange={(nextColorScheme) => handleChange("colorSchemeDark", nextColorScheme)}
+            onConfirmColorSchemeChange={handleSave}
+            colorSchemeConfirming={saveStatus === "saving"}
           />
 
           <SettingsResidentPanel

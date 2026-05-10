@@ -20,6 +20,41 @@ interface AppSettings {
   trackingPaused: boolean;
   closeBehavior: "exit" | "tray";
   minimizeBehavior: "taskbar" | "widget";
+  themeMode: "light" | "dark" | "system";
+  colorSchemeLight:
+    | "default"
+    | "ayu"
+    | "catppuccin"
+    | "dracula"
+    | "everforest"
+    | "flexoki"
+    | "github"
+    | "gruvbox"
+    | "kanagawa"
+    | "material"
+    | "nord"
+    | "one"
+    | "rose-pine"
+    | "solarized"
+    | "tokyo-night"
+    | "vitesse";
+  colorSchemeDark:
+    | "default"
+    | "ayu"
+    | "catppuccin"
+    | "dracula"
+    | "everforest"
+    | "flexoki"
+    | "github"
+    | "gruvbox"
+    | "kanagawa"
+    | "material"
+    | "nord"
+    | "one"
+    | "rose-pine"
+    | "solarized"
+    | "tokyo-night"
+    | "vitesse";
   launchAtLogin: boolean;
   startMinimized: boolean;
   onboardingCompleted: boolean;
@@ -35,6 +70,9 @@ const BASE_SETTINGS: AppSettings = {
   trackingPaused: false,
   closeBehavior: "tray",
   minimizeBehavior: "taskbar",
+  themeMode: "light",
+  colorSchemeLight: "default",
+  colorSchemeDark: "default",
   launchAtLogin: false,
   startMinimized: false,
   onboardingCompleted: false,
@@ -75,11 +113,17 @@ await runTest("buildSettingsPatch only keeps changed keys", () => {
   const draft = buildSettings({
     minSessionSecs: saved.minSessionSecs + 60,
     trackingPaused: true,
+    themeMode: "dark",
+    colorSchemeLight: "nord",
+    colorSchemeDark: "github",
   });
 
   assert.deepEqual(SettingsRuntimeAdapterService.buildSettingsPatch(saved, draft), {
     minSessionSecs: draft.minSessionSecs,
     trackingPaused: true,
+    themeMode: "dark",
+    colorSchemeLight: "nord",
+    colorSchemeDark: "github",
   });
 });
 
@@ -180,6 +224,9 @@ await runTest("normalizeSettingsRecord accepts widget minimize behavior and maps
   const defaultSettings = normalizeSettingsRecord({});
   assert.equal(defaultSettings.minimizeBehavior, "widget");
   assert.equal(defaultSettings.closeBehavior, "tray");
+  assert.equal(defaultSettings.themeMode, "light");
+  assert.equal(defaultSettings.colorSchemeLight, "default");
+  assert.equal(defaultSettings.colorSchemeDark, "default");
 
   const widgetSettings = normalizeSettingsRecord({
     minimize_behavior: "widget",
@@ -197,6 +244,42 @@ await runTest("normalizeSettingsRecord accepts widget minimize behavior and maps
     minimize_behavior: "floating-sidebar",
   });
   assert.equal(fallbackSettings.minimizeBehavior, "taskbar");
+});
+
+await runTest("normalizeSettingsRecord accepts theme modes and falls back to light", () => {
+  assert.equal(normalizeSettingsRecord({ theme_mode: "light" }).themeMode, "light");
+  assert.equal(normalizeSettingsRecord({ theme_mode: "dark" }).themeMode, "dark");
+  assert.equal(normalizeSettingsRecord({ theme_mode: "system" }).themeMode, "system");
+  assert.equal(normalizeSettingsRecord({ theme_mode: "SYSTEM" }).themeMode, "system");
+  assert.equal(normalizeSettingsRecord({ theme_mode: "midnight" }).themeMode, "light");
+});
+
+await runTest("normalizeSettingsRecord accepts color schemes and falls back to default", () => {
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "default" }).colorSchemeLight, "default");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "ayu" }).colorSchemeLight, "ayu");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "catppuccin" }).colorSchemeLight, "catppuccin");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "dracula" }).colorSchemeLight, "dracula");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "everforest" }).colorSchemeLight, "everforest");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "flexoki" }).colorSchemeLight, "flexoki");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "nord" }).colorSchemeLight, "nord");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "github" }).colorSchemeLight, "github");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "gruvbox" }).colorSchemeDark, "gruvbox");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "kanagawa" }).colorSchemeDark, "kanagawa");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "material" }).colorSchemeDark, "material");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "one" }).colorSchemeDark, "one");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "rose-pine" }).colorSchemeDark, "rose-pine");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "solarized" }).colorSchemeDark, "solarized");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "tokyo-night" }).colorSchemeDark, "tokyo-night");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "vitesse" }).colorSchemeDark, "vitesse");
+  assert.equal(normalizeSettingsRecord({ color_scheme_dark: "NORD" }).colorSchemeDark, "nord");
+  assert.equal(normalizeSettingsRecord({ color_scheme_light: "marketplace" }).colorSchemeLight, "default");
+  assert.deepEqual(
+    {
+      light: normalizeSettingsRecord({ color_scheme: "github" }).colorSchemeLight,
+      dark: normalizeSettingsRecord({ color_scheme: "github" }).colorSchemeDark,
+    },
+    { light: "github", dark: "github" },
+  );
 });
 
 await runTest("runSettingsCleanupFlow executes confirmed cleanup and reloads", async () => {

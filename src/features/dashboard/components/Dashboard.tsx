@@ -221,7 +221,7 @@ export default function Dashboard({
                   />
                   <YAxis hide domain={[0, 60]} allowDataOverflow />
                   <QuietChartTooltip
-                    cursor={{ fill: "rgba(101, 114, 135, 0.12)" }}
+                    cursor={{ fill: "var(--qp-chart-cursor)" }}
                     formatter={(v) => [`${Math.round(Number(v))}m`, UI_TEXT.dashboard.activeMinutes]}
                   />
                   <Bar dataKey="minutes" fill="var(--qp-accent-default)" radius={[3, 3, 0, 0]} barSize={8} />
