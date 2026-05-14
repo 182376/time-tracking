@@ -199,8 +199,20 @@ function readDevToolsPort(userDataDir: string) {
     return null;
   }
 
-  const [port] = readFileSync(filePath, "utf8").split(/\r?\n/);
-  return port ? Number(port) : null;
+  try {
+    const [port] = readFileSync(filePath, "utf8").split(/\r?\n/);
+    const parsedPort = Number(port);
+    return Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : null;
+  } catch (error) {
+    const errorCode =
+      typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+
+    if (errorCode === "EBUSY" || errorCode === "EPERM" || errorCode === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 async function launchBrowser() {
