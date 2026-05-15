@@ -121,6 +121,8 @@ function buildPreview(overrides: Partial<BackupPreview> = {}): BackupPreview {
     schemaVersion: 7,
     appVersion: "0.3.2",
     compatibilityLevel: "compatible",
+    compatibilityMessageKey: null,
+    compatibilityMessageArgs: [],
     compatibilityMessage: "Looks good",
     sessionCount: 42,
     settingCount: 10,

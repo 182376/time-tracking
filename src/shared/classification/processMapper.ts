@@ -119,8 +119,8 @@ function normalizeUserAssignableCategory(category: string | undefined): UserAssi
   }
 
   // Transitional compatibility for category values written before the lean
-  // assignable category set. The next simplification release can remove this
-  // once existing installs have loaded and rewritten their overrides.
+  // assignable category set. Keep this in the 0.6.6 merge transition release
+  // so 0.6.4 installs can upgrade directly and rewrite their overrides.
   if (normalized === "meeting") {
     return "office";
   }

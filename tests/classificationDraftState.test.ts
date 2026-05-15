@@ -9,9 +9,9 @@ import {
   createAppMappingDraftState,
   filterAndSortCandidates,
 } from "../src/features/classification/hooks/appMappingStateHelpers.ts";
-import type { ObservedAppCandidate } from "../src/features/classification/services/classificationStore.ts";
 import {
   buildAppOverrideTransition,
+  type ObservedAppCandidate,
 } from "../src/features/classification/services/classificationStore.ts";
 import {
   type ClassificationCommitDeps,
