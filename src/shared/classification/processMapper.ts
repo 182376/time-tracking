@@ -261,10 +261,9 @@ export class ProcessMapper {
     return this.userOverrides[canonicalExe] ?? null;
   }
 
-  static map(exeName: string, hints: MappingHints = {}): AppInfo {
+  private static mapWithOverride(exeName: string, hints: MappingHints, override: AppOverride | null | undefined): AppInfo {
     const canonicalExe = resolveCanonicalExecutable(exeName);
     const defaultMapping = DEFAULT_APP_MAPPINGS[canonicalExe];
-    const override = this.userOverrides[canonicalExe];
     const hasOverride = Boolean(
       override?.category
       || override?.displayName
@@ -303,6 +302,15 @@ export class ProcessMapper {
           : "low",
       source: hasOverride ? "override" : categoryByRule ? "heuristic" : "fallback",
     };
+  }
+
+  static map(exeName: string, hints: MappingHints = {}): AppInfo {
+    const canonicalExe = resolveCanonicalExecutable(exeName);
+    return this.mapWithOverride(exeName, hints, this.userOverrides[canonicalExe]);
+  }
+
+  static mapDefault(exeName: string, hints: MappingHints = {}): AppInfo {
+    return this.mapWithOverride(exeName, hints, null);
   }
 
   static shouldTrack(exeName: string): boolean {

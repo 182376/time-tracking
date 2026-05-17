@@ -1,4 +1,4 @@
-import { RefreshCw, Save, Sparkles, SlidersHorizontal } from "lucide-react";
+import { RefreshCw, Save, Search, Sparkles, SlidersHorizontal } from "lucide-react";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import QuietDialog from "../../../shared/components/QuietDialog";
 import QuietPageHeader from "../../../shared/components/QuietPageHeader";
@@ -29,6 +29,8 @@ export default function AppMapping(props: Props) {
     savedState,
     filter,
     setFilter,
+    searchQuery,
+    setSearchQuery,
     counts,
     saveStatus,
     saving,
@@ -128,21 +130,32 @@ export default function AppMapping(props: Props) {
 
       <section className="qp-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <QuietSegmentedFilter
-            value={filter}
-            onChange={setFilter}
-            options={filterOptions.map((item) => {
-              const count = item.value === "all"
-                ? counts.all
-                : item.value === "other"
-                  ? counts.other
-                  : counts.classified;
-              return {
-                value: item.value,
-                label: `${item.label} (${count})`,
-              };
-            })}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <QuietSegmentedFilter
+              value={filter}
+              onChange={setFilter}
+              options={filterOptions.map((item) => {
+                const count = item.value === "all"
+                  ? counts.all
+                  : item.value === "other"
+                    ? counts.other
+                    : counts.classified;
+                return {
+                  value: item.value,
+                  label: `${item.label} (${count})`,
+                };
+              })}
+            />
+            <label className="data-app-search w-[220px]">
+              <Search size={14} aria-hidden />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={UI_TEXT.mapping.searchPlaceholder}
+                aria-label={UI_TEXT.mapping.searchPlaceholder}
+              />
+            </label>
+          </div>
           <button
             type="button"
             onClick={() => setShowCategoryDialog(true)}

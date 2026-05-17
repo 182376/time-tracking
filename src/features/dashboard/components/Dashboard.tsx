@@ -1,6 +1,6 @@
 ﻿import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { Monitor, BarChart3, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Monitor, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 import { useIconThemeColors } from "../../../shared/hooks/useIconThemeColors";
@@ -45,10 +45,6 @@ function buildFocusCategoryDist(categoryDist: DashboardReadModel["categoryDist"]
 export default function Dashboard({
   dashboard,
   icons,
-  isAfk,
-  isTrackingActive,
-  activeAppName,
-  trackingPaused,
 }: Props) {
   const iconThemeColors = useIconThemeColors(icons);
   const {
@@ -72,18 +68,6 @@ export default function Dashboard({
     : dayDeltaDirection === "decrease"
       ? TrendingDown
       : Minus;
-  const runtimeStateLabel = trackingPaused
-    ? UI_TEXT.dashboard.paused
-    : isAfk
-      ? UI_TEXT.dashboard.afk
-      : isTrackingActive
-        ? UI_TEXT.dashboard.active
-        : UI_TEXT.dashboard.idle;
-  const runtimeStateToneClass = trackingPaused || isAfk
-    ? "bg-[var(--qp-warning)]"
-    : isTrackingActive
-      ? "bg-[var(--qp-success)]"
-      : "bg-[var(--qp-border-strong)]";
   const focusCardRef = useRef<HTMLDivElement | null>(null);
   const [focusCategoryLimit, setFocusCategoryLimit] = useState(FOCUS_CATEGORY_LIMIT);
   const visibleCategoryDist = buildFocusCategoryDist(categoryDist, focusCategoryLimit);
@@ -111,35 +95,10 @@ export default function Dashboard({
       <QuietPageHeader
         icon={<Monitor size={18} />}
         title={UI_TEXT.dashboard.title}
-        subtitle={(
-          <span className="flex items-center gap-1.5 truncate">
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                trackingPaused
-                  ? "bg-[var(--qp-warning)]"
-                  : activeAppName
-                    ? "bg-[var(--qp-success)]"
-                    : "bg-[var(--qp-border-strong)]"
-              }`}
-            />
-            {trackingPaused
-              ? UI_TEXT.dashboard.trackingPaused
-              : activeAppName
-                ? UI_TEXT.dashboard.tracking(activeAppName)
-                : UI_TEXT.dashboard.idle}
-          </span>
-        )}
-        rightSlot={(
-          <div className="qp-status px-3 py-1.5 flex items-center gap-2 shrink-0">
-            <span className={`w-2 h-2 rounded-full ${runtimeStateToneClass}`} />
-            <span className="text-[11px] font-semibold text-[var(--qp-text-secondary)]">
-              {runtimeStateLabel}
-            </span>
-          </div>
-        )}
+        subtitle={UI_TEXT.dashboard.subtitle}
       />
 
-      <div className="flex gap-4 md:gap-5 flex-1 min-h-0 overflow-hidden pr-1 dashboard-workspace">
+      <div className="flex gap-4 md:gap-5 flex-1 min-h-0 overflow-hidden dashboard-workspace">
         <div className="w-5/12 flex flex-col gap-4 md:gap-5 min-h-0 dashboard-left-column">
           <div
             ref={focusCardRef}
@@ -203,8 +162,7 @@ export default function Dashboard({
           </div>
 
           <div className="qp-panel p-5 flex min-h-0 flex-col overflow-hidden dashboard-pulse-card">
-            <h3 className="text-[var(--qp-text-primary)] font-semibold text-sm mb-4 flex items-center gap-2">
-              <BarChart3 size={14} className="text-[var(--qp-accent-default)] flex-shrink-0" />
+            <h3 className="text-[var(--qp-text-primary)] font-semibold text-sm mb-4">
               {UI_TEXT.dashboard.hourlyActivity}
             </h3>
             <div className="flex-1 min-h-[170px] dashboard-pulse-chart">

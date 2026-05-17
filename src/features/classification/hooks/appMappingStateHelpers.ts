@@ -28,6 +28,7 @@ type AppMappingOverrideParams = {
 type FilterAndSortCandidatesParams = {
   candidates: ObservedAppCandidate[];
   filter: CandidateFilter;
+  searchQuery?: string;
   resolveMappedCategory: (candidate: ObservedAppCandidate) => UserAssignableAppCategory;
   resolveEffectiveDisplayName: (candidate: ObservedAppCandidate) => string;
 };
@@ -90,10 +91,12 @@ export function createAppMappingDraftState(
 export function filterAndSortCandidates({
   candidates,
   filter,
+  searchQuery,
   resolveMappedCategory,
   resolveEffectiveDisplayName,
 }: FilterAndSortCandidatesParams): ObservedAppCandidate[] {
   const collator = createAppMappingCollator();
+  const normalizedQuery = searchQuery?.trim().toLocaleLowerCase(getUiLocale()) ?? "";
 
   return candidates
     .filter((candidate) => {
@@ -101,6 +104,15 @@ export function filterAndSortCandidates({
       if (filter === "all") return true;
       if (filter === "other") return category === "other";
       return category !== "other";
+    })
+    .filter((candidate) => {
+      if (!normalizedQuery) return true;
+      const haystack = [
+        resolveEffectiveDisplayName(candidate),
+        candidate.appName,
+        candidate.exeName,
+      ].join(" ").toLocaleLowerCase(getUiLocale());
+      return haystack.includes(normalizedQuery);
     })
     .sort((left, right) => {
       const labelCompare = collator.compare(

@@ -238,6 +238,16 @@ export default function Data({
     if (!rawAppSnapshot || rawAppSnapshotRange !== selectedAppTrendRange) return null;
     return buildDataAppTrendViewModel(rawAppSnapshot.weeklySessions, selectedAppTrendRange, nowMs, selectedAppKey);
   }, [mappingVersion, nowMs, rawAppSnapshot, rawAppSnapshotRange, selectedAppKey, selectedAppTrendRange]);
+
+  useEffect(() => {
+    if (selectedAppKey !== null) return;
+
+    const defaultAppKey = appTrendViewModel?.selectedApp?.appKey;
+    if (defaultAppKey) {
+      setSelectedAppKey(defaultAppKey);
+    }
+  }, [appTrendViewModel?.selectedApp?.appKey, selectedAppKey]);
+
   const filteredAppOptions = useMemo(() => {
     if (!appTrendViewModel) return [];
     const query = appSearchQuery.trim().toLowerCase();

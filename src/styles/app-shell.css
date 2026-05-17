@@ -65,6 +65,10 @@
   opacity: 0.4;
 }
 
+.qp-icon-action-dimmed {
+  color: var(--qp-text-disabled);
+}
+
 .qp-icon-action-neutral:hover:not(:disabled) {
   background: var(--qp-bg-panel);
   color: var(--qp-text-secondary);
@@ -103,33 +107,6 @@
 .qp-badge-subtle {
   background: var(--qp-badge-subtle);
   color: var(--qp-text-secondary);
-}
-
-.qp-reset-action {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  padding: 2px 6px;
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 500;
-  color: var(--qp-text-tertiary);
-}
-
-.qp-reset-action:hover:not(:disabled) {
-  color: var(--qp-text-secondary);
-  background: var(--qp-bg-panel);
-}
-
-.qp-reset-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.qp-reset-action-dimmed {
-  color: var(--qp-text-disabled);
 }
 
 .qp-danger-action {
@@ -249,6 +226,20 @@
   color: var(--qp-text-primary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: 0;
+}
+
+.recharts-wrapper :where(g, path, rect, circle, ellipse, line, polyline, polygon):focus {
+  outline: 0;
+}
+
+.recharts-surface:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--qp-accent-default) 36%, transparent);
+  outline-offset: 2px;
 }
 
 .qp-toast {

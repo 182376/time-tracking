@@ -12,6 +12,10 @@ export class AppClassification {
     return ProcessMapper.map(exeName, hints);
   }
 
+  static mapDefaultApp(exeName: string, hints: MappingHints = {}): AppInfo {
+    return ProcessMapper.mapDefault(exeName, hints);
+  }
+
   static getCategoryLabel(category: AppCategory): string {
     return ProcessMapper.getCategoryLabel(category);
   }

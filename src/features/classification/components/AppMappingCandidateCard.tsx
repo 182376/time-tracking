@@ -7,7 +7,6 @@ import QuietColorField from "../../../shared/components/QuietColorField";
 import QuietInlineAction from "../../../shared/components/QuietInlineAction";
 import QuietIconAction from "../../../shared/components/QuietIconAction";
 import QuietBadge from "../../../shared/components/QuietBadge";
-import QuietResetAction from "../../../shared/components/QuietResetAction";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
 
 interface AppMappingCandidateCardProps {
@@ -120,14 +119,14 @@ export default function AppMappingCandidateCard({
               <QuietBadge>
                 {candidate.exeName}
               </QuietBadge>
-              {!trackingEnabled && (
-                <QuietBadge tone="warning">
-                  {UI_TEXT.mapping.noStats}
-                </QuietBadge>
-              )}
               {!titleCaptureEnabled && (
                 <QuietBadge tone="subtle">
                   {UI_TEXT.mapping.titleNotRecorded}
+                </QuietBadge>
+              )}
+              {!trackingEnabled && (
+                <QuietBadge tone="warning">
+                  {UI_TEXT.mapping.noStats}
                 </QuietBadge>
               )}
             </div>
@@ -146,14 +145,13 @@ export default function AppMappingCandidateCard({
                 title={UI_TEXT.mapping.color}
               />
 
-              <QuietResetAction
+              <QuietIconAction
+                icon={<RotateCcw size={13} />}
                 disabled={isBusy}
-                dimmed={!hasManualColor}
+                className={!hasManualColor ? "qp-icon-action-dimmed" : undefined}
                 onClick={() => onColorAssign(null)}
                 title={UI_TEXT.mapping.restoreDefaultColor}
-              >
-                {UI_TEXT.common.default}
-              </QuietResetAction>
+              />
             </div>
             <QuietSelect
               value={assignedCategory}

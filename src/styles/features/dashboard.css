@@ -1,3 +1,9 @@
+.dashboard-workspace {
+  width: 100%;
+  max-width: 1820px;
+  align-self: center;
+}
+
 .dashboard-left-column {
   height: 100%;
   min-height: 0;

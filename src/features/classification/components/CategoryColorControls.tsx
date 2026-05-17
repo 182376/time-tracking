@@ -1,8 +1,7 @@
-import { Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 import type { AppCategory } from "../../../shared/classification/categoryTokens";
 import QuietColorField from "../../../shared/components/QuietColorField";
 import QuietIconAction from "../../../shared/components/QuietIconAction";
-import QuietResetAction from "../../../shared/components/QuietResetAction";
 import type { ColorDisplayFormat } from "../../../shared/lib/colorFormatting";
 import { AppClassification } from "../../../shared/classification/appClassification.ts";
 import { UI_TEXT } from "../../../shared/copy/uiText.ts";
@@ -57,12 +56,11 @@ export default function CategoryColorControls({
                   title={UI_TEXT.mapping.color}
                 />
 
-                <QuietResetAction
+                <QuietIconAction
+                  icon={<RotateCcw size={13} />}
                   onClick={() => onApplyColor(category, null)}
                   title={UI_TEXT.mapping.restoreDefaultColor}
-                >
-                  {UI_TEXT.common.default}
-                </QuietResetAction>
+                />
 
                 <QuietIconAction
                   icon={<Trash2 size={12} />}

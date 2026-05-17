@@ -121,9 +121,10 @@ const ZH_CN_UI_TEXT = {
   },
   dashboard: {
     title: "今天",
+    subtitle: "查看今天的使用概览",
     tracking: (activeAppName: string) => `正在追踪：${activeAppName}`,
     trackingPaused: "追踪已暂停",
-    idle: "暂无活动",
+    idle: "空闲",
     afk: "无操作",
     active: "当前活跃",
     paused: "已暂停",
@@ -327,8 +328,9 @@ const ZH_CN_UI_TEXT = {
     categoryControl: "管理分类",
     loading: "加载中...",
     emptyState: "当前筛选下暂无应用",
+    searchPlaceholder: "搜索应用",
     createCategoryTitle: "新建自定义分类",
-    createCategoryDescription: "请输入自定义分类名称（最多 4 个字）。",
+    createCategoryDescription: "请输入自定义分类名称（最多 2 个字）。",
     createCategoryPlaceholder: "例如：学习",
     deleteCategoryTitle: "删除分类",
     deleteCategoryDetail: (label: string) => `目标分类：${label}`,
@@ -450,7 +452,7 @@ const ZH_CN_UI_TEXT = {
     design: "设计创作",
     utility: "工具效率",
     system: "系统工具",
-    other: "其他应用",
+    other: "其他",
   },
 };
 
@@ -596,9 +598,10 @@ const EN_US_UI_TEXT: UiText = {
   },
   dashboard: {
     title: "Today",
+    subtitle: "Review today's usage overview",
     tracking: (activeAppName: string) => `Tracking: ${activeAppName}`,
     trackingPaused: "Tracking paused",
-    idle: "No activity",
+    idle: "Idle",
     afk: "Idle",
     active: "Active now",
     paused: "Paused",
@@ -804,8 +807,9 @@ const EN_US_UI_TEXT: UiText = {
     categoryControl: "Manage categories",
     loading: "Loading...",
     emptyState: "No apps match the current filter",
+    searchPlaceholder: "Search apps",
     createCategoryTitle: "New custom category",
-    createCategoryDescription: "Enter a custom category name, up to 4 characters.",
+    createCategoryDescription: "Enter one short category word.",
     createCategoryPlaceholder: "Example: Study",
     deleteCategoryTitle: "Delete category",
     deleteCategoryDetail: (label: string) => `Target category: ${label}`,
@@ -927,7 +931,7 @@ const EN_US_UI_TEXT: UiText = {
     design: "Design",
     utility: "Utilities",
     system: "System",
-    other: "Other apps",
+    other: "Other",
   },
 };
 

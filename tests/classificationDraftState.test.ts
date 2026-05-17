@@ -119,6 +119,25 @@ await runTest("first install assignable categories match the lean default set", 
   );
 });
 
+await runTest("default app mapping ignores saved runtime overrides", () => {
+  ProcessMapper.clearUserOverrides();
+  ProcessMapper.setUserOverride("chrome.exe", {
+    enabled: true,
+    displayName: "Work Browser",
+    category: "other",
+  });
+
+  const mapped = ProcessMapper.map("chrome.exe");
+  const defaults = ProcessMapper.mapDefault("chrome.exe");
+
+  assert.equal(mapped.name, "Work Browser");
+  assert.equal(mapped.category, "other");
+  assert.equal(defaults.name, "Google Chrome");
+  assert.equal(defaults.category, "browser");
+
+  ProcessMapper.clearUserOverrides();
+});
+
 await runTest("unsupported historical classification overrides are ignored", () => {
   const transition = buildAppOverrideTransition(
     "__app_override::Zoom.exe",
@@ -319,6 +338,32 @@ await runTest("filterAndSortCandidates filters by category and sorts by resolved
     filtered.map((candidate) => candidate.exeName),
     ["notes.exe", "alpha.exe", "zeta.exe"],
   );
+});
+
+await runTest("filterAndSortCandidates searches display names and executable names", () => {
+  const candidates = [
+    buildCandidate("alpha.exe", "Alpha"),
+    buildCandidate("chrome.exe", "Google Chrome"),
+    buildCandidate("notes.exe", "Notes"),
+  ];
+
+  const byDisplayName = filterAndSortCandidates({
+    candidates,
+    filter: "all",
+    searchQuery: "goo",
+    resolveMappedCategory: () => "development",
+    resolveEffectiveDisplayName: (candidate) => candidate.appName,
+  });
+  const byExecutable = filterAndSortCandidates({
+    candidates,
+    filter: "all",
+    searchQuery: "note",
+    resolveMappedCategory: () => "development",
+    resolveEffectiveDisplayName: (candidate) => candidate.appName,
+  });
+
+  assert.deepEqual(byDisplayName.map((candidate) => candidate.exeName), ["chrome.exe"]);
+  assert.deepEqual(byExecutable.map((candidate) => candidate.exeName), ["notes.exe"]);
 });
 
 await runTest("commitDraftChangesWithDeps persists before syncing process mapper state", async () => {
